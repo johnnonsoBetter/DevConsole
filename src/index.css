@@ -1,0 +1,1456 @@
+@import url("https://fonts.googleapis.com/css2?family=Corben:wght@400;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /*
+      ===== LINKVYBE PREMIUM DESIGN SYSTEM V2 =====
+      Apple-inspired color palette refined for premium consistency
+      Optimized HSL values for better harmony and accessibility
+    */
+
+    /* === Core Background & Surface === */
+    --background: 0 0% 100%; /* Pure white for premium feel */
+    --foreground: 240 10% 3.9%; /* Near-black for maximum readability */
+    --card: 0 0% 100%; /* Pure white cards */
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+
+    /* === Brand Primary (LinkVybe Signature Purple) === */
+    --primary: 262 83% 58%; /* Refined purple - perfectly balanced */
+    --primary-foreground: 0 0% 98%;
+
+    /* === Brand Secondary (Premium Indigo) === */
+    --secondary: 221 83% 53%; /* Rich indigo for sophistication */
+    --secondary-foreground: 0 0% 98%;
+
+    /* === Neutral System (Apple-inspired grays) === */
+    --muted: 210 40% 98%; /* Ultra-subtle background */
+    --muted-foreground: 215.4 16.3% 46.9%; /* Perfectly readable muted text */
+
+    /* === Interactive Elements === */
+    --accent: 210 40% 98%; /* Subtle accent background */
+    --accent-foreground: 222.2 84% 4.9%; /* High contrast text */
+
+    /* === Semantic Colors (Refined for clarity) === */
+    --success: 142 76% 36%; /* Apple-style green */
+    --success-foreground: 355.7 100% 97.3%;
+    --warning: 32 95% 44%; /* Refined amber for better visibility */
+    --warning-foreground: 48 96% 89%;
+    --destructive: 0 84% 60%; /* Clear, accessible red */
+    --destructive-foreground: 0 0% 98%;
+    --info: 199 89% 48%; /* Clear informational blue */
+    --info-foreground: 0 0% 98%;
+
+    /* === Borders & Inputs === */
+    --border: 214.3 31.8% 91.4%; /* Subtle, refined border */
+    --input: 214.3 31.8% 91.4%; /* Matching input background */
+    --ring: 262 83% 58%; /* Focus ring matches primary */
+    --radius: 0.5rem; /* Apple-standard radius */
+
+    /* === Chart & Data Visualization === */
+    --chart-1: 262 83% 58%; /* Primary purple */
+    --chart-2: 221 83% 53%; /* Secondary indigo */
+    --chart-3: 142 76% 36%; /* Success green */
+    --chart-4: 32 95% 44%; /* Warning amber */
+    --chart-5: 270 95% 60%; /* Accent violet */
+
+    /* === Premium Gradients (Apple-inspired) === */
+    --gradient-primary: linear-gradient(
+      180deg,
+      hsl(262, 83%, 58%) 0%,
+      hsl(270, 90%, 65%) 100%
+    );
+    --gradient-secondary: linear-gradient(
+      180deg,
+      hsl(221, 83%, 53%) 0%,
+      hsl(230, 80%, 60%) 100%
+    );
+    --gradient-brand: linear-gradient(
+      135deg,
+      hsl(262, 83%, 58%) 0%,
+      hsl(221, 83%, 53%) 100%
+    );
+    --gradient-success: linear-gradient(
+      180deg,
+      hsl(142, 76%, 36%) 0%,
+      hsl(160, 70%, 45%) 100%
+    );
+    --gradient-warm: linear-gradient(
+      180deg,
+      hsl(32, 95%, 44%) 0%,
+      hsl(20, 90%, 55%) 100%
+    );
+    --gradient-danger: linear-gradient(
+      180deg,
+      hsl(0, 84%, 60%) 0%,
+      hsl(10, 90%, 65%) 100%
+    );
+  }
+
+  .dark {
+    /*
+      ===== DARK MODE THEME =====
+      Professional dark theme with premium Apple-like feel
+      Maintains brand colors while being easy on the eyes
+    */
+
+    /* === Core Background & Surface === */
+    --background: 222.2 84% 4.9%; /* Deep, professional background */
+    --foreground: 210 40% 98%; /* High contrast, readable text */
+    --card: 222.2 84% 4.9%; /* Elevated surface color */
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    /* === Brand Primary (Adjusted for dark) === */
+    --primary: 262 80% 65%; /* Lighter purple for dark mode */
+    --primary-foreground: 210 20% 98%;
+
+    /* === Brand Secondary === */
+    --secondary: 215 25% 27%; /* Subtle gray for dark mode */
+    --secondary-foreground: 210 40% 98%;
+
+    /* === Neutral System === */
+    --muted: 215 27.9% 16.9%; /* Subtle dark surfaces */
+    --muted-foreground: 215 20.2% 65.1%; /* Muted text on dark */
+
+    /* === Interactive Elements === */
+    --accent: 215 27.9% 16.9%;
+    --accent-foreground: 210 40% 98%;
+
+    /* === Semantic Colors (Dark Mode) === */
+    --success: 150 100% 30%; /* Vibrant green for dark */
+    --success-foreground: 355.7 100% 97.3%;
+    --warning: 47 96% 53%; /* Bright amber for dark */
+    --warning-foreground: 26 83% 14%;
+    --destructive: 0 91% 71%; /* Lighter red for dark */
+    --destructive-foreground: 210 20% 98%;
+    --info: 213 94% 68%; /* Bright blue for dark */
+    --info-foreground: 216 87% 4%;
+
+    /* === Borders & Inputs === */
+    --border: 215 27.9% 16.9%; /* Subtle dark borders */
+    --input: 215 27.9% 16.9%;
+    --ring: 262 80% 65%;
+    --radius: 0.5rem;
+
+    /* === Chart & Data Visualization (Dark) === */
+    --chart-1: 262 80% 65%; /* Adjusted primary */
+    --chart-2: 221 83% 53%; /* Adjusted secondary */
+    --chart-3: 150 100% 30%; /* Adjusted success */
+    --chart-4: 47 96% 53%; /* Adjusted warning */
+    --chart-5: 270 95% 60%; /* Adjusted accent */
+
+    /* === Premium Gradients (Dark Mode) === */
+    --gradient-primary: linear-gradient(
+      180deg,
+      hsl(262, 80%, 65%) 0%,
+      hsl(270, 85%, 70%) 100%
+    );
+    --gradient-secondary: linear-gradient(
+      180deg,
+      hsl(221, 83%, 53%) 0%,
+      hsl(230, 80%, 60%) 100%
+    );
+    --gradient-brand: linear-gradient(
+      135deg,
+      hsl(262, 80%, 65%) 0%,
+      hsl(221, 83%, 53%) 100%
+    );
+    --gradient-success: linear-gradient(
+      180deg,
+      hsl(150, 100%, 30%) 0%,
+      hsl(160, 70%, 35%) 100%
+    );
+    --gradient-warm: linear-gradient(
+      180deg,
+      hsl(47, 96%, 53%) 0%,
+      hsl(25, 95%, 55%) 100%
+    );
+    --gradient-danger: linear-gradient(
+      180deg,
+      hsl(0, 91%, 71%) 0%,
+      hsl(10, 90%, 75%) 100%
+    );
+  }
+}
+
+/* ===== PREMIUM UTILITY CLASSES ===== */
+@layer components {
+  /* === Semantic Background Colors === */
+  .bg-success {
+    background-color: hsl(var(--success));
+    color: hsl(var(--success-foreground));
+  }
+
+  .bg-warning {
+    background-color: hsl(var(--warning));
+    color: hsl(var(--warning-foreground));
+  }
+
+  .bg-info {
+    background-color: hsl(var(--info));
+    color: hsl(var(--info-foreground));
+  }
+
+  /* === Premium Gradient Backgrounds === */
+  .bg-gradient-primary {
+    background: var(--gradient-primary);
+    color: hsl(var(--primary-foreground));
+  }
+
+  .bg-gradient-secondary {
+    background: var(--gradient-secondary);
+    color: hsl(var(--secondary-foreground));
+  }
+
+  .bg-gradient-brand {
+    background: var(--gradient-brand);
+    color: white;
+  }
+
+  .bg-gradient-success {
+    background: var(--gradient-success);
+    color: hsl(var(--success-foreground));
+  }
+
+  .bg-gradient-warm {
+    background: var(--gradient-warm);
+    color: hsl(var(--warning-foreground));
+  }
+
+  /* === Text Colors === */
+  .text-success {
+    color: hsl(var(--success));
+  }
+
+  .text-warning {
+    color: hsl(var(--warning));
+  }
+
+  .text-info {
+    color: hsl(var(--info));
+  }
+
+  /* === Border Colors === */
+  .border-success {
+    border-color: hsl(var(--success));
+  }
+
+  .border-warning {
+    border-color: hsl(var(--warning));
+  }
+
+  .border-info {
+    border-color: hsl(var(--info));
+  }
+
+  .glass-card {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .glass-card-dark {
+    background: rgba(15, 15, 15, 0.6);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.4),
+      0 4px 16px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+
+  /* === Apple-Style Elevated Cards === */
+  .elevated-card {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    box-shadow:
+      0 1px 3px rgba(0, 0, 0, 0.05),
+      0 1px 2px rgba(0, 0, 0, 0.1);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .elevated-card:hover {
+    box-shadow:
+      0 4px 12px rgba(0, 0, 0, 0.08),
+      0 2px 6px rgba(0, 0, 0, 0.12);
+    transform: translateY(-1px);
+  }
+
+  .dark .elevated-card {
+    box-shadow:
+      0 1px 3px rgba(0, 0, 0, 0.3),
+      0 1px 2px rgba(0, 0, 0, 0.4);
+  }
+
+  .dark .elevated-card:hover {
+    box-shadow:
+      0 4px 12px rgba(0, 0, 0, 0.5),
+      0 2px 6px rgba(0, 0, 0, 0.6);
+  }
+
+  /* === Premium Button Styles === */
+  .btn-primary {
+    background: var(--gradient-primary);
+    color: hsl(var(--primary-foreground));
+    border: none;
+    box-shadow: 0 4px 14px rgba(124, 58, 237, 0.25);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 25px rgba(124, 58, 237, 0.35);
+  }
+
+  .btn-secondary {
+    background: var(--gradient-secondary);
+    color: hsl(var(--secondary-foreground));
+    border: none;
+    box-shadow: 0 4px 14px rgba(59, 130, 246, 0.25);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .btn-secondary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 25px rgba(59, 130, 246, 0.35);
+  }
+
+  /* === ULTRA-REFINED SHADOW SYSTEM === */
+  /* Apple-inspired ultra-subtle shadows for premium depth and layering */
+  /* Designed for modern displays with perfect subtlety and sophistication */
+
+  /* Base elevation system - progressively subtle */
+  .shadow-depth-1 {
+    /* Barely perceptible - for resting elements */
+    box-shadow:
+      0 0.5px 1px rgba(0, 0, 0, 0.025),
+      0 0.5px 0.5px rgba(0, 0, 0, 0.035);
+  }
+
+  .shadow-depth-2 {
+    /* Gentle lift - for cards and panels */
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.03),
+      0 1px 1px rgba(0, 0, 0, 0.04),
+      0 0.5px 0.5px rgba(0, 0, 0, 0.02);
+  }
+
+  .shadow-depth-3 {
+    /* Noticeable but refined - for important content */
+    box-shadow:
+      0 2px 4px rgba(0, 0, 0, 0.035),
+      0 1px 2px rgba(0, 0, 0, 0.04),
+      0 0.5px 1px rgba(0, 0, 0, 0.025);
+  }
+
+  .shadow-depth-4 {
+    /* Elevated - for focused or interactive elements */
+    box-shadow:
+      0 4px 8px rgba(0, 0, 0, 0.04),
+      0 2px 4px rgba(0, 0, 0, 0.035),
+      0 1px 2px rgba(0, 0, 0, 0.025);
+  }
+
+  .shadow-depth-5 {
+    /* Floating - for modals and overlays */
+    box-shadow:
+      0 8px 16px rgba(0, 0, 0, 0.045),
+      0 4px 8px rgba(0, 0, 0, 0.03),
+      0 2px 4px rgba(0, 0, 0, 0.025);
+  }
+
+  /* Interactive shadows with smooth transitions */
+  .shadow-interactive {
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.03),
+      0 1px 1px rgba(0, 0, 0, 0.04);
+    transition: box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .shadow-interactive:hover {
+    box-shadow:
+      0 4px 8px rgba(0, 0, 0, 0.045),
+      0 2px 4px rgba(0, 0, 0, 0.035),
+      0 1px 2px rgba(0, 0, 0, 0.025);
+  }
+
+  /* Accent shadows with ultra-subtle brand tinting */
+  .shadow-accent {
+    box-shadow:
+      0 2px 6px rgba(124, 58, 237, 0.08),
+      0 1px 3px rgba(124, 58, 237, 0.06),
+      0 1px 2px rgba(0, 0, 0, 0.035);
+  }
+
+  .shadow-accent-soft {
+    box-shadow:
+      0 1px 4px rgba(124, 58, 237, 0.05),
+      0 1px 2px rgba(124, 58, 237, 0.04),
+      0 0.5px 1px rgba(0, 0, 0, 0.025);
+  }
+
+  /* Glowing accent for primary actions */
+  .shadow-glow {
+    box-shadow:
+      0 2px 8px rgba(124, 58, 237, 0.12),
+      0 1px 4px rgba(124, 58, 237, 0.08),
+      0 1px 2px rgba(0, 0, 0, 0.04);
+  }
+
+  /* Context-aware shadows for dark mode */
+  .dark .shadow-depth-1 {
+    box-shadow:
+      0 0.5px 1px rgba(0, 0, 0, 0.4),
+      0 0.5px 0.5px rgba(0, 0, 0, 0.5);
+  }
+
+  .dark .shadow-depth-2 {
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.5),
+      0 1px 1px rgba(0, 0, 0, 0.6),
+      0 0.5px 0.5px rgba(0, 0, 0, 0.4);
+  }
+
+  .dark .shadow-depth-3 {
+    box-shadow:
+      0 2px 4px rgba(0, 0, 0, 0.6),
+      0 1px 2px rgba(0, 0, 0, 0.7),
+      0 0.5px 1px rgba(0, 0, 0, 0.5);
+  }
+
+  .dark .shadow-depth-4 {
+    box-shadow:
+      0 4px 8px rgba(0, 0, 0, 0.7),
+      0 2px 4px rgba(0, 0, 0, 0.6),
+      0 1px 2px rgba(0, 0, 0, 0.5);
+  }
+
+  .dark .shadow-depth-5 {
+    box-shadow:
+      0 8px 16px rgba(0, 0, 0, 0.8),
+      0 4px 8px rgba(0, 0, 0, 0.7),
+      0 2px 4px rgba(0, 0, 0, 0.6);
+  }
+
+  .dark .shadow-interactive {
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.5),
+      0 1px 1px rgba(0, 0, 0, 0.6);
+  }
+
+  .dark .shadow-interactive:hover {
+    box-shadow:
+      0 4px 8px rgba(0, 0, 0, 0.8),
+      0 2px 4px rgba(0, 0, 0, 0.7),
+      0 1px 2px rgba(0, 0, 0, 0.6);
+  }
+
+  .dark .shadow-accent {
+    box-shadow:
+      0 2px 6px rgba(147, 97, 255, 0.25),
+      0 1px 3px rgba(147, 97, 255, 0.2),
+      0 1px 2px rgba(0, 0, 0, 0.7);
+  }
+
+  .dark .shadow-glow {
+    box-shadow:
+      0 2px 8px rgba(147, 97, 255, 0.3),
+      0 1px 4px rgba(147, 97, 255, 0.25),
+      0 1px 2px rgba(0, 0, 0, 0.8);
+  }
+
+  /* Dark mode shadow adjustments */
+  .dark .shadow-depth-1 {
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.2),
+      0 1px 1px rgba(0, 0, 0, 0.3);
+  }
+
+  .dark .shadow-depth-2 {
+    box-shadow:
+      0 1px 3px rgba(0, 0, 0, 0.3),
+      0 1px 2px rgba(0, 0, 0, 0.4);
+  }
+
+  .dark .shadow-depth-3 {
+    box-shadow:
+      0 4px 6px rgba(0, 0, 0, 0.4),
+      0 2px 4px rgba(0, 0, 0, 0.3),
+      0 1px 2px rgba(0, 0, 0, 0.2);
+  }
+
+  .dark .shadow-depth-4 {
+    box-shadow:
+      0 8px 16px rgba(0, 0, 0, 0.5),
+      0 4px 8px rgba(0, 0, 0, 0.3),
+      0 2px 4px rgba(0, 0, 0, 0.2);
+  }
+
+  .dark .shadow-depth-5 {
+    box-shadow:
+      0 16px 32px rgba(0, 0, 0, 0.6),
+      0 8px 16px rgba(0, 0, 0, 0.4),
+      0 4px 8px rgba(0, 0, 0, 0.2);
+  }
+
+  .dark .shadow-interactive {
+    box-shadow:
+      0 1px 3px rgba(0, 0, 0, 0.3),
+      0 1px 2px rgba(0, 0, 0, 0.4);
+  }
+
+  .dark .shadow-interactive:hover {
+    box-shadow:
+      0 8px 16px rgba(0, 0, 0, 0.5),
+      0 4px 8px rgba(0, 0, 0, 0.4),
+      0 2px 4px rgba(0, 0, 0, 0.3);
+  }
+
+  /* Theme variant specific shadows */
+  .theme-glass .shadow-depth-3,
+  .theme-glass .shadow-depth-4 {
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.06),
+      0 4px 16px rgba(0, 0, 0, 0.04),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+
+  .theme-elevated .shadow-depth-3 {
+    box-shadow:
+      0 12px 24px rgba(0, 0, 0, 0.1),
+      0 6px 12px rgba(0, 0, 0, 0.08),
+      0 3px 6px rgba(0, 0, 0, 0.06);
+  }
+
+  .theme-elevated .shadow-depth-4 {
+    box-shadow:
+      0 20px 40px rgba(0, 0, 0, 0.12),
+      0 10px 20px rgba(0, 0, 0, 0.08),
+      0 5px 10px rgba(0, 0, 0, 0.06);
+  }
+
+  /* Floating shadows for overlays */
+  .shadow-floating {
+    box-shadow:
+      0 24px 48px rgba(0, 0, 0, 0.12),
+      0 12px 24px rgba(0, 0, 0, 0.08),
+      0 6px 12px rgba(0, 0, 0, 0.04);
+  }
+
+  /* Inner shadows for inset elements */
+  .shadow-inset {
+    box-shadow:
+      inset 0 1px 2px rgba(0, 0, 0, 0.1),
+      inset 0 1px 1px rgba(0, 0, 0, 0.06);
+  }
+
+  .dark .shadow-inset {
+    box-shadow:
+      inset 0 1px 2px rgba(0, 0, 0, 0.3),
+      inset 0 1px 1px rgba(0, 0, 0, 0.2);
+  }
+
+  /* === Theme Component Utilities === */
+  .theme-accent {
+    color: hsl(var(--theme-accent));
+  }
+
+  .theme-accent-bg {
+    background-color: hsl(var(--theme-accent));
+    color: hsl(var(--theme-accent-foreground));
+  }
+
+  .theme-surface {
+    background-color: var(--theme-surface);
+    border: 1px solid var(--theme-border);
+    box-shadow: var(--theme-shadow);
+    border-radius: var(--radius);
+  }
+
+  /* === Accent Color Variants === */
+  .accent-primary {
+    --theme-accent: var(--primary);
+    --theme-accent-foreground: var(--primary-foreground);
+  }
+
+  .accent-secondary {
+    --theme-accent: var(--secondary);
+    --theme-accent-foreground: var(--secondary-foreground);
+  }
+
+  .accent-success {
+    --theme-accent: var(--success);
+    --theme-accent-foreground: var(--success-foreground);
+  }
+
+  .accent-warning {
+    --theme-accent: var(--warning);
+    --theme-accent-foreground: var(--warning-foreground);
+  }
+
+  .accent-destructive {
+    --theme-accent: var(--destructive);
+    --theme-accent-foreground: var(--destructive-foreground);
+  }
+
+  .accent-info {
+    --theme-accent: var(--info);
+    --theme-accent-foreground: var(--info-foreground);
+  }
+
+  /* === Theme Variant Styles === */
+  .theme-default {
+    /* Default theme styling */
+  }
+
+  .theme-premium {
+    /* Enhanced shadows and gradients */
+    --theme-shadow:
+      0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.12);
+  }
+
+  .theme-glass {
+    /* Glass morphism effects */
+    --theme-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.06), 0 4px 16px rgba(0, 0, 0, 0.04);
+  }
+
+  .theme-elevated {
+    /* Strong elevation effects */
+    --theme-shadow:
+      0 12px 24px rgba(0, 0, 0, 0.1), 0 6px 12px rgba(0, 0, 0, 0.08);
+  }
+
+  /* === Radius Variants === */
+  .radius-none {
+    --radius: 0;
+  }
+
+  .radius-sm {
+    --radius: 0.25rem;
+  }
+
+  .radius-md {
+    --radius: 0.5rem;
+  }
+
+  .radius-lg {
+    --radius: 0.75rem;
+  }
+
+  .radius-xl {
+    --radius: 1rem;
+  }
+
+  .radius-full {
+    --radius: 9999px;
+  }
+
+  /* === Spacing Variants === */
+  .spacing-compact {
+    --spacing-unit: 0.75;
+  }
+
+  .spacing-normal {
+    --spacing-unit: 1;
+  }
+
+  .spacing-comfortable {
+    --spacing-unit: 1.25;
+  }
+
+  /* === Dynamic Spacing Based on Theme === */
+  .spacing-compact .p-4 {
+    padding: calc(1rem * var(--spacing-unit, 1));
+  }
+  .spacing-compact .m-4 {
+    margin: calc(1rem * var(--spacing-unit, 1));
+  }
+  .spacing-compact .gap-4 {
+    gap: calc(1rem * var(--spacing-unit, 1));
+  }
+
+  /* === Theme-aware Animations === */
+  @keyframes theme-fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(calc(10px * var(--spacing-unit, 1)));
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes theme-scale-in {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  .theme-animate-in {
+    animation: theme-fade-in 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .theme-scale-in {
+    animation: theme-scale-in 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* === Interactive Theme Elements === */
+  .theme-interactive {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+  }
+
+  .theme-interactive:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--theme-shadow);
+  }
+
+  .theme-interactive:active {
+    transform: translateY(0);
+  }
+
+  /* === Theme-specific Focus Styles === */
+  .theme-focus:focus-visible {
+    outline: 2px solid hsl(var(--theme-accent));
+    outline-offset: 2px;
+    border-radius: var(--radius);
+  }
+
+  /* === Responsive Theme Modifiers === */
+  @media (prefers-reduced-motion: reduce) {
+    .theme-animate-in,
+    .theme-scale-in,
+    .theme-interactive {
+      animation: none;
+      transition: none;
+    }
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .theme-auto-dark {
+      --theme-background: var(--background);
+      --theme-foreground: var(--foreground);
+    }
+  }
+}
+
+/* View transitions specific styles */
+@keyframes slide-from-right {
+  from {
+    transform: translateX(100px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slide-from-left {
+  from {
+    transform: translateX(-100px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@layer components {
+  /* Optimize for mobile performance */
+  .page-enter {
+    opacity: 0;
+    transform: translateY(10px); /* Smaller movement for mobile */
+  }
+
+  .page-enter-active {
+    opacity: 1;
+    transform: translateY(0);
+    transition:
+      opacity 200ms ease-out,
+      transform 200ms ease-out;
+  }
+
+  .page-exit-active {
+    opacity: 0;
+    transition: opacity 150ms ease-in;
+  }
+}
+
+body,
+html {
+  font-family: "Outfit", sans-serif;
+  font-optical-sizing: auto;
+  font-weight: <weight>;
+  font-style: normal;
+
+  padding: 0;
+  margin: 0;
+}
+
+::-webkit-scrollbar {
+  display: none;
+  width: 0px;
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: transparent;
+}
+/* Hide scrollbar while maintaining scroll functionality */
+body {
+  /* Firefox */
+  scrollbar-width: none;
+  /* IE and Edge */
+  -ms-overflow-style: none;
+}
+
+/* Webkit browsers (Chrome, Safari, newer Edge) */
+body::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* === MOBILE-FIRST RESPONSIVE ENHANCEMENTS === */
+/* Touch-friendly interactions for premium mobile experience */
+
+/* Mobile-optimized touch targets */
+@media (max-width: 768px) {
+  .btn,
+  button {
+    min-height: 44px; /* iOS/Android recommended touch target */
+    min-width: 44px;
+  }
+
+  .pressable:active {
+    transform: translateY(1px) scale(0.98);
+    transition: transform 120ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Enhanced scrolling on mobile */
+  .mobile-scroll {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+
+  /* Safe area handling for mobile devices */
+  .mobile-safe-area {
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+  }
+
+  /* Mobile-specific animations - lighter and faster */
+  .mobile-animation {
+    transition-duration: 200ms !important;
+  }
+
+  /* Reduce motion for mobile performance */
+  .motion-reduce {
+    transform: none !important;
+    transition: opacity 200ms ease !important;
+  }
+
+  /* Mobile text scaling */
+  .mobile-text-scale {
+    font-size: clamp(0.875rem, 4vw, 1rem);
+  }
+
+  /* Mobile card spacing */
+  .mobile-card-spacing {
+    margin: 0.75rem;
+    padding: 1rem;
+  }
+
+  /* Enhanced mobile shadows - lighter for performance */
+  .mobile-shadow {
+    box-shadow:
+      0 2px 8px rgba(0, 0, 0, 0.08),
+      0 1px 4px rgba(0, 0, 0, 0.06);
+  }
+}
+
+/* Tablet optimizations */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .tablet-grid {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+  }
+}
+
+/* High DPI displays */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .high-dpi-optimized {
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+  }
+}
+
+/* Enhanced focus states for accessibility */
+.focus-enhanced:focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px hsla(var(--primary), 0.2);
+}
+
+/* Mobile-specific loading states */
+.mobile-skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.04) 25%,
+    rgba(0, 0, 0, 0.02) 50%,
+    rgba(0, 0, 0, 0.04) 75%
+  );
+  background-size: 200% 100%;
+  animation: mobile-skeleton-loading 1.5s ease-in-out infinite;
+}
+
+@keyframes mobile-skeleton-loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Premium mobile interactions */
+.premium-touch {
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.premium-touch:active {
+  transform: scale(0.98);
+  filter: brightness(0.95);
+}
+
+/* Mobile-optimized backdrop blur */
+@supports (backdrop-filter: blur(10px)) {
+  .mobile-glass {
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+}
+
+@supports not (backdrop-filter: blur(10px)) {
+  .mobile-glass {
+    background: rgba(255, 255, 255, 0.8);
+  }
+
+  .dark .mobile-glass {
+    background: rgba(0, 0, 0, 0.8);
+  }
+}
+/* Context-specific shadow patterns for different UI elements */
+
+/* Card-specific shadows with micro-interaction feedback */
+.shadow-card {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.03),
+    0 1px 1px rgba(0, 0, 0, 0.04);
+  transition: box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.shadow-card:hover {
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.04),
+    0 1px 2px rgba(0, 0, 0, 0.045);
+  transform: translateY(-0.5px);
+}
+
+/* Button shadows with press feedback */
+.shadow-button {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.035),
+    0 0.5px 1px rgba(0, 0, 0, 0.045);
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.shadow-button:hover {
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.045),
+    0 1px 2px rgba(0, 0, 0, 0.055);
+  transform: translateY(-1px);
+}
+
+.shadow-button:active {
+  box-shadow:
+    0 0.5px 1px rgba(0, 0, 0, 0.04),
+    0 0.5px 0.5px rgba(0, 0, 0, 0.05);
+  transform: translateY(0px);
+}
+
+/* Modal and overlay shadows */
+.shadow-modal {
+  box-shadow:
+    0 16px 32px rgba(0, 0, 0, 0.08),
+    0 8px 16px rgba(0, 0, 0, 0.06),
+    0 4px 8px rgba(0, 0, 0, 0.04);
+}
+
+/* Dropdown and popover shadows */
+.shadow-dropdown {
+  box-shadow:
+    0 6px 12px rgba(0, 0, 0, 0.06),
+    0 3px 6px rgba(0, 0, 0, 0.045),
+    0 1px 3px rgba(0, 0, 0, 0.035);
+}
+
+/* Navigation and header shadows */
+.shadow-nav {
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.025),
+    0 1px 1px rgba(0, 0, 0, 0.035);
+}
+
+/* Focus and selection shadows */
+.shadow-focus {
+  box-shadow:
+    0 0 0 3px rgba(124, 58, 237, 0.12),
+    0 1px 2px rgba(0, 0, 0, 0.035);
+}
+
+/* Inset shadows for form inputs */
+.shadow-inset {
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.04),
+    inset 0 0.5px 1px rgba(0, 0, 0, 0.025);
+}
+
+/* Floating action button shadow */
+.shadow-fab {
+  box-shadow:
+    0 4px 12px rgba(124, 58, 237, 0.2),
+    0 2px 6px rgba(124, 58, 237, 0.15),
+    0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.shadow-fab:hover {
+  box-shadow:
+    0 6px 16px rgba(124, 58, 237, 0.25),
+    0 3px 8px rgba(124, 58, 237, 0.2),
+    0 2px 4px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
+}
+
+/* Dark mode adjustments for specialized shadows */
+.dark .shadow-card {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.6),
+    0 1px 1px rgba(0, 0, 0, 0.7);
+}
+
+.dark .shadow-card:hover {
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.8),
+    0 1px 2px rgba(0, 0, 0, 0.9);
+}
+
+.dark .shadow-button {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.7),
+    0 0.5px 1px rgba(0, 0, 0, 0.8);
+}
+
+.dark .shadow-button:hover {
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.9),
+    0 1px 2px rgba(0, 0, 0, 1);
+}
+
+.dark .shadow-modal {
+  box-shadow:
+    0 16px 32px rgba(0, 0, 0, 0.9),
+    0 8px 16px rgba(0, 0, 0, 0.8),
+    0 4px 8px rgba(0, 0, 0, 0.7);
+}
+
+.dark .shadow-fab {
+  box-shadow:
+    0 4px 12px rgba(147, 97, 255, 0.4),
+    0 2px 6px rgba(147, 97, 255, 0.3),
+    0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+.dark .shadow-fab:hover {
+  box-shadow:
+    0 6px 16px rgba(147, 97, 255, 0.5),
+    0 3px 8px rgba(147, 97, 255, 0.4),
+    0 2px 4px rgba(0, 0, 0, 0.9);
+}
+
+/* === MOBILE OPTIMIZATION === */
+@layer utilities {
+  /* Mobile viewport handling */
+  .min-h-screen-mobile {
+    min-height: 100vh;
+    min-height: calc(var(--vh, 1vh) * 100);
+  }
+
+  /* Touch-friendly interactive elements */
+  .touch-action-manipulation {
+    touch-action: manipulation;
+  }
+
+  /* Mobile-optimized animations */
+  @media (max-width: 768px) {
+    .mobile-reduced-motion * {
+      animation-duration: 0.3s !important;
+      transition-duration: 0.3s !important;
+    }
+
+    .mobile-reduced-blur * {
+      filter: none !important;
+    }
+
+    /* Mobile-optimized text wheel */
+    .mobile-text-wheel {
+      -webkit-backface-visibility: hidden;
+      backface-visibility: hidden;
+      transform: translateZ(0);
+      will-change: transform, opacity;
+    }
+  }
+
+  /* iOS Safari viewport fixes */
+  @supports (-webkit-touch-callout: none) {
+    .ios-safe-area-top {
+      padding-top: env(safe-area-inset-top);
+    }
+
+    .ios-safe-area-bottom {
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+  }
+
+  /* Mobile-first responsive containers */
+  .mobile-container {
+    width: 100%;
+    max-width: 100vw;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  @media (min-width: 640px) {
+    .mobile-container {
+      max-width: 640px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+  }
+
+  /* Mobile-optimized buttons */
+  .mobile-button {
+    min-height: 44px; /* iOS recommended touch target */
+    padding: 0.75rem 1.5rem;
+    touch-action: manipulation;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Mobile-optimized form inputs */
+  .mobile-input {
+    min-height: 44px;
+    font-size: 16px; /* Prevents zoom on iOS */
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  /* Mobile-specific text sizing */
+  .mobile-heading {
+    font-size: clamp(1.5rem, 8vw, 3rem);
+    line-height: 1.2;
+  }
+
+  .mobile-body {
+    font-size: clamp(0.875rem, 4vw, 1rem);
+    line-height: 1.5;
+  }
+
+  /* Mobile performance optimizations */
+  .mobile-optimized {
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    -webkit-perspective: 1000px;
+    perspective: 1000px;
+    transform: translateZ(0);
+    will-change: transform;
+  }
+
+  /* Mobile-friendly spacing */
+  .mobile-spacing {
+    padding: clamp(1rem, 5vw, 2rem);
+  }
+
+  .mobile-gap {
+    gap: clamp(0.5rem, 3vw, 1rem);
+  }
+
+  /* Scrollbar hiding utilities */
+  .scrollbar-hide {
+    -ms-overflow-style: none; /* Internet Explorer 10+ */
+    scrollbar-width: none; /* Firefox */
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none; /* Safari and Chrome */
+  }
+
+  /* Prevent column breaks mid-card in masonry */
+  .masonry-item {
+    break-inside: avoid;
+  }
+
+  /* Subtle Apple-like shadow baseline if not already defined */
+  .shadow-apple-lg {
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.05),
+      0 8px 24px rgba(0, 0, 0, 0.08);
+  }
+
+  /* Optional: column gap fallback for Safari quirks */
+  .masonry-grid {
+    column-gap: 1rem;
+  }
+}
+
+.masonry-item {
+  break-inside: avoid;
+}
+.masonry-grid {
+  column-gap: 1.25rem;
+}
+.pin .pin-card {
+  border-radius: 16px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 8px 16px rgba(0, 0, 0, 0.04);
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease;
+}
+@media (hover: hover) {
+  .pin .pin-card:hover {
+    transform: translateY(-3px);
+    box-shadow:
+      0 1px 3px rgba(0, 0, 0, 0.06),
+      0 12px 24px rgba(0, 0, 0, 0.1);
+  }
+}
+
+/* ===== ENHANCED DARK MODE TRANSITIONS ===== */
+/* Smooth theme transitions for better UX */
+
+/* Root element theme transition */
+:root {
+  --theme-transition:
+    background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Apply smooth transitions to all theme-aware elements */
+html {
+  transition: var(--theme-transition);
+}
+
+body {
+  transition: var(--theme-transition);
+}
+
+/* Theme-aware component transitions */
+.theme-transition {
+  transition:
+    var(--theme-transition),
+    box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Cards and surfaces */
+.bg-card,
+.bg-background,
+.bg-muted {
+  transition: var(--theme-transition);
+}
+
+/* Text elements */
+.text-foreground,
+.text-muted-foreground,
+.text-card-foreground {
+  transition: color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Borders */
+.border,
+.border-border,
+.border-input {
+  transition: border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Enhanced dark mode specific improvements */
+.dark {
+  /* Better scrollbar styling for dark mode */
+  scrollbar-color: hsl(var(--muted)) hsl(var(--background));
+}
+
+.dark ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted));
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.3);
+}
+
+/* Selection colors for dark mode */
+.dark ::selection {
+  background: hsl(var(--primary) / 0.3);
+  color: hsl(var(--primary-foreground));
+}
+
+/* Focus states in dark mode */
+.dark .focus\:ring-primary:focus {
+  --tw-ring-color: hsl(var(--primary) / 0.5);
+}
+
+/* Image filters for better dark mode integration */
+.dark img:not(.no-dark-filter) {
+  filter: brightness(0.9);
+  transition: filter 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.dark img:not(.no-dark-filter):hover {
+  filter: brightness(1);
+}
+
+/* Code blocks in dark mode */
+.dark code {
+  background: hsl(var(--muted) / 0.5);
+  color: hsl(var(--foreground));
+  border: 1px solid hsl(var(--border));
+}
+
+.dark pre {
+  background: hsl(var(--muted) / 0.3);
+  border: 1px solid hsl(var(--border));
+}
+
+/* Enhanced glass morphism for dark mode */
+.dark .glass-card {
+  background: hsl(var(--background) / 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid hsl(var(--border) / 0.5);
+}
+
+/* Theme switching animation helpers */
+@keyframes theme-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.theme-switching {
+  animation: theme-fade-in 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --theme-transition: none;
+  }
+
+  .theme-transition,
+  .theme-switching {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* System theme media query handling */
+@media (prefers-color-scheme: dark) {
+  .theme-auto {
+    /* Auto-apply dark theme if system preference is dark */
+    color-scheme: dark;
+  }
+}
+
+/* Prevent flash of unstyled content on theme load */
+:root {
+  /* Ensure smooth color scheme transitions */
+  color-scheme: light;
+}
+
+.dark {
+  color-scheme: dark;
+}
+
+/* Prevent layout shift during theme loading */
+html {
+  /* Stable background during theme switches */
+  background-color: hsl(var(--background));
+  transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Ensure consistent rendering during theme switches */
+body {
+  /* Prevent text flicker during theme changes */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* TikTok-style animations */
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 3s linear infinite;
+}

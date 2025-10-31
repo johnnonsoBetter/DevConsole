@@ -1,0 +1,54 @@
+{
+  "manifest_version": 3,
+  "name": "DevConsole",
+  "version": "1.0.0",
+  "description": "Advanced developer console with logging, network monitoring, GraphQL explorer, and AI assistance",
+  
+  "permissions": [
+    "storage",
+    "activeTab",
+    "debugger"
+  ],
+  
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  
+  "background": {
+    "service_worker": "src/background/index.ts",
+    "type": "module"
+  },
+  
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/content/index.ts"],
+      "run_at": "document_start"
+    }
+  ],
+  
+  "devtools_page": "src/devtools/devtools.html",
+  
+  "action": {
+    "default_title": "DevConsole",
+    "default_popup": "public/popup.html",
+    "default_icon": {
+      "16": "public/icons/icon16.svg",
+      "48": "public/icons/icon48.svg",
+      "128": "public/icons/icon128.svg"
+    }
+  },
+  
+  "icons": {
+    "16": "public/icons/icon16.svg",
+    "48": "public/icons/icon48.svg",
+    "128": "public/icons/icon128.svg"
+  },
+  
+  "web_accessible_resources": [
+    {
+      "resources": ["src/content/*"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

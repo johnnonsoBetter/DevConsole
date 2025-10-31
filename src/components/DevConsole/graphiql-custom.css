@@ -1,0 +1,172 @@
+/* GraphiQL Custom Theme for LinkVybe DevConsole */
+
+/* Main Container */
+.graphiql-container {
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+}
+
+/* Dark Mode Overrides */
+@media (prefers-color-scheme: dark) {
+  .graphiql-container {
+    --color-primary: hsl(262, 83%, 58%);
+    --color-secondary: hsl(221, 83%, 53%);
+    --color-base: hsl(220, 20%, 10%);
+    --color-base-background: hsl(220, 20%, 5%);
+  }
+
+  .graphiql-container,
+  .graphiql-session,
+  .graphiql-editors {
+    background-color: hsl(220, 20%, 5%) !important;
+  }
+
+  .graphiql-sidebar {
+    background-color: hsl(220, 20%, 8%) !important;
+    border-right-color: hsl(220, 20%, 15%) !important;
+  }
+
+  .graphiql-editor,
+  .CodeMirror {
+    background-color: hsl(220, 20%, 5%) !important;
+    color: hsl(220, 10%, 90%) !important;
+  }
+
+  .CodeMirror-gutters {
+    background-color: hsl(220, 20%, 8%) !important;
+    border-right-color: hsl(220, 20%, 15%) !important;
+  }
+
+  .CodeMirror-linenumber {
+    color: hsl(220, 10%, 40%) !important;
+  }
+
+  .graphiql-toolbar,
+  .graphiql-toolbar-button {
+    background-color: hsl(220, 20%, 8%) !important;
+    color: hsl(220, 10%, 70%) !important;
+    border-color: hsl(220, 20%, 15%) !important;
+  }
+
+  .graphiql-toolbar-button:hover {
+    background-color: hsl(220, 20%, 12%) !important;
+    color: hsl(220, 10%, 90%) !important;
+  }
+
+  .graphiql-toolbar-button.active {
+    background-color: var(--color-primary) !important;
+    color: white !important;
+  }
+
+  /* Results Panel */
+  .result-window {
+    background-color: hsl(220, 20%, 5%) !important;
+  }
+
+  /* Documentation Explorer */
+  .graphiql-doc-explorer {
+    background-color: hsl(220, 20%, 8%) !important;
+  }
+
+  .graphiql-doc-explorer-title {
+    background-color: hsl(220, 20%, 10%) !important;
+    color: hsl(220, 10%, 90%) !important;
+  }
+
+  .doc-category-title {
+    color: hsl(220, 10%, 80%) !important;
+  }
+
+  /* Syntax Highlighting for Dark Mode */
+  .cm-keyword {
+    color: hsl(300, 100%, 75%) !important;
+  }
+  .cm-def {
+    color: hsl(200, 100%, 70%) !important;
+  }
+  .cm-property {
+    color: hsl(30, 100%, 70%) !important;
+  }
+  .cm-variable {
+    color: hsl(220, 10%, 90%) !important;
+  }
+  .cm-string {
+    color: hsl(100, 60%, 65%) !important;
+  }
+  .cm-number {
+    color: hsl(30, 90%, 65%) !important;
+  }
+  .cm-atom {
+    color: hsl(200, 100%, 70%) !important;
+  }
+  .cm-comment {
+    color: hsl(220, 10%, 50%) !important;
+    font-style: italic;
+  }
+  .cm-punctuation {
+    color: hsl(220, 10%, 70%) !important;
+  }
+  .cm-attribute {
+    color: hsl(262, 83%, 58%) !important;
+  }
+}
+
+/* Light Mode */
+@media (prefers-color-scheme: light) {
+  .graphiql-container {
+    --color-primary: hsl(262, 83%, 58%);
+    --color-secondary: hsl(221, 83%, 53%);
+  }
+
+  .graphiql-toolbar-button.active {
+    background-color: var(--color-primary) !important;
+    color: white !important;
+  }
+}
+
+/* Responsive Adjustments */
+.graphiql-container .graphiql-session-header {
+  padding: 0.5rem;
+}
+
+.graphiql-container .graphiql-execute-button {
+  background: linear-gradient(
+    135deg,
+    var(--color-primary),
+    var(--color-secondary)
+  ) !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 6px !important;
+  padding: 0.5rem 1rem !important;
+  font-weight: 600 !important;
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s !important;
+}
+
+.graphiql-container .graphiql-execute-button:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 12px rgba(158, 122, 255, 0.3) !important;
+}
+
+/* Scrollbar Styling for Dark Mode */
+@media (prefers-color-scheme: dark) {
+  .graphiql-container ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .graphiql-container ::-webkit-scrollbar-track {
+    background: hsl(220, 20%, 10%);
+  }
+
+  .graphiql-container ::-webkit-scrollbar-thumb {
+    background: hsl(220, 10%, 30%);
+    border-radius: 4px;
+  }
+
+  .graphiql-container ::-webkit-scrollbar-thumb:hover {
+    background: hsl(220, 10%, 40%);
+  }
+}
