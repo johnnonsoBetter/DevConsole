@@ -27,7 +27,7 @@ import {
 import { useState, useEffect, useRef } from "react";
 import { useDevConsoleStore, useDevConsoleLogs, useDevConsoleNetwork } from "../../utils/stores/devConsole";
 import type { LogLevel, ConsoleTab } from "../../utils/stores/devConsole";
-import { cn } from "src/utils";
+import { cn } from "../../utils";
 // import { StatePanel } from "./StatePanel"; // Removed for now
 import { MethodChip, StatusChip, DurationChip, CacheChip, RetryChip, GraphQLChip, LogLevelChip } from "./Chips";
 import { DurationSparkline } from "./Sparkline";
@@ -205,7 +205,7 @@ export function DevConsolePanel({ githubConfig }: DevConsolePanelProps = {}) {
                     Developer Console
                   </h2>
                   <p className="text-xs text-muted-foreground">
-                    {process.env.NODE_ENV} • {new Date().toLocaleTimeString()}
+                    {new Date().toLocaleTimeString()}
                   </p>
                 </div>
 

@@ -5,7 +5,7 @@
 
 import { motion } from 'framer-motion';
 import { CheckCircle, Loader, AlertCircle, Download, Zap, Info } from 'lucide-react';
-import { cn } from 'src/utils';
+import { cn } from '../../../utils';
 import type { AIAvailability } from 'src/lib/devConsole/aiService';
 import type { AIAPIMetadata } from 'src/lib/devConsole/multiAIService';
 

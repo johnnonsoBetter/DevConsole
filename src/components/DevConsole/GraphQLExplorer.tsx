@@ -4,7 +4,7 @@ import { createGraphiQLFetcher } from "@graphiql/toolkit";
 import { ExternalLink, Zap } from "lucide-react";
 import "graphiql/style.css";
 import "./graphiql-custom.css";
-import { cn } from "src/utils";
+import { cn } from "../../utils";
 
 export function GraphQLExplorer() {
   const graphqlEndpoint = useMemo(() => {

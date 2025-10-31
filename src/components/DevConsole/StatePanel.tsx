@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { useState, useMemo, useCallback, memo } from "react";
 import { useDevConsoleStore } from "../../utils/stores/devConsole";
-import { cn } from "src/utils";
+import { cn } from "../../utils";
 import {
   getTrackedStores,
   getStoreState,

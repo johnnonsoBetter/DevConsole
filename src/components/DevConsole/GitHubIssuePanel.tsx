@@ -3,14 +3,14 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import DOMPurify from "dompurify";
 import { Github, Eye, Code, Send, Settings, CheckCircle, AlertCircle, Loader, Sparkles } from "lucide-react";
-import { cn } from "src/utils";
+import { cn } from "../../utils";
 import { createContextPack, generateGitHubIssueMarkdown } from "../../lib/devConsole/contextPacker";
 import { createGitHubIssue } from "../../lib/devConsole/githubApi";
 import { loadGitHubSettings } from "../../lib/devConsole/githubSettings";
 import type { GitHubSettings } from "../../lib/devConsole/githubSettings";
-import { useAI } from "../../hooks/useAI";
 import { AIActionButton } from "./AI";
-import { useGitHubIssueSlideoutStore } from "../../utils/stores";
+import { useGitHubIssueSlideoutStore } from "@/utils/stores";
+import { useAI } from "@/hooks/useAI";
 
 // ============================================================================
 // GITHUB ISSUE PANEL

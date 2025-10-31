@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { AlertCircle, X } from "lucide-react";
 import { useDevConsoleStore } from "../../utils/stores/devConsole";
-import { cn } from "src/utils";
+import { cn } from "../../utils";
 
 // ============================================================================
 // ERROR NOTIFICATION BADGE
@@ -99,8 +99,6 @@ export function DevConsoleErrorBadge() {
 export function DevConsoleHotkeyIndicator() {
   const { isOpen } = useDevConsoleStore();
 
-  // Only show in development and when console is closed
-  if (process.env.NODE_ENV === "production" || isOpen) return null;
 
   return (
     <motion.div

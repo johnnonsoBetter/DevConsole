@@ -4,7 +4,7 @@
  */
 
 import { CheckCircle, Loader, AlertCircle, Zap } from 'lucide-react';
-import { cn } from 'src/utils';
+import { cn } from '../../../utils';
 import type { AIPowerBadgeProps } from './types';
 
 export function AIPowerBadge({ status, progress }: AIPowerBadgeProps) {

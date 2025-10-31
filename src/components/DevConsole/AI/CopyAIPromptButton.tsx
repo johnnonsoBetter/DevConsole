@@ -6,7 +6,7 @@
 import { useState } from 'react';
 import { Copy, Check, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { cn } from 'src/utils';
+import { cn } from '../../../utils';
 import { formatLogAsAIPrompt, copyToClipboard } from '../../../lib/devConsole/promptFormatter';
 import type { LogEntry } from '../../../lib/devConsole/promptFormatter';
 

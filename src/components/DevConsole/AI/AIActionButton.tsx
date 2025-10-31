@@ -4,7 +4,7 @@
  */
 
 import { Loader, Sparkles } from 'lucide-react';
-import { cn } from 'src/utils';
+import { cn } from '../../../utils';
 import type { AIActionButtonProps } from './types';
 
 export function AIActionButton({

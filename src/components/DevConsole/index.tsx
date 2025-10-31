@@ -26,16 +26,6 @@ export function DevConsole({ githubConfig }: DevConsoleProps = {}) {
 
   // Install interceptors on mount
   useEffect(() => {
-    // Only run in development or staging
-    const isDev =
-      process.env.NODE_ENV === "development" ||
-      window.location.hostname.includes("staging") ||
-      window.location.hostname.includes("localhost");
-
-    if (!isDev) {
-      console.info("DevConsole is disabled in production");
-      return;
-    }
 
     // Install console and network interceptors
     installConsoleInterceptor();

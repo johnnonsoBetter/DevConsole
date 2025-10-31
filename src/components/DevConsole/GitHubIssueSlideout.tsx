@@ -3,12 +3,12 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Eye, Code, Send, CheckCircle, AlertCircle, Loader, Camera, Sparkles } from "lucide-react";
-import { cn } from "src/utils";
+import { cn } from "../../utils";
 import { createContextPack, generateGitHubIssueMarkdown } from "../../lib/devConsole/contextPacker";
 import { createGitHubIssue, type GitHubConfig } from "../../lib/devConsole/githubApi";
-import { useGitHubIssueSlideoutStore, type LogEntry } from "../../utils/stores";
 import { useAI } from "../../hooks/useAI";
 import { AIActionButton } from "./AI";
+import { LogEntry, useGitHubIssueSlideoutStore } from "@/utils/stores";
 
 // ============================================================================
 // GITHUB ISSUE SLIDEOUT

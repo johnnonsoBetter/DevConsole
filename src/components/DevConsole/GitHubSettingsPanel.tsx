@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Settings, Save, TestTube, CheckCircle, XCircle, Loader, Eye, EyeOff, Github } from "lucide-react";
-import { cn } from "src/utils";
+import { cn } from "../../utils";
 import {
   loadGitHubSettings,
   saveGitHubSettings,

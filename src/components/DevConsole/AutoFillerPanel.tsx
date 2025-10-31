@@ -19,12 +19,12 @@ import {
   Brain,
   Wand2,
 } from 'lucide-react';
-import { cn } from 'src/utils';
+import { cn } from '../../utils';
 import { scanAllForms, type ScannedForm, type ScannedInput } from '../../lib/devConsole/formScanner';
 import { fillInput, fillForm, clearForm } from '../../lib/devConsole/formFiller';
-import type { AIFieldValue, AIFormContext } from 'src/utils/stores/aiAutoFiller';
-import { useAIAutoFillerStore } from 'src/utils/stores/aiAutoFiller';
-import { usePromptModel } from 'src/hooks/ai';
+import type { AIFieldValue, AIFormContext } from '../../utils/stores/aiAutoFiller';
+import { useAIAutoFillerStore } from '../../utils/stores/aiAutoFiller';
+import { usePromptModel } from '../../hooks/ai';
 import { AIUnsupportedNotice, AIFirstUsePrompt, AIDownloadProgress } from './AI';
 import { toast } from 'sonner';
 
