@@ -5,6 +5,11 @@
 import './consoleInterceptor';
 import './networkInterceptor';
 
-console.log('[DevConsole] Content script loaded');
+// Check if extension context is valid
+if (chrome?.runtime?.id) {
+  console.log('[DevConsole] Content script loaded');
+} else {
+  console.warn('[DevConsole] Extension context invalid at load time');
+}
 
 export {};

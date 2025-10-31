@@ -37,7 +37,15 @@ function safeParseJSON(text: string) {
 
 function sendNetworkMessage(payload: any) {
   try {
-    chrome.runtime.sendMessage({ type: "NETWORK_REQUEST", payload }).catch(() => {});
+    // Check if extension context is still valid
+    if (chrome && chrome.runtime && chrome.runtime.id) {
+      chrome.runtime.sendMessage({ type: "NETWORK_REQUEST", payload }).catch((error) => {
+        if (error.message && error.message.includes('Extension context invalidated')) {
+          // Extension was reloaded, uninstall interceptor
+          uninstallNetworkInterceptor();
+        }
+      });
+    }
   } catch (e) {
     // chrome may not be available in some environments
   }

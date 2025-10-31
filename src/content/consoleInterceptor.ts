@@ -100,17 +100,24 @@ function captureLog(level: LogLevel, args: any[]) {
     });
 
     // Send message to background script via Chrome runtime
-    chrome.runtime.sendMessage({
-      type: "CONSOLE_LOG",
-      payload: {
-        level,
-        args: serializedArgs,
-        timestamp: Date.now(),
-        source,
-      },
-    }).catch(() => {
-      // Extension context might not be available yet
-    });
+    // Handle extension context invalidation gracefully
+    if (chrome && chrome.runtime && chrome.runtime.id) {
+      chrome.runtime.sendMessage({
+        type: "CONSOLE_LOG",
+        payload: {
+          level,
+          args: serializedArgs,
+          timestamp: Date.now(),
+          source,
+        },
+      }).catch((error) => {
+        // Extension context invalidated or background not ready
+        if (error.message && error.message.includes('Extension context invalidated')) {
+          // Extension was reloaded, uninstall interceptor to avoid errors
+          uninstallConsoleInterceptor();
+        }
+      });
+    }
   } finally {
     isCapturing = false;
   }

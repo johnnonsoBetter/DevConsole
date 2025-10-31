@@ -18,8 +18,12 @@ export default defineConfig({
     rollupOptions: {
       input: {
         devtools: 'src/devtools/devtools.html',
-        panel: 'src/devtools/index.html'
+        panel: 'src/devtools/index.html',
+        popup: 'public/popup.html',
+        popupScript: 'public/popup.js'
       }
-    }
+    },
+    // Copy public assets to dist
+    copyPublicDir: true
   }
 })

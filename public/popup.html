@@ -58,11 +58,6 @@
     💡 <strong>Tip:</strong> DevConsole is a DevTools panel, not a popup extension. The main interface appears in Chrome DevTools.
   </div>
   
-  <script>
-    // Test that the extension is working
-    chrome.runtime.sendMessage({ type: 'GET_STATE' }, (response) => {
-      console.log('DevConsole popup loaded, state:', response);
-    });
-  </script>
+  <script type="module" src="/popup.js"></script>
 </body>
 </html>
