@@ -7,22 +7,25 @@ import { loadUnsplashConfig } from '../../utils/extensionSettings';
 import { checkAndShowFillAllButton, closeSuggestionBox, showConfirmationMessage } from './uiManager';
 
 // Configuration
-const DEFAULT_UNSPLASH_KEY = 'HnMNrlNY_fopvct5jXNSytrBkCUEH9kBEdPQXt92Gh4';
 const UNSPLASH_API_URL = 'https://api.unsplash.com';
 
 // Cache for Unsplash images
 const imageCache = new Map<string, UnsplashImage[]>();
 
 /**
- * Get Unsplash access key from settings or use default
+ * Get Unsplash access key from settings
+ * Throws error if no key is configured
  */
 async function getUnsplashAccessKey(): Promise<string> {
   try {
     const config = await loadUnsplashConfig();
-    return config?.accessKey || DEFAULT_UNSPLASH_KEY;
+    if (!config?.accessKey) {
+      throw new Error('Unsplash access key not configured. Please add your key in DevConsole Settings.');
+    }
+    return config.accessKey;
   } catch (error) {
-    console.warn('Failed to load Unsplash config, using default key:', error);
-    return DEFAULT_UNSPLASH_KEY;
+    console.error('Failed to load Unsplash access key:', error);
+    throw error;
   }
 }
 
@@ -52,7 +55,8 @@ export async function fetchUnsplashImages(query: string = 'random', count: numbe
     );
     
     if (!response.ok) {
-      throw new Error('Failed to fetch images from Unsplash');
+      const errorText = await response.text();
+      throw new Error(`Unsplash API error (${response.status}): ${errorText}`);
     }
     
     const data = await response.json();
@@ -70,6 +74,10 @@ export async function fetchUnsplashImages(query: string = 'random', count: numbe
     return images;
   } catch (error) {
     console.error('Error fetching Unsplash images:', error);
+    // Show user-friendly error message
+    if (error instanceof Error && error.message.includes('not configured')) {
+      console.warn('💡 Tip: Configure your Unsplash API key in DevConsole Settings > Unsplash Integration');
+    }
     return [];
   }
 }

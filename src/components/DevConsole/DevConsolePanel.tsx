@@ -7,6 +7,7 @@
 import ReactJson from '@microlink/react-json-view';
 import {
   Activity,
+  Camera,
   Download,
   Github,
   Info,

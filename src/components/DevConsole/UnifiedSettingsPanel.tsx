@@ -7,33 +7,40 @@
  */
 
 import {
-    CheckCircle,
-    ChevronRight,
-    ExternalLink,
-    Eye,
-    EyeOff,
-    Github,
-    Info,
-    Loader,
-    Save,
-    Settings,
-    Shield,
-    TestTube,
-    XCircle,
-    Zap
+  CheckCircle,
+  ChevronRight,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  Github,
+  Image,
+  Info,
+  Loader,
+  Save,
+  Settings,
+  Shield,
+  TestTube,
+  XCircle,
+  Zap
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useGitHubSettings, type GitHubSettings } from "../../hooks/useGitHubSettings";
 import { testGitHubConnection } from "../../lib/devConsole/githubApi";
 import {
-    clearGraphQLSettings,
-    loadGraphQLSettings,
-    saveGraphQLSettings,
-    testGraphQLConnection,
-    validateGraphQLEndpoint,
-    type GraphQLSettings,
+  clearGraphQLSettings,
+  loadGraphQLSettings,
+  saveGraphQLSettings,
+  testGraphQLConnection,
+  validateGraphQLEndpoint,
+  type GraphQLSettings,
 } from "../../lib/devConsole/graphqlSettings";
 import { cn } from "../../utils";
+import {
+  clearUnsplashConfig,
+  loadUnsplashConfig,
+  saveUnsplashConfig,
+  type UnsplashConfig,
+} from "../../utils/extensionSettings";
 
 // ============================================================================
 // TYPES
@@ -46,7 +53,7 @@ interface StatusMessage {
   message: string;
 }
 
-type SettingsSection = 'github' | 'graphql' | 'general';
+type SettingsSection = 'github' | 'graphql' | 'general' | 'unsplash';
 
 // ============================================================================
 // MAIN UNIFIED SETTINGS PANEL
@@ -79,6 +86,13 @@ export function UnifiedSettingsPanel() {
               onClick={() => setActiveSection('graphql')}
             />
             <SettingsNavItem
+              icon={Image}
+              label="Unsplash Integration"
+              description="Image autofill configuration"
+              active={activeSection === 'unsplash'}
+              onClick={() => setActiveSection('unsplash')}
+            />
+            <SettingsNavItem
               icon={Settings}
               label="General"
               description="Extension preferences"
@@ -93,6 +107,7 @@ export function UnifiedSettingsPanel() {
       <div className="flex-1 overflow-auto">
         {activeSection === 'github' && <GitHubSettingsSection />}
         {activeSection === 'graphql' && <GraphQLSettingsSection />}
+        {activeSection === 'unsplash' && <UnsplashSettingsSection />}
         {activeSection === 'general' && <GeneralSettingsSection />}
       </div>
     </div>
@@ -751,6 +766,224 @@ function GraphQLSettingsSection() {
           <li>Click "Test Connection" to verify the endpoint is accessible</li>
           <li>Click "Save Settings" to store your configuration</li>
           <li>Navigate to the GraphQL tab to start exploring your API</li>
+        </ol>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// UNSPLASH SETTINGS SECTION
+// ============================================================================
+
+function UnsplashSettingsSection() {
+  const [accessKey, setAccessKey] = useState("");
+  const [showAccessKey, setShowAccessKey] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<StatusMessage>({ type: null, message: "" });
+
+  useEffect(() => {
+    loadUnsplashConfig().then((config) => {
+      if (config) {
+        setAccessKey(config.accessKey || "");
+      }
+    });
+  }, []);
+
+  const handleSave = async () => {
+    setSaveStatus({ type: null, message: "" });
+
+    // Access key is optional, but if provided it should not be empty after trimming
+    const trimmedKey = accessKey.trim();
+    
+    setIsSaving(true);
+
+    try {
+      if (trimmedKey) {
+        const config: UnsplashConfig = {
+          accessKey: trimmedKey,
+        };
+        await saveUnsplashConfig(config);
+        setSaveStatus({
+          type: "success",
+          message: "Unsplash settings saved successfully!",
+        });
+      } else {
+        // If empty, clear the config (will use default key)
+        await clearUnsplashConfig();
+        setSaveStatus({
+          type: "success",
+          message: "Unsplash settings cleared. Using default key.",
+        });
+      }
+
+      setTimeout(() => {
+        setSaveStatus({ type: null, message: "" });
+      }, 3000);
+    } catch (error) {
+      setSaveStatus({
+        type: "error",
+        message: error instanceof Error ? error.message : "Failed to save settings",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleClear = async () => {
+    if (confirm("Are you sure you want to clear the Unsplash access key? The extension will use the default key.")) {
+      await clearUnsplashConfig();
+      setAccessKey("");
+      setSaveStatus({ type: null, message: "" });
+    }
+  };
+
+  return (
+    <div className="p-6 max-w-3xl">
+      {/* Header */}
+      <div className="mb-6">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="p-2 bg-orange-500 rounded-lg">
+            <Image className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+              Unsplash Integration
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Configure Unsplash API for autofill image inputs
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Form */}
+      <div className="space-y-5">
+        {/* Access Key */}
+        <div>
+          <label htmlFor="unsplash-key" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Unsplash Access Key{" "}
+            <span className="text-gray-500 dark:text-gray-400 font-normal">(optional)</span>
+          </label>
+          <div className="relative">
+            <input
+              id="unsplash-key"
+              type={showAccessKey ? "text" : "password"}
+              value={accessKey}
+              onChange={(e) => setAccessKey(e.target.value)}
+              placeholder="Your Unsplash access key (leave blank to use default)"
+              className="w-full px-4 py-2.5 pr-12 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 font-mono text-sm transition-all"
+            />
+            <button
+              type="button"
+              onClick={() => setShowAccessKey(!showAccessKey)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+              aria-label={showAccessKey ? "Hide access key" : "Show access key"}
+            >
+              {showAccessKey ? (
+                <EyeOff className="w-4 h-4 text-gray-500" />
+              ) : (
+                <Eye className="w-4 h-4 text-gray-500" />
+              )}
+            </button>
+          </div>
+          <div className="mt-2 space-y-1.5">
+            <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+              <Shield className="w-3 h-3" />
+              Get a free access key at:{" "}
+              <a
+                href="https://unsplash.com/developers"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline inline-flex items-center gap-0.5"
+              >
+                unsplash.com/developers
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Free tier: <code className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">50 requests/hour</code>
+            </p>
+            <p className="text-xs text-info flex items-center gap-1">
+              <Info className="w-3 h-3" />
+              Leave blank to use the default key with shared rate limits.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Status Messages */}
+      <div className="mt-6 space-y-3">
+        {saveStatus.type && (
+          <StatusBanner type={saveStatus.type} message={saveStatus.message} />
+        )}
+      </div>
+
+      {/* Action Buttons */}
+      <div className="mt-6 flex items-center gap-3 flex-wrap">
+        <button
+          onClick={handleSave}
+          disabled={isSaving}
+          className="flex-1 min-w-[140px] px-6 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm hover:shadow"
+        >
+          {isSaving ? (
+            <>
+              <Loader className="w-4 h-4 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              <Save className="w-4 h-4" />
+              Save Settings
+            </>
+          )}
+        </button>
+
+        <button
+          onClick={handleClear}
+          className="px-6 py-2.5 bg-destructive/10 hover:bg-destructive/20 text-destructive rounded-lg font-medium transition-all border border-destructive/20 shadow-sm hover:shadow"
+        >
+          Clear
+        </button>
+      </div>
+
+      {/* Info Card */}
+      <div className="mt-8 p-4 bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/10 dark:to-amber-900/10 border border-orange-200 dark:border-orange-800/30 rounded-xl">
+        <h4 className="text-sm font-semibold text-orange-900 dark:text-orange-300 mb-3 flex items-center gap-2">
+          <Info className="w-4 h-4" />
+          About Unsplash Integration
+        </h4>
+        <div className="text-xs text-gray-700 dark:text-gray-300 space-y-2">
+          <p>
+            The Unsplash integration powers the autofill feature for image input fields. When you encounter
+            an image upload field on a form, the autofill assistant can suggest and fill images from Unsplash's
+            vast collection.
+          </p>
+          <p className="font-medium text-orange-800 dark:text-orange-400">
+            Why provide your own key?
+          </p>
+          <ul className="space-y-1 ml-4 list-disc">
+            <li>Avoid shared rate limits with other users</li>
+            <li>Get 50 requests per hour on the free tier</li>
+            <li>Track your own API usage independently</li>
+          </ul>
+        </div>
+      </div>
+
+      {/* Setup Guide */}
+      <div className="mt-4 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10 border border-blue-200 dark:border-blue-800/30 rounded-xl">
+        <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-3 flex items-center gap-2">
+          <Info className="w-4 h-4" />
+          Quick Setup Guide
+        </h4>
+        <ol className="text-xs text-gray-700 dark:text-gray-300 space-y-2 list-decimal list-inside">
+          <li>Visit <a href="https://unsplash.com/developers" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">unsplash.com/developers</a></li>
+          <li>Sign up or log in to your Unsplash account</li>
+          <li>Click "New Application" to register your app</li>
+          <li>Accept the API Use and Guidelines</li>
+          <li>Fill in your application details (name, description, etc.)</li>
+          <li>Copy the "Access Key" from your application dashboard</li>
+          <li>Paste the access key above and save</li>
         </ol>
       </div>
     </div>
