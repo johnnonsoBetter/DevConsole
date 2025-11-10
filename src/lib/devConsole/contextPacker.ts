@@ -1,5 +1,4 @@
 import html2canvas from "html2canvas";
-import { useDevConsoleStore } from "../../utils/stores/devConsole";
 import type { LogEntry, NetworkRequest } from "../../utils/stores/devConsole";
 
 // ============================================================================
@@ -57,16 +56,17 @@ function redactSensitiveData(obj: any): any {
  */
 async function captureScreenshot(): Promise<string> {
   try {
-    const canvas = await html2canvas(document.body, {
-      allowTaint: true,
-      useCORS: true,
-      scale: 0.5, // Reduce size for performance
-      width: window.innerWidth,
-      height: window.innerHeight,
-      windowWidth: window.innerWidth,
-      windowHeight: window.innerHeight,
-    });
-    return canvas.toDataURL("image/png");
+    // const canvas = await html2canvas(document.body, {
+    //   allowTaint: true,
+    //   useCORS: true,
+    //   scale: 0.5, // Reduce size for performance
+    //   width: window.innerWidth,
+    //   height: window.innerHeight,
+    //   windowWidth: window.innerWidth,
+    //   windowHeight: window.innerHeight,
+    // });
+    // return canvas.toDataURL("image/png");
+    return ''
   } catch (error) {
     console.error("Screenshot capture failed:", error);
     return "";
@@ -83,22 +83,29 @@ function getCurrentRoute(): string {
 /**
  * Get store snapshots (safely)
  */
-function getStoreSnapshot(): Record<string, any> {
+async function getStoreSnapshot(): Promise<Record<string, any>> {
   try {
-    // Try to get common Zustand stores
     const stores: Record<string, any> = {};
 
-    // DevConsole store (always available)
-    const devConsole = useDevConsoleStore.getState();
-    stores.devConsole = {
-      isOpen: devConsole.isOpen,
-      activeTab: devConsole.activeTab,
-      logCount: devConsole.logs.length,
-      networkCount: devConsole.networkRequests.length,
-      errorCount: devConsole.unreadErrorCount,
-    };
+    // Get DevConsole state from chrome.storage
+    try {
+      const result = await chrome.storage.local.get(['devConsole_logs', 'devConsole_networkRequests', 'devConsole_state']);
+      const logs = result.devConsole_logs || [];
+      const networkRequests = result.devConsole_networkRequests || [];
+      const state = result.devConsole_state || {};
+      
+      stores.devConsole = {
+        isOpen: state.isOpen,
+        activeTab: state.activeTab,
+        logCount: logs.length,
+        networkCount: networkRequests.length,
+        errorCount: state.unreadErrorCount || 0,
+      };
+    } catch (error) {
+      console.warn('[DevConsole] Could not retrieve DevConsole state:', error);
+    }
 
-    // Attempt to get other stores
+    // Attempt to get other stores from window
     try {
       const appStore = (window as any).__APP_STORE__;
       if (appStore) {
@@ -134,9 +141,17 @@ export async function createContextPack(options?: {
     networkCount = 10,
   } = options || {};
 
-  const devConsole = useDevConsoleStore.getState();
-  const logs = devConsole.logs;
-  const networkRequests = devConsole.networkRequests;
+  // Retrieve logs and network requests from chrome.storage
+  let logs: LogEntry[] = [];
+  let networkRequests: NetworkRequest[] = [];
+  
+  try {
+    const result = await chrome.storage.local.get(['devConsole_logs', 'devConsole_networkRequests']);
+    logs = result.devConsole_logs || [];
+    networkRequests = result.devConsole_networkRequests || [];
+  } catch (error) {
+    console.warn('[DevConsole] Could not retrieve logs and network requests:', error);
+  }
 
   // Get last N events (prioritize errors and warnings)
   const lastEvents = logs
@@ -147,9 +162,9 @@ export async function createContextPack(options?: {
   // Get recent network requests (prioritize errors)
   const networkSnapshot = networkRequests
     .slice(-50)
-    .filter((req) => req.status >= 400 || req.duration > 5000)
+    .filter((req) => Number(req.status) >= 400 || Number(req.duration) > 5000)
     .concat(networkRequests.slice(-networkCount))
-    .slice(-networkCount);
+    .slice(-networkCount) 
 
   const contextPack: ContextPack = {
     timestamp: new Date().toISOString(),
@@ -157,7 +172,7 @@ export async function createContextPack(options?: {
     route: getCurrentRoute(),
     lastEvents,
     networkSnapshot,
-    storeSnapshot: getStoreSnapshot(),
+    storeSnapshot: await getStoreSnapshot(),
     userAgent: navigator.userAgent,
     viewport: {
       width: window.innerWidth,
@@ -200,7 +215,23 @@ export async function copyContextPackToClipboard(contextPack: ContextPack) {
     return true;
   } catch (error) {
     console.error("Failed to copy to clipboard:", error);
-    return false;
+    // Fallback method for clipboard access
+    try {
+      const textArea = document.createElement('textarea');
+      textArea.value = markdown;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      textArea.style.top = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textArea);
+      return successful;
+    } catch (fallbackError) {
+      console.error("Fallback copy method also failed:", fallbackError);
+      return false;
+    }
   }
 }
 
@@ -300,7 +331,7 @@ export function generateGitHubIssueMarkdown(contextPack: Partial<ContextPack>, o
   }
 
   // Failed Network Requests
-  const failedRequests = networkSnapshot?.filter(r => r.status >= 400) || [];
+  const failedRequests = networkSnapshot?.filter(r => Number(r.status) >= 400) || [];
   if (failedRequests.length > 0) {
     body += `## Failed Network Requests (${failedRequests.length})\n\n`;
     body += `| Method | Endpoint | Status | Duration |\n`;

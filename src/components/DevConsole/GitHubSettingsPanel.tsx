@@ -1,45 +1,64 @@
+/**
+ * GitHub Settings Panel Component
+ * Manages GitHub integration configuration for issue creation
+ * Validates credentials and tests connection to repository
+ */
+
 import { useState, useEffect } from "react";
 import { Settings, Save, TestTube, CheckCircle, XCircle, Loader, Eye, EyeOff, Github } from "lucide-react";
 import { cn } from "../../utils";
-import {
-  loadGitHubSettings,
-  saveGitHubSettings,
-  clearGitHubSettings,
-  validateGitHubSettings,
-  normalizeRepoFormat,
-  type GitHubSettings,
-} from "../../lib/devConsole/githubSettings";
+import { useGitHubSettings, type GitHubSettings } from "../../hooks/useGitHubSettings";
 import { testGitHubConnection } from "../../lib/devConsole/githubApi";
 
 // ============================================================================
-// GITHUB SETTINGS PANEL
+// TYPES
+// ============================================================================
+
+type StatusType = 'success' | 'error' | null;
+
+interface StatusMessage {
+  type: StatusType;
+  message: string;
+}
+
+// ============================================================================
+// MAIN COMPONENT
 // ============================================================================
 
 export function GitHubSettingsPanel() {
-  const [username, setUsername] = useState("");
-  const [repo, setRepo] = useState("");
-  const [token, setToken] = useState("");
+  const {
+    settings,
+    saveSettings,
+    clearSettings,
+    validateSettings,
+    normalizeRepoFormat,
+  } = useGitHubSettings();
+
+  // Form state
+  const [username, setUsername] = useState(settings?.username || "");
+  const [repo, setRepo] = useState(settings?.repo || "");
+  const [token, setToken] = useState(settings?.token || "");
   const [showToken, setShowToken] = useState(false);
+  
+  // UI state
   const [isSaving, setIsSaving] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<{
-    type: "success" | "error" | null;
-    message: string;
-  }>({ type: null, message: "" });
-  const [testStatus, setTestStatus] = useState<{
-    type: "success" | "error" | null;
-    message: string;
-  }>({ type: null, message: "" });
+  const [saveStatus, setSaveStatus] = useState<StatusMessage>({ type: null, message: "" });
+  const [testStatus, setTestStatus] = useState<StatusMessage>({ type: null, message: "" });
 
+  // Update form when settings load
   useEffect(() => {
-    const settings = loadGitHubSettings();
     if (settings) {
       setUsername(settings.username);
       setRepo(settings.repo);
       setToken(settings.token);
     }
-  }, []);
+  }, [settings]);
 
+  /**
+   * Save GitHub settings with validation
+   * Normalizes repository format and updates storage
+   */
   const handleSave = async () => {
     setSaveStatus({ type: null, message: "" });
     setTestStatus({ type: null, message: "" });
@@ -47,7 +66,7 @@ export function GitHubSettingsPanel() {
     // Normalize repo format before validation
     const normalizedRepo = normalizeRepoFormat(repo);
 
-    const validation = validateGitHubSettings({ username, repo: normalizedRepo, token });
+    const validation = validateSettings({ username, repo: normalizedRepo, token });
 
     if (!validation.valid) {
       setSaveStatus({
@@ -60,13 +79,13 @@ export function GitHubSettingsPanel() {
     setIsSaving(true);
 
     try {
-      const settings: GitHubSettings = {
+      const newSettings: GitHubSettings = {
         username: username.trim(),
         repo: normalizedRepo,
         token: token.trim(),
       };
 
-      saveGitHubSettings(settings);
+      await saveSettings(newSettings);
 
       // Update the displayed repo to the normalized format
       setRepo(normalizedRepo);
@@ -90,13 +109,17 @@ export function GitHubSettingsPanel() {
     }
   };
 
+  /**
+   * Test GitHub connection with current settings
+   * Validates credentials and repository access
+   */
   const handleTest = async () => {
     setTestStatus({ type: null, message: "" });
 
     // Normalize repo format before validation
     const normalizedRepo = normalizeRepoFormat(repo);
 
-    const validation = validateGitHubSettings({ username, repo: normalizedRepo, token });
+    const validation = validateSettings({ username, repo: normalizedRepo, token });
 
     if (!validation.valid) {
       setTestStatus({
@@ -109,13 +132,13 @@ export function GitHubSettingsPanel() {
     setIsTesting(true);
 
     try {
-      const settings: GitHubSettings = {
+      const testSettings: GitHubSettings = {
         username: username.trim(),
         repo: normalizedRepo,
         token: token.trim(),
       };
 
-      const result = await testGitHubConnection(settings);
+      const result = await testGitHubConnection(testSettings);
 
       if (result.valid) {
         setTestStatus({
@@ -138,9 +161,12 @@ export function GitHubSettingsPanel() {
     }
   };
 
-  const handleClear = () => {
+  /**
+   * Clear all GitHub settings with user confirmation
+   */
+  const handleClear = async () => {
     if (confirm("Are you sure you want to clear all GitHub settings?")) {
-      clearGitHubSettings();
+      await clearSettings();
       setUsername("");
       setRepo("");
       setToken("");
@@ -170,15 +196,17 @@ export function GitHubSettingsPanel() {
           <div className="space-y-4">
             {/* Username */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label htmlFor="github-username" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 GitHub Username <span className="text-destructive">*</span>
               </label>
               <input
+                id="github-username"
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="octocat"
                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-primary/50 focus:border-primary"
+                aria-required="true"
               />
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 Your GitHub username
@@ -187,10 +215,11 @@ export function GitHubSettingsPanel() {
 
             {/* Repository */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label htmlFor="github-repo" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Repository <span className="text-destructive">*</span>
               </label>
               <input
+                id="github-repo"
                 type="text"
                 value={repo}
                 onChange={(e) => setRepo(e.target.value)}
@@ -203,8 +232,10 @@ export function GitHubSettingsPanel() {
                 }}
                 placeholder="owner/repo-name"
                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-primary/50 focus:border-primary font-mono"
+                aria-required="true"
+                aria-describedby="repo-format-hint"
               />
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              <p id="repo-format-hint" className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 Format: <code className="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">owner/repo-name</code>
                 <br />
                 <span className="text-info">💡 URLs will be auto-normalized (e.g., https://github.com/owner/repo → owner/repo)</span>
@@ -213,21 +244,25 @@ export function GitHubSettingsPanel() {
 
             {/* Personal Access Token */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label htmlFor="github-token" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Personal Access Token <span className="text-destructive">*</span>
               </label>
               <div className="relative">
                 <input
+                  id="github-token"
                   type={showToken ? "text" : "password"}
                   value={token}
                   onChange={(e) => setToken(e.target.value)}
                   placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
                   className="w-full px-4 py-2 pr-12 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-primary/50 focus:border-primary font-mono text-sm"
+                  aria-required="true"
+                  aria-describedby="token-help"
                 />
                 <button
                   type="button"
                   onClick={() => setShowToken(!showToken)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                  aria-label={showToken ? "Hide token" : "Show token"}
                 >
                   {showToken ? (
                     <EyeOff className="w-4 h-4 text-gray-500" />
@@ -236,7 +271,7 @@ export function GitHubSettingsPanel() {
                   )}
                 </button>
               </div>
-              <div className="mt-2 space-y-1">
+              <div id="token-help" className="mt-2 space-y-1">
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   Create a token at:{" "}
                   <a

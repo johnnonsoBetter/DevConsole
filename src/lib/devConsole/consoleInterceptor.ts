@@ -1,10 +1,41 @@
-import { useDevConsoleStore } from "../../utils/stores/devConsole";
 import type { LogLevel } from "../../utils/stores/devConsole";
 
 // ============================================================================
 // CONSOLE INTERCEPTOR
 // Monkey-patches native console methods to capture logs
 // ============================================================================
+
+// Storage key for capture settings
+const CAPTURE_SETTINGS_KEY = 'devConsole_captureSettings';
+
+// Interface for capture settings stored in chrome.storage
+interface CaptureSettings {
+  captureConsole: boolean;
+}
+
+// Cache for capture settings
+let captureSettings: CaptureSettings = { captureConsole: true };
+
+// Load capture settings from chrome.storage
+async function loadCaptureSettings() {
+  try {
+    const result = await chrome.storage.local.get(CAPTURE_SETTINGS_KEY);
+    captureSettings = result[CAPTURE_SETTINGS_KEY] || { captureConsole: true };
+  } catch (error) {
+    console.warn('[DevConsole] Could not load capture settings:', error);
+  }
+}
+
+// Listen for changes to capture settings
+if (typeof chrome !== 'undefined' && chrome.storage) {
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName === 'local' && changes[CAPTURE_SETTINGS_KEY]) {
+      captureSettings = changes[CAPTURE_SETTINGS_KEY].newValue || { captureConsole: true };
+    }
+  });
+  // Initial load
+  loadCaptureSettings();
+}
 
 // Store original console methods
 const originalConsole = {
@@ -138,9 +169,8 @@ function captureLog(level: LogLevel, args: any[]) {
   // Prevent recursive logging
   if (isCapturing) return;
 
-  const store = useDevConsoleStore.getState();
-
-  if (!store.captureConsole) return;
+  // Check if capturing is enabled (using cached settings)
+  if (!captureSettings.captureConsole) return;
 
   // Set flag to prevent recursion
   isCapturing = true;
@@ -172,13 +202,22 @@ function captureLog(level: LogLevel, args: any[]) {
       message = "[Unable to serialize arguments]";
     }
 
-    store.addLog({
-      level,
-      message,
-      args,
-      stack: cleanedStack, // Use cleaned stack trace
-      source,
-    });
+    // Send log to background script or devtools via chrome.runtime messaging
+    try {
+      chrome.runtime.sendMessage({
+        type: 'CONSOLE_LOG',
+        payload: {
+          level,
+          message,
+          args,
+          stack: cleanedStack,
+          source,
+        }
+      });
+    } catch (messagingError) {
+      // If messaging fails, fall back to logging to console
+      originalConsole.warn('[DevConsole] Failed to send log message:', messagingError);
+    }
   } catch (error) {
     // Silently fail to prevent error loops
     // Use original console to log the issue without triggering interception

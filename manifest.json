@@ -5,9 +5,12 @@
   "description": "Advanced developer console with logging, network monitoring, GraphQL explorer, and AI assistance",
   
   "permissions": [
+    "scripting",
     "storage",
     "activeTab",
-    "debugger"
+    "debugger",
+    "clipboardWrite",
+    "clipboardRead"
   ],
   
   "host_permissions": [
@@ -47,8 +50,9 @@
   
   "web_accessible_resources": [
     {
-      "resources": ["src/content/*"],
-      "matches": ["<all_urls>"]
+      "resources": ["page-hook-logic.js"],
+      "matches": ["<all_urls>"],
+      "run_at": "document_idle"
     }
   ]
 }

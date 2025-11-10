@@ -145,7 +145,7 @@ export function analyzeError(error: Error): ErrorInsight {
 /**
  * Convert URL path to absolute file system path
  */
-function urlToAbsolutePath(urlPath: string): string {
+async function urlToAbsolutePath(urlPath: string): Promise<string> {
   // Remove protocol and domain
   let path = urlPath.replace(/^https?:\/\/[^/]+/, '');
 
@@ -162,7 +162,7 @@ function urlToAbsolutePath(urlPath: string): string {
 
   // For development URLs without @fs prefix, try to reconstruct the path
   // Assume the current file is in the workspace (we can detect this from window.location)
-  const workspaceRoot = getWorkspaceRoot();
+  const workspaceRoot = await getWorkspaceRoot();
 
   // If path starts with /src, it's a web file
   if (path.startsWith('/src/')) {
@@ -182,7 +182,7 @@ function urlToAbsolutePath(urlPath: string): string {
  * Get workspace root from browser context
  * This is a best-effort approach since we don't have access to process.cwd() in the browser
  */
-function getWorkspaceRoot(): string {
+async function getWorkspaceRoot(): Promise<string> {
   // Try to extract from error stack traces that might contain @fs paths
   try {
     const error = new Error();
@@ -196,16 +196,22 @@ function getWorkspaceRoot(): string {
     // Ignore
   }
 
-  // Fallback: Allow user to configure via localStorage or just return a placeholder
-  const stored = localStorage.getItem('devConsole:workspaceRoot');
-  if (stored) return stored;
+  // Fallback: Allow user to configure via chrome.storage
+  try {
+    const result = await chrome.storage.local.get('devConsole:workspaceRoot');
+    if (result['devConsole:workspaceRoot']) {
+      return result['devConsole:workspaceRoot'];
+    }
+  } catch (e) {
+    // Ignore
+  }
 
   // Ultimate fallback - user will need to configure this
   // For now, return empty string and rely on @fs paths
   return '';
 }
 
-export function parseStackTrace(stack: string): ParsedStackFrame[] {
+export async function parseStackTrace(stack: string): Promise<ParsedStackFrame[]> {
   if (!stack) return [];
 
   const frames: ParsedStackFrame[] = [];
@@ -224,7 +230,7 @@ export function parseStackTrace(stack: string): ParsedStackFrame[] {
     const isUserCode = !isNodeModules && !fullPath.includes("vite") && !fullPath.includes("@fs");
 
     // Convert URL to absolute file path
-    const absolutePath = urlToAbsolutePath(fullPath);
+    const absolutePath = await urlToAbsolutePath(fullPath);
 
     frames.push({
       file,
@@ -320,13 +326,13 @@ function getBrowserInfo(): string {
 /**
  * Generate VS Code URI for opening files
  */
-export function generateVSCodeUri(filePath: string, line?: number, column?: number): string {
+export async function generateVSCodeUri(filePath: string, line?: number, column?: number): Promise<string> {
   // Ensure we have an absolute path
   let absolutePath = filePath;
 
   // If it's a URL, convert it first
   if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
-    absolutePath = urlToAbsolutePath(filePath);
+    absolutePath = await urlToAbsolutePath(filePath);
   }
 
   // Build vscode:// URI

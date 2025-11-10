@@ -4,76 +4,85 @@
  */
 
 import { motion } from 'framer-motion';
-import { CheckCircle, Loader, AlertCircle, Download, Zap, Info } from 'lucide-react';
+import { CheckCircle, Loader, Zap } from 'lucide-react';
 import { cn } from '../../../utils';
-import type { AIAvailability } from 'src/lib/devConsole/aiService';
-import type { AIAPIMetadata } from 'src/lib/devConsole/multiAIService';
+import { AIModel, useChromeAI } from '@/hooks/useChromeAI';
+import { useState, useEffect } from 'react';
 
 interface AICardProps {
-  api: AIAPIMetadata;
-  availability: AIAvailability;
-  downloadProgress?: number;
-  onActivate: () => void;
-  isActivating?: boolean;
+  model: AIModel;
+  icon: React.ReactNode;
 }
 
-export function AICard({
-  api,
-  availability,
-  downloadProgress = 0,
-  onActivate,
-  isActivating = false
-}: AICardProps) {
+export function AICard({ icon, model }: AICardProps) {
+  // Safety check - if model is undefined, return null
+  if (!model) {
+    console.error('AICard received undefined model prop');
+    return null;
+  }
+
+  const { availability, downloadProgress, checkAvailability, createSession } = useChromeAI(model);
+
+  const [isActivating, setIsActivating] = useState(false);
+
+  // Check availability on mount
+  useEffect(() => {
+    const isAvailable = async () => {
+      const availability = await checkAvailability();
+
+      return availability;
+    };
+
+    console.log(isAvailable);
+  }, [checkAvailability]);
+
+  // Handle activation
+  const handleActivate = async () => {
+    setIsActivating(true);
+    try {
+      await createSession();
+    } catch (err) {
+      console.error('Failed to activate AI model:', err);
+    } finally {
+      setIsActivating(false);
+    }
+  };
+
+  // Get status configuration based on availability
   const getStatusConfig = () => {
     switch (availability) {
       case 'available':
         return {
-          icon: CheckCircle,
-          color: 'text-success border-success/20 bg-success/5',
-          label: 'Ready',
-          buttonText: 'Activated',
-          buttonDisabled: true,
-          buttonClass: 'bg-success/10 text-success cursor-not-allowed'
-        };
-      case 'downloading':
-        return {
-          icon: Loader,
-          color: 'text-info border-info/20 bg-info/5',
-          label: `Downloading ${downloadProgress}%`,
-          buttonText: `Downloading ${downloadProgress}%`,
-          buttonDisabled: true,
-          buttonClass: 'bg-info/10 text-info cursor-not-allowed'
+          buttonText: 'Ready',
+          buttonClass: 'bg-success hover:bg-success/90 text-white',
         };
       case 'downloadable':
         return {
-          icon: Download,
-          color: 'text-warning border-warning/20 bg-warning/5',
-          label: 'Available',
-          buttonText: 'Activate',
-          buttonDisabled: false,
-          buttonClass: 'bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 text-white'
+          buttonText: 'Download & Activate',
+          buttonClass: 'bg-primary hover:bg-primary/90 text-white',
+        };
+      case 'downloading':
+        return {
+          buttonText: `Downloading ${downloadProgress}%`,
+          buttonClass: 'bg-info hover:bg-info/90 text-white',
         };
       case 'unavailable':
       default:
         return {
-          icon: AlertCircle,
-          color: 'text-gray-400 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50',
-          label: 'Unavailable',
-          buttonText: 'Not Available',
-          buttonDisabled: true,
-          buttonClass: 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed'
+          buttonText: 'Unavailable',
+          buttonClass: 'bg-gray-300 dark:bg-gray-700 text-gray-500 cursor-not-allowed',
         };
     }
   };
 
-  const status = getStatusConfig();
-  const StatusIcon = status.icon;
+  const statusConfig = getStatusConfig();
 
-  const stabilityColors = {
-    'stable': 'bg-success/10 text-success border-success/20',
-    'origin-trial': 'bg-warning/10 text-warning border-warning/20',
-    'extension-only': 'bg-info/10 text-info border-info/20'
-  };
+  const stabilityColors = [
+    { status: 'downloadable', class: 'bg-warning/10 text-warning border-warning/20' },
+    { status: 'downloading', class: 'bg-info/10 text-info border-info/20' },
+    { status: 'available', class: 'bg-success/10 text-success border-success/20' },
+    { status: 'unavailable', class: 'bg-gray-100 dark:bg-gray-800 text-gray-500 border-gray-200' },
+  ];
 
   return (
     <motion.div
@@ -83,44 +92,21 @@ export function AICard({
       transition={{ duration: 0.2 }}
       className={cn(
         'relative rounded-xl border-2 p-5 transition-all',
-        status.color
+        stabilityColors.find((c) => c.status === availability)?.class ||
+          'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50'
       )}
     >
       {/* Header */}
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3">
-          <div className="text-4xl">{api.icon}</div>
+          <div className="text-4xl">{icon}</div>
           <div>
-            <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">
-              {api.name}
-            </h3>
-            <div className="flex items-center gap-2 mt-1">
-              <span className={cn(
-                'text-[10px] font-semibold px-2 py-0.5 rounded-full border',
-                stabilityColors[api.stability]
-              )}>
-                {api.stability === 'stable' ? 'Stable' : api.stability === 'origin-trial' ? 'Origin Trial' : 'Extension Only'}
-              </span>
-              <span className="text-[10px] text-gray-500 dark:text-gray-400">
-                Chrome {api.chromeVersion}
-              </span>
-            </div>
+            <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">{model}</h3>
           </div>
-        </div>
-
-        {/* Status Icon */}
-        <div className="flex-shrink-0">
-          <StatusIcon className={cn(
-            'w-5 h-5',
-            availability === 'downloading' && 'animate-spin'
-          )} />
         </div>
       </div>
 
       {/* Description */}
-      <p className="text-xs text-gray-600 dark:text-gray-400 mb-4 line-clamp-2">
-        {api.description}
-      </p>
 
       {/* Download Progress Bar (if downloading) */}
       {availability === 'downloading' && downloadProgress > 0 && downloadProgress < 100 && (
@@ -136,32 +122,19 @@ export function AICard({
         </div>
       )}
 
-      {/* Info Row */}
-      <div className="flex items-center justify-between text-[10px] text-gray-500 dark:text-gray-400 mb-4">
-        <div className="flex items-center gap-1">
-          <Info className="w-3 h-3" />
-          <span>Model: {api.modelSize}</span>
-        </div>
-        <span className={cn(
-          'font-semibold',
-          availability === 'available' ? 'text-success' :
-            availability === 'downloading' ? 'text-info' :
-              availability === 'downloadable' ? 'text-warning' :
-                'text-gray-400'
-        )}>
-          {status.label}
-        </span>
-      </div>
-
       {/* Action Button */}
       <button
-        onClick={onActivate}
-        disabled={status.buttonDisabled || isActivating}
+        onClick={handleActivate}
+        disabled={
+          isActivating ||
+          (downloadProgress > 0 && downloadProgress < 100) ||
+          availability === 'unavailable'
+        }
         className={cn(
           'w-full px-4 py-2.5 rounded-lg text-sm font-semibold transition-all',
           'disabled:opacity-50 disabled:cursor-not-allowed',
           'flex items-center justify-center gap-2',
-          status.buttonClass
+          statusConfig.buttonClass
         )}
       >
         {isActivating ? (
@@ -172,17 +145,17 @@ export function AICard({
         ) : availability === 'available' ? (
           <>
             <CheckCircle className="w-4 h-4" />
-            {status.buttonText}
+            {statusConfig.buttonText}
           </>
         ) : availability === 'downloading' ? (
           <>
             <Loader className="w-4 h-4 animate-spin" />
-            {status.buttonText}
+            {statusConfig.buttonText}
           </>
         ) : (
           <>
             <Zap className="w-4 h-4" />
-            {status.buttonText}
+            {statusConfig.buttonText}
           </>
         )}
       </button>

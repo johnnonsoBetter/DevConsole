@@ -1,157 +1,79 @@
-/**
- * useAI Hook
- * Custom hook for managing AI features in DevConsole
- */
+// /**
+//  * useAI Hook
+//  * Custom hook for managing AI features in DevConsole
+//  *
+//  * This hook is a wrapper around useSummarizerModel for backward compatibility.
+//  * For new code, consider using useSummarizerModel directly.
+//  */
 
-import { useState, useEffect, useCallback } from 'react';
-import { aiService, getBrowserSupport } from '../lib/devConsole/aiService';
-import type { AIAvailability } from '../lib/devConsole/aiService';
+// import { useState, useEffect, useCallback } from 'react';
+// import { useSummarizerModel } from './ai/useSummarizerModel';
+// import type { SummarizerAvailability } from './ai/useSummarizerModel';
 
-interface UseAIOptions {
-  autoCheck?: boolean;
-  onDownloadProgress?: (progress: number) => void;
-}
+// // Map SummarizerAvailability to AIAvailability for backward compatibility
+// export type AIAvailability = SummarizerAvailability;
 
-interface UseAIReturn {
-  availability: AIAvailability;
-  isLoading: boolean;
-  error: string | null;
-  summary: string | null;
-  downloadProgress: number;
-  browserSupport: ReturnType<typeof getBrowserSupport>;
-  checkAvailability: () => Promise<AIAvailability | undefined>;
-  analyzeLog: (logMessage: string, logLevel: string, stackTrace?: string, context?: string) => Promise<void>;
-  summarizeError: (errorMessage: string, stackTrace?: string, context?: string) => Promise<void>; // Deprecated, kept for backward compatibility
-  activateAI: () => Promise<void>;
-  reset: () => void;
-}
+// interface UseAIOptions {
+//   autoCheck?: boolean;
+//   onDownloadProgress?: (progress: number) => void;
+// }
 
-export function useAI(options: UseAIOptions = {}): UseAIReturn {
-  const { autoCheck = true, onDownloadProgress } = options;
+// interface UseAIReturn {
+//   availability: AIAvailability;
+//   isLoading: boolean;
+//   error: string | null;
+//   summary: string | null;
+//   downloadProgress: number;
+//   checkAvailability: () => Promise<AIAvailability | undefined>;
+//   analyzeLog: (
+//     logMessage: string,
+//     logLevel: string,
+//     stackTrace?: string,
+//     context?: string
+//   ) => Promise<void>;
+//   summarizeError: (errorMessage: string, stackTrace?: string, context?: string) => Promise<void>; // Deprecated, kept for backward compatibility
+//   activateAI: () => Promise<void>;
+//   reset: () => void;
+// }
 
-  const [availability, setAvailability] = useState<AIAvailability>('unavailable');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [summary, setSummary] = useState<string | null>(null);
-  const [downloadProgress, setDownloadProgress] = useState(0);
-  const [browserSupport] = useState(() => getBrowserSupport());
+// export function useAI(options: UseAIOptions = {}): UseAIReturn {
+//   const { autoCheck = true, onDownloadProgress } = options;
 
-  // Check AI availability
-  const checkAvailability = useCallback(async () => {
-    try {
-      const status = await aiService.checkAvailability();
-      setAvailability(status);
-      return status;
-    } catch (err) {
-      console.error('Failed to check AI availability:', err);
-      setAvailability('unavailable');
-    }
-  }, []);
+//   const [isLoading, setIsLoading] = useState(false);
+//   const [summary, setSummary] = useState<string | null>(null);
 
-  // Auto-check availability on mount
-  useEffect(() => {
-    if (autoCheck && browserSupport.isSupported) {
-      checkAvailability();
-    }
-  }, [autoCheck, browserSupport.isSupported, checkAvailability]);
+//   // Check AI availability
 
-  // Set up download progress callback
-  useEffect(() => {
-    const handleProgress = (progress: number) => {
-      setDownloadProgress(progress);
 
-      // Only set to downloading if progress is less than 100%
-      if (progress < 100) {
-        setAvailability('downloading');
-      } else if (progress === 100) {
-        // Download completed, re-check availability
-        checkAvailability();
-      }
 
-      onDownloadProgress?.(progress);
-    };
+//   const [error, setError] = useState<string | null>(null);
 
-    aiService.setDownloadProgressCallback(handleProgress);
-  }, [onDownloadProgress, checkAvailability]);
 
-  // Analyze log with AI
-  const analyzeLog = useCallback(async (
-    logMessage: string,
-    logLevel: string,
-    stackTrace?: string,
-    context?: string
-  ) => {
-    setIsLoading(true);
-    setError(null);
-    setSummary(null);
+//   // Handle download progress callback
+//   useEffect(() => {
+//     if (onDownloadProgress) {
+//       onDownloadProgress(downloadProgress);
+//     }
+//   }, [downloadProgress, onDownloadProgress]);
 
-    try {
-      const result = await aiService.analyzeLog(logMessage, logLevel, stackTrace, context);
-      setSummary(result);
-      setError(null);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to analyze log';
-      setError(errorMessage);
-      setSummary(null);
-      console.error('AI log analysis failed:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+//   // Analyze log with AI (wrapper)
 
-  // Summarize error with AI (deprecated - kept for backward compatibility)
-  const summarizeError = useCallback(async (
-    errorMessage: string,
-    stackTrace?: string,
-    context?: string
-  ) => {
-    return analyzeLog(errorMessage, 'error', stackTrace, context);
-  }, [analyzeLog]);
 
-  // Activate AI (first-time use)
-  const activateAI = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
+//   // Activate AI (first-time use)
 
-    try {
-      // Check availability first
-      const status = await aiService.checkAvailability();
-      setAvailability(status);
+//   // Reset state
+//   const reset = useCallback(() => {
+//     setIsLoading(false);
+//     setError(null);
+//     setSummary(null);
+//   }, []);
 
-      if (status === 'available') {
-        setError(null);
-      } else if (status === 'downloading') {
-        setError('AI model is downloading. Please wait...');
-      } else {
-        setError('AI is not available. Please check your browser and system requirements.');
-      }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to activate AI';
-      setError(errorMessage);
-      console.error('AI activation failed:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  // Reset state
-  const reset = useCallback(() => {
-    setIsLoading(false);
-    setError(null);
-    setSummary(null);
-  }, []);
-
-  return {
-    availability,
-    isLoading,
-    error,
-    summary,
-    downloadProgress,
-    browserSupport,
-    checkAvailability,
-    analyzeLog,
-    summarizeError,
-    activateAI,
-    reset
-  };
-}
+//   return {
+//     availability,
+//     isLoading,
+//     error,
+//     summary,
+    
+//     reset,
+//   };
+// }

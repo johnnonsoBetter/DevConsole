@@ -6,29 +6,29 @@ import { Github, Eye, Code, Send, Settings, CheckCircle, AlertCircle, Loader, Sp
 import { cn } from "../../utils";
 import { createContextPack, generateGitHubIssueMarkdown } from "../../lib/devConsole/contextPacker";
 import { createGitHubIssue } from "../../lib/devConsole/githubApi";
-import { loadGitHubSettings } from "../../lib/devConsole/githubSettings";
-import type { GitHubSettings } from "../../lib/devConsole/githubSettings";
+import { useGitHubSettings } from "../../hooks/useGitHubSettings";
 import { AIActionButton } from "./AI";
 import { useGitHubIssueSlideoutStore } from "@/utils/stores";
-import { useAI } from "@/hooks/useAI";
+import { useGitHubIssueGenerator } from "@/hooks/ai";
 
 // ============================================================================
 // GITHUB ISSUE PANEL
 // ============================================================================
 
 export function GitHubIssuePanel({ onOpenSettings }: { onOpenSettings: () => void }) {
+  // GitHub Settings Hook
+  const { settings,  } = useGitHubSettings();
+
   // Zustand Store - Centralized state management (same as slideout)
   const {
     title,
     body,
     activeView,
-    isGenerating,
     isPublishing,
     publishStatus,
     setTitle,
     setBody,
     setActiveView,
-    setIsGenerating,
     setIsPublishing,
     setPublishStatus,
     updateContent,
@@ -37,20 +37,14 @@ export function GitHubIssuePanel({ onOpenSettings }: { onOpenSettings: () => voi
 
   // AI Hook for intelligent issue generation
   const {
+    generating: isAIGenerating,
+    generatedIssue,
+    generateIssue,
     availability: aiAvailability,
-    isLoading: isAIGenerating,
-    analyzeLog,
-    summary: aiSummary,
-    reset: resetAI,
-  } = useAI({ autoCheck: true });
 
-  // Load GitHub settings (not stored in Zustand, loaded fresh each time)
-  useEffect(() => {
-    // Settings are loaded from localStorage on demand
-  }, []);
+  } = useGitHubIssueGenerator();
 
   const handleGenerateFromContext = async () => {
-    setIsGenerating(true);
     setPublishStatus({ type: null, message: "" });
 
     try {
@@ -75,15 +69,13 @@ export function GitHubIssuePanel({ onOpenSettings }: { onOpenSettings: () => voi
         type: "error",
         message: "Failed to generate issue. Check console for details.",
       });
-    } finally {
-      setIsGenerating(false);
     }
   };
 
-  // AI-powered issue generation (consistent with slideout)
+  // AI-powered issue generation using the new hook
   const handleAIGenerate = async () => {
-    if (!body) {
-      // If no body yet, generate from context first
+    if (!body && !title) {
+      // If no content yet, generate from context first
       await handleGenerateFromContext();
       return;
     }
@@ -91,43 +83,24 @@ export function GitHubIssuePanel({ onOpenSettings }: { onOpenSettings: () => voi
     setPublishStatus({ type: null, message: "" });
 
     try {
-      // Use existing body content for AI analysis (same format as slideout)
-      await analyzeLog(
-        body,
-        'info',
-        undefined,
-        `You are generating a GitHub issue. Follow these strict formatting rules:
+      // Generate improved issue using the AI hook
+      const result = await generateIssue({
+        title: title || undefined,
+        body: body || undefined,
+      });
 
-1. TITLE (First line only):
-   - Start with "Title: " followed by a short, clear title (max 60 characters)
-   - Be specific and descriptive
-   - Example: "Title: API request timeout on campaign creation"
-   - Example: "Title: Console error when rendering profile page"
+      if (result) {
+        // Update content with AI-generated result
+        updateContent({
+          title: result.title,
+          body: result.body,
+        });
 
-2. BODY (GitHub Flavored Markdown):
-   - Use proper markdown formatting
-   - Start with ## Description
-   - Include ## Technical Details with code blocks
-   - Add ## Stack Trace (if available) in \`\`\` code blocks
-   - Include ## Impact and any other relevant sections
-   - Use **bold** for important terms
-   - Use \`code\` for file names, variables, functions
-   - Use bullet points (-) for lists
-   - Use numbered lists (1. 2. 3.) for steps
-
-3. CODE FORMATTING:
-   - Wrap all code/stack traces in triple backticks with language
-   - Example: \`\`\`javascript\ncode here\n\`\`\`
-   - Example: \`\`\`bash\ncommand here\n\`\`\`
-
-4. STRUCTURE:
-   - Be concise but comprehensive
-   - Focus on actionable information
-   - Include error messages verbatim in code blocks
-   - Highlight file names and line numbers
-
-Generate now:`
-      );
+        setPublishStatus({
+          type: "success",
+          message: "✓ AI-generated issue ready for review!",
+        });
+      }
     } catch (error) {
       console.error("Failed to generate AI issue:", error);
       setPublishStatus({
@@ -137,66 +110,12 @@ Generate now:`
     }
   };
 
-  // Update title and body when AI analysis completes (consistent with slideout)
+  // Update content when AI generation completes
   useEffect(() => {
-    if (aiSummary && !isAIGenerating) {
-      // Extract title from AI summary (IDENTICAL logic as slideout)
-      const lines = aiSummary.split('\n').filter(l => l.trim());
-      let extractedTitle = '';
-      let extractedBody = '';
-
-      if (lines.length > 0) {
-        const firstLine = lines[0].trim();
-
-        // Check for "Title:" prefix (case insensitive)
-        if (firstLine.toLowerCase().startsWith('title:')) {
-          extractedTitle = firstLine.replace(/^title:\s*/i, '').trim();
-          // Rest of the content is the body
-          extractedBody = lines.slice(1).join('\n').trim();
-        }
-        // Check for markdown heading
-        else if (firstLine.startsWith('# ')) {
-          extractedTitle = firstLine.replace(/^#\s*/, '').trim();
-          extractedBody = lines.slice(1).join('\n').trim();
-        }
-        // Fallback: use first line as title if it's short
-        else if (firstLine.length <= 80) {
-          extractedTitle = firstLine.replace(/^[#*-]\s*/, '').trim();
-          extractedBody = lines.slice(1).join('\n').trim();
-        }
-        // If first line is too long, extract from content
-        else {
-          // Try to find a title in the content
-          for (let i = 0; i < Math.min(3, lines.length); i++) {
-            const line = lines[i].trim();
-            if (line.toLowerCase().startsWith('title:')) {
-              extractedTitle = line.replace(/^title:\s*/i, '').trim();
-              // Remove this line from body
-              extractedBody = lines.filter((_, idx) => idx !== i).join('\n').trim();
-              break;
-            }
-          }
-
-          // If still no title, generate from content
-          if (!extractedTitle) {
-            extractedTitle = 'Issue detected in application';
-            extractedBody = aiSummary;
-          }
-        }
-      }
-
-      // Limit title length
-      if (extractedTitle.length > 80) {
-        extractedTitle = extractedTitle.substring(0, 77) + '...';
-      }
-
-      // Clean up body - remove any remaining "Title:" lines
-      extractedBody = extractedBody.replace(/^title:.*\n?/gim, '').trim();
-
-      // Update content using Zustand action (ensures consistency with slideout)
+    if (generatedIssue && !isAIGenerating) {
       updateContent({
-        title: extractedTitle || 'Issue detected in application',
-        body: extractedBody,
+        title: generatedIssue.title,
+        body: generatedIssue.body,
       });
 
       setPublishStatus({
@@ -204,12 +123,10 @@ Generate now:`
         message: "✓ AI-generated issue ready for review!",
       });
     }
-  }, [aiSummary, isAIGenerating, updateContent, setPublishStatus]);
+  }, [generatedIssue, isAIGenerating, updateContent, setPublishStatus]);
 
   const handlePublish = async () => {
-    // Load settings fresh for publishing
-    const settings = loadGitHubSettings();
-
+    // Check if settings are configured
     if (!settings) {
       setPublishStatus({
         type: "error",
@@ -345,10 +262,10 @@ Generate now:`
 
               <button
                 onClick={handleGenerateFromContext}
-                disabled={isGenerating}
+                disabled={isAIGenerating}
                 className="w-full px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                {isGenerating ? (
+                {isAIGenerating ? (
                   <>
                     <Loader className="w-4 h-4 animate-spin" />
                     Generating from Context...
@@ -453,7 +370,7 @@ Generate now:`
         <div className="flex items-center justify-between">
           <div className="text-xs text-gray-500 dark:text-gray-400">
             {(() => {
-              const settings = loadGitHubSettings();
+              
               return settings ? (
                 <span>
                   Publishing to: <span className="font-mono">{settings.repo}</span>

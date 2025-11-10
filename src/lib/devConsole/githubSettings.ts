@@ -1,9 +1,9 @@
 /**
  * GitHub Settings Storage Utility
- * Manages GitHub credentials for issue creation
+ * Manages GitHub credentials for issue creation for Chrome Extension
  */
 
-const STORAGE_KEY = 'linkvybe_github_settings';
+const STORAGE_KEY = 'devconsole_github_settings';
 
 export interface GitHubSettings {
   username: string;
@@ -12,11 +12,11 @@ export interface GitHubSettings {
 }
 
 /**
- * Save GitHub settings to localStorage
+ * Save GitHub settings to chrome.storage.local
  */
-export function saveGitHubSettings(settings: GitHubSettings): void {
+export async function saveGitHubSettings(settings: GitHubSettings): Promise<void> {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    await chrome.storage.local.set({ [STORAGE_KEY]: settings });
   } catch (error) {
     console.error('Failed to save GitHub settings:', error);
     throw new Error('Failed to save GitHub settings');
@@ -24,13 +24,12 @@ export function saveGitHubSettings(settings: GitHubSettings): void {
 }
 
 /**
- * Load GitHub settings from localStorage
+ * Load GitHub settings from chrome.storage.local
  */
-export function loadGitHubSettings(): GitHubSettings | null {
+export async function loadGitHubSettings(): Promise<GitHubSettings | null> {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) return null;
-    return JSON.parse(stored) as GitHubSettings;
+    const result = await chrome.storage.local.get(STORAGE_KEY);
+    return result[STORAGE_KEY] || null;
   } catch (error) {
     console.error('Failed to load GitHub settings:', error);
     return null;
@@ -38,11 +37,11 @@ export function loadGitHubSettings(): GitHubSettings | null {
 }
 
 /**
- * Clear GitHub settings from localStorage
+ * Clear GitHub settings from chrome.storage.local
  */
-export function clearGitHubSettings(): void {
+export async function clearGitHubSettings(): Promise<void> {
   try {
-    localStorage.removeItem(STORAGE_KEY);
+    await chrome.storage.local.remove(STORAGE_KEY);
   } catch (error) {
     console.error('Failed to clear GitHub settings:', error);
   }

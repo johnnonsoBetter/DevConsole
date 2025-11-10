@@ -11,10 +11,15 @@ interface DevConsoleState {
 interface LogEntry {
   id: string;
   timestamp: number;
-  level: 'log' | 'info' | 'warn' | 'error' | 'debug';
+  level: 'log' | 'info' | 'warn' | 'error' | 'debug' | 'ui' | 'db' | 'api';
   message: string;
   args?: any[];
-  stack?: string;
+  source?: {
+    file?: string;
+    line?: number;
+    column?: number;
+    raw?: string;
+  };
   url?: string;
   tabId: number;
 }
@@ -84,17 +89,45 @@ async function saveState() {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const tabId = sender.tab?.id || 0;
 
+  console.log('Background received message:', message.type, 'from tab:', tabId);
+
   switch (message.type) {
+    case 'DEVCONSOLE_BATCH':
+      // Handle batched messages from content script
+      if (Array.isArray(message.payload)) {
+        message.payload.forEach((msg: any) => {
+          if (msg.type === 'CONSOLE_LOG') {
+            handleConsoleLog(msg.payload, tabId);
+          } else if (msg.type === 'NETWORK_REQUEST') {
+            handleNetworkRequest(msg.payload, tabId);
+          }
+        });
+      }
+      break;
+
     case 'CONSOLE_LOG':
       handleConsoleLog(message.payload, tabId);
       break;
     
     case 'NETWORK_REQUEST':
+      console.log('Network request payload:', message.payload);
       handleNetworkRequest(message.payload, tabId);
       break;
     
+    case 'DEVCONSOLE_UNLOAD':
+      // Handle page unload - could be used for cleanup if needed
+      break;
+    
     case 'GET_STATE':
-      sendResponse(devConsoleState);
+      if (typeof message.tabId === 'number') {
+        sendResponse({
+          ...devConsoleState,
+          logs: devConsoleState.logs.filter(log => log.tabId === message.tabId),
+          networkRequests: devConsoleState.networkRequests.filter(req => req.tabId === message.tabId),
+        });
+      } else {
+        sendResponse(devConsoleState);
+      }
       break;
     
     case 'UPDATE_SETTINGS':
@@ -102,11 +135,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       break;
     
     case 'CLEAR_LOGS':
-      clearLogs();
+      clearLogs(message.tabId);
       break;
     
     case 'CLEAR_NETWORK':
-      clearNetworkRequests();
+      clearNetworkRequests(message.tabId);
       break;
     
     case 'TOGGLE_RECORDING':
@@ -121,12 +154,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 // Handle console log from content script
-function handleConsoleLog(logData: Omit<LogEntry, 'id' | 'tabId'>, tabId: number) {
+function handleConsoleLog(logData: any, tabId: number) {
   if (!devConsoleState.isRecording) return;
 
+  // Transform payload to LogEntry format
+  // The payload comes from page-hook-logic with: { level, args, timestamp, source }
+  const message = logData.args && logData.args.length > 0 
+    ? JSON.stringify(logData.args[0]) 
+    : '';
+
   const logEntry: LogEntry = {
-    ...logData,
     id: generateId(),
+    timestamp: logData.timestamp || Date.now(),
+    level: logData.level || 'log',
+    message,
+    args: logData.args || [],
+    source: logData.source,
     tabId
   };
 
@@ -142,12 +185,20 @@ function handleConsoleLog(logData: Omit<LogEntry, 'id' | 'tabId'>, tabId: number
 }
 
 // Handle network request from content script
-function handleNetworkRequest(requestData: Omit<NetworkRequest, 'id' | 'tabId'>, tabId: number) {
+function handleNetworkRequest(requestData: any, tabId: number) {
   if (!devConsoleState.isRecording || !devConsoleState.settings.networkMonitoring) return;
 
   const networkRequest: NetworkRequest = {
-    ...requestData,
     id: generateId(),
+    timestamp: requestData.timestamp || Date.now(),
+    url: requestData.url || '',
+    method: requestData.method || 'GET',
+    status: requestData.status,
+    requestHeaders: requestData.requestHeaders,
+    responseHeaders: requestData.responseHeaders,
+    requestBody: requestData.requestBody,
+    responseBody: requestData.responseBody,
+    duration: requestData.duration,
     tabId
   };
 
@@ -170,17 +221,25 @@ function updateSettings(newSettings: Partial<ExtensionSettings>) {
 }
 
 // Clear logs
-function clearLogs() {
-  devConsoleState.logs = [];
+function clearLogs(tabId?: number) {
+  if (typeof tabId === 'number') {
+    devConsoleState.logs = devConsoleState.logs.filter(log => log.tabId !== tabId);
+  } else {
+    devConsoleState.logs = [];
+  }
   saveState();
-  notifyDevTools('LOGS_CLEARED', null);
+  notifyDevTools('LOGS_CLEARED', typeof tabId === 'number' ? { tabId } : null);
 }
 
 // Clear network requests
-function clearNetworkRequests() {
-  devConsoleState.networkRequests = [];
+function clearNetworkRequests(tabId?: number) {
+  if (typeof tabId === 'number') {
+    devConsoleState.networkRequests = devConsoleState.networkRequests.filter(req => req.tabId !== tabId);
+  } else {
+    devConsoleState.networkRequests = [];
+  }
   saveState();
-  notifyDevTools('NETWORK_CLEARED', null);
+  notifyDevTools('NETWORK_CLEARED', typeof tabId === 'number' ? { tabId } : null);
 }
 
 // Toggle recording
@@ -211,18 +270,16 @@ function generateId(): string {
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === 'loading') {
     // Clear logs for this tab when navigating
-    devConsoleState.logs = devConsoleState.logs.filter(log => log.tabId !== tabId);
-    devConsoleState.networkRequests = devConsoleState.networkRequests.filter(req => req.tabId !== tabId);
-    saveState();
+    clearLogs(tabId);
+    clearNetworkRequests(tabId);
   }
 });
 
 // Handle tab removal
 chrome.tabs.onRemoved.addListener((tabId) => {
   // Clean up data for closed tabs
-  devConsoleState.logs = devConsoleState.logs.filter(log => log.tabId !== tabId);
-  devConsoleState.networkRequests = devConsoleState.networkRequests.filter(req => req.tabId !== tabId);
-  saveState();
+  clearLogs(tabId);
+  clearNetworkRequests(tabId);
 });
 
 export {};

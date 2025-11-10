@@ -1,6 +1,6 @@
 import { produce } from "immer";
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { useMemo } from "react";
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -56,7 +56,7 @@ export interface PerformanceMetric {
   metadata?: Record<string, any>;
 }
 
-export type ConsoleTab = "logs" | "network" | "graphql" | "ai" | "autofiller" | "tools";
+export type ConsoleTab = "logs" | "network" | "graphql" | "ai" | "tools" | "settings";
 
 export interface ConsoleFilter {
   levels: LogLevel[];
@@ -72,7 +72,7 @@ export interface ConsoleFilter {
 // DEVELOPER CONSOLE STORE
 // ============================================================================
 
-interface DevConsoleState {
+interface IStore {
   // Visibility & Layout
   isOpen: boolean;
   position: "bottom" | "left" | "right" | "floating";
@@ -105,6 +105,11 @@ interface DevConsoleState {
   captureConsole: boolean;
   captureNetwork: boolean;
   captureState: boolean;
+  logsToBeExported?: string
+  databaseSnapshots?: boolean;
+
+  // Settings Object
+  settings?: Record<string, any>;
 
   // Actions - UI Control
   toggleConsole: () => void;
@@ -131,7 +136,7 @@ interface DevConsoleState {
   resetFilter: () => void;
 
   // Actions - Settings
-  updateSettings: (settings: Partial<Pick<DevConsoleState,
+  updateSettings: (settings: Partial<Pick<IStore, 
     "maxLogs" | "maxNetworkRequests" | "persistLogs" |
     "captureConsole" | "captureNetwork" | "captureState"
   >>) => void;
@@ -140,8 +145,8 @@ interface DevConsoleState {
   markErrorsRead: () => void;
 
   // Utility
-  exportLogs: () => string;
-  exportAll: () => string;
+  exportLogs: () => void
+  exportAll: () => void;
 }
 
 const DEFAULT_FILTER: ConsoleFilter = {
@@ -149,333 +154,327 @@ const DEFAULT_FILTER: ConsoleFilter = {
   search: "",
 };
 
-export const useDevConsoleStore = create<DevConsoleState>()(
-  persist(
-    (set, get) => ({
-      // Initial State
-      isOpen: false,
-      position: "bottom",
-      size: { width: 1200, height: 400 },
-      isDragging: false,
-      activeTab: "logs",
 
-      logs: [],
-      networkRequests: [],
-      stateSnapshots: [],
-      performanceMetrics: [],
 
-      filter: DEFAULT_FILTER,
-      commandPaletteOpen: false,
-      unreadErrorCount: 0,
-      showNotifications: true,
+export const useDevConsoleStore = create<IStore>((set) => ({
+  isDragging: false,
+  isOpen: false,
+  position: "bottom",
+  size: { width: 1200, height: 400 },
+  activeTab: "logs",
+  logs: [],
+  networkRequests: [],
+  stateSnapshots: [],
+  performanceMetrics: [],
+  filter: DEFAULT_FILTER,
+  commandPaletteOpen: false,
+  unreadErrorCount: 0,
+  showNotifications: true,
+  maxLogs: 1000,
+  maxNetworkRequests: 500,
+  persistLogs: true,
+  captureConsole: true,
+  captureNetwork: true,
+  captureState: true,
 
-      maxLogs: 1000,
-      maxNetworkRequests: 500,
-      persistLogs: true,
-      captureConsole: true,
-      captureNetwork: true,
-      captureState: true,
+  toggleConsole: () =>
+    set(
+      produce((draft) => {
+        draft.isOpen = !draft.isOpen;
+      })
+    ),
 
-      // UI Control Actions
-      toggleConsole: () =>
-        set(
-          produce((draft) => {
-            draft.isOpen = !draft.isOpen;
-            if (draft.isOpen) {
-              draft.unreadErrorCount = 0;
-            }
-          })
-        ),
+  setOpen: (open: boolean) =>
+    set(
+      produce((draft) => {
+        draft.isOpen = open;
+        if (open) {
+          draft.unreadErrorCount = 0;
+        }
+      })
+    ),
 
-      setOpen: (open: boolean) =>
-        set(
-          produce((draft) => {
-            draft.isOpen = open;
-            if (open) {
-              draft.unreadErrorCount = 0;
-            }
-          })
-        ),
+  setPosition: (position) =>
+    set(
+      produce((draft) => {
+        draft.position = position;
+      })
+    ),
 
-      setPosition: (position) =>
-        set(
-          produce((draft) => {
-            draft.position = position;
-          })
-        ),
+  setSize: (size) =>
+    set(
+      produce((draft) => {
+        draft.size = size;
+      })
+    ),
 
-      setSize: (size) =>
-        set(
-          produce((draft) => {
-            draft.size = size;
-          })
-        ),
+  setActiveTab: (tab) =>
+    set(
+      produce((draft) => {
+        draft.activeTab = tab;
+      })
+    ),
 
-      setActiveTab: (tab) =>
-        set(
-          produce((draft) => {
-            draft.activeTab = tab;
-          })
-        ),
+  toggleCommandPalette: () =>
+    set(
+      produce((draft) => {
+        draft.commandPaletteOpen = !draft.commandPaletteOpen;
+      })
+    ),
 
-      toggleCommandPalette: () =>
-        set(
-          produce((draft) => {
-            draft.commandPaletteOpen = !draft.commandPaletteOpen;
-          })
-        ),
+  addLog: (log) =>
+    set(
+      produce((draft) => {
+        const newLog: LogEntry = {
+          ...log,
+          id: `log-${Date.now()}-${Math.random()}`,
+          timestamp: Date.now(),
+        };
 
-      // Data Management Actions
-      addLog: (log) =>
-        set(
-          produce((draft) => {
-            const newLog: LogEntry = {
-              ...log,
-              id: `log-${Date.now()}-${Math.random()}`,
-              timestamp: Date.now(),
-            };
+        draft.logs = [newLog, ...draft.logs];
+      })
+    ),
 
-            draft.logs.unshift(newLog);
+  addNetworkRequest: (request) =>
+    set(
+      produce((draft) => {
+        const newRequest: NetworkRequest = {
+          ...request,
+          id: `net-${Date.now()}-${Math.random()}`,
+          timestamp: Date.now(),
+        };
 
-            // Track unread errors
-            if (log.level === "error" && !draft.isOpen) {
-              draft.unreadErrorCount++;
-            }
+        draft.networkRequests = [newRequest, ...draft.networkRequests];
 
-            // Limit log size
-            if (draft.logs.length > draft.maxLogs) {
-              draft.logs = draft.logs.slice(0, draft.maxLogs);
-            }
-          })
-        ),
+       
+      })
+    ),
 
-      addNetworkRequest: (request) =>
-        set(
-          produce((draft) => {
-            const newRequest: NetworkRequest = {
-              ...request,
-              id: `net-${Date.now()}-${Math.random()}`,
-              timestamp: Date.now(),
-            };
+  addStateSnapshot: (snapshot) =>
+    set(
+      produce((draft) => {
+        const newSnapshot: StateSnapshot = {
+          ...snapshot,
+          id: `state-${Date.now()}-${Math.random()}`,
+          timestamp: Date.now(),
+        };
 
-            draft.networkRequests.unshift(newRequest);
+        draft.stateSnapshots = [newSnapshot, ...draft.stateSnapshots];
 
-            // Limit network request size
-            if (draft.networkRequests.length > draft.maxNetworkRequests) {
-              draft.networkRequests = draft.networkRequests.slice(0, draft.maxNetworkRequests);
-            }
-          })
-        ),
+       
+      })
+    ),
 
-      addStateSnapshot: (snapshot) =>
-        set(
-          produce((draft) => {
-            const newSnapshot: StateSnapshot = {
-              ...snapshot,
-              id: `state-${Date.now()}-${Math.random()}`,
-              timestamp: Date.now(),
-            };
+  addPerformanceMetric: (metric) =>
+    set(
+      produce((draft) => {
+        const newMetric: PerformanceMetric = {
+          ...metric,
+          id: `perf-${Date.now()}-${Math.random()}`,
+          timestamp: Date.now(),
+        };
 
-            draft.stateSnapshots.unshift(newSnapshot);
+        draft.performanceMetrics = [newMetric, ...draft.performanceMetrics];
 
-            // Limit snapshots
-            if (draft.stateSnapshots.length > 100) {
-              draft.stateSnapshots = draft.stateSnapshots.slice(0, 100);
-            }
-          })
-        ),
+        // Limit metrics
+      })
+    ),
 
-      addPerformanceMetric: (metric) =>
-        set(
-          produce((draft) => {
-            const newMetric: PerformanceMetric = {
-              ...metric,
-              id: `perf-${Date.now()}-${Math.random()}`,
-              timestamp: Date.now(),
-            };
+  clearLogs: () =>
+    set(
+      produce((draft) => {
+        draft.logs = [];
+        draft.unreadErrorCount = 0;
+      })
+    ),
 
-            draft.performanceMetrics.unshift(newMetric);
+  clearNetwork: () =>
+    set(
+      produce((draft) => {
+        draft.networkRequests = [];
+      })
+    ),
 
-            // Limit metrics
-            if (draft.performanceMetrics.length > 500) {
-              draft.performanceMetrics = draft.performanceMetrics.slice(0, 500);
-            }
-          })
-        ),
+  clearState: () =>
+    set(
+      produce((draft) => {
+        draft.stateSnapshots = [];
+      })
+    ),
 
-      // Clear Actions
-      clearLogs: () =>
-        set(
-          produce((draft) => {
-            draft.logs = [];
-            draft.unreadErrorCount = 0;
-          })
-        ),
+  clearPerformance: () =>
+    set(
+      produce((draft) => {
+        draft.performanceMetrics = [];
+      })
+    ),
+    
+  clearAll: () =>
+    set(
+      produce((draft) => {
+        draft.logs = [];
+        draft.networkRequests = [];
+        draft.stateSnapshots = [];
+        draft.performanceMetrics = [];
+        draft.unreadErrorCount = 0;
 
-      clearNetwork: () =>
-        set(
-          produce((draft) => {
-            draft.networkRequests = [];
-          })
-        ),
+      })
+    ),    
+  setFilter: (filter) =>
+    set(
+      produce((draft) => {
+        draft.filter = { ...draft.filter, ...filter };
+      })
+    ),
+    
+  resetFilter: () =>
+    set(
+      produce((draft) => {
+        draft.filter = DEFAULT_FILTER;
+      })
+    ),
+    
+  updateSettings: (settings) => 
+    set(
+      produce((draft) => {
+        draft.settings = Object.assign(draft.settings || {}, settings);
+      })
+    ),
 
-      clearState: () =>
-        set(
-          produce((draft) => {
-            draft.stateSnapshots = [];
-          })
-        ),
+  markErrorsRead: () =>
+    set(
+      produce((draft) => {
+        draft.unreadErrorCount = 0;
+      })
+    ),
 
-      clearPerformance: () =>
-        set(
-          produce((draft) => {
-            draft.performanceMetrics = [];
-          })
-        ),
+  exportLogs: () => {
+    set(
+      produce((draft) => {
 
-      clearAll: () =>
-        set(
-          produce((draft) => {
-            draft.logs = [];
-            draft.networkRequests = [];
-            draft.stateSnapshots = [];
-            draft.performanceMetrics = [];
-            draft.unreadErrorCount = 0;
-          })
-        ),
+        draft.logsToBeExported = JSON.stringify(draft.logs, null, 2);
+      })
+    );  
+  },
 
-      // Filter Actions
-      setFilter: (filter) =>
-        set(
-          produce((draft) => {
-            draft.filter = { ...draft.filter, ...filter };
-          })
-        ),
+  exportAll: () => {
+    set(
+      produce((draft) => {
+        draft.dataToBeExported = {
+          logs: draft.logs,
+          networkRequests: draft.networkRequests,
+          stateSnapshots: draft.stateSnapshots,
+          performanceMetrics: draft.performanceMetrics,
+        };
+      })
+    );
+  }
+}));
 
-      resetFilter: () =>
-        set(
-          produce((draft) => {
-            draft.filter = DEFAULT_FILTER;
-          })
-        ),
 
-      // Settings Actions
-      updateSettings: (settings) =>
-        set(
-          produce((draft) => {
-            Object.assign(draft, settings);
-          })
-        ),
 
-      // Notification Actions
-      markErrorsRead: () =>
-        set(
-          produce((draft) => {
-            draft.unreadErrorCount = 0;
-          })
-        ),
-
-      // Export Actions
-      exportLogs: () => {
-        const state = get();
-        return JSON.stringify(state.logs, null, 2);
-      },
-
-      exportAll: () => {
-        const state = get();
-        return JSON.stringify(
-          {
-            logs: state.logs,
-            networkRequests: state.networkRequests,
-            stateSnapshots: state.stateSnapshots,
-            performanceMetrics: state.performanceMetrics,
-            exportedAt: new Date().toISOString(),
-          },
-          null,
-          2
-        );
-      },
-    }),
-    {
-      name: "dev-console-store",
-      partialize: (state) =>
-        state.persistLogs
-          ? {
-            logs: state.logs.slice(0, 100), // Only persist last 100 logs
-            filter: state.filter,
-            position: state.position,
-            size: state.size,
-            activeTab: state.activeTab,
-            maxLogs: state.maxLogs,
-            maxNetworkRequests: state.maxNetworkRequests,
-            persistLogs: state.persistLogs,
-            captureConsole: state.captureConsole,
-            captureNetwork: state.captureNetwork,
-            captureState: state.captureState,
-          }
-          : {
-            filter: state.filter,
-            position: state.position,
-            size: state.size,
-            activeTab: state.activeTab,
-          },
-    }
-  )
-);
 
 // ============================================================================
 // UTILITY HOOKS
 // ============================================================================
 
-export const useDevConsoleLogs = () => {
-  const logs = useDevConsoleStore((state) => state.logs);
-  const filter = useDevConsoleStore((state) => state.filter);
-
-  // Apply filters
-  return logs.filter((log) => {
-    // Level filter
-    if (!filter.levels.includes(log.level)) return false;
-
-    // Search filter
-    if (filter.search) {
-      const searchLower = filter.search.toLowerCase();
-      const messageMatch = log.message.toLowerCase().includes(searchLower);
-      const argsMatch = log.args.some((arg) =>
-        String(arg).toLowerCase().includes(searchLower)
-      );
-      if (!messageMatch && !argsMatch) return false;
-    }
-
-    // Time range filter
-    if (filter.timeRange) {
-      if (log.timestamp < filter.timeRange.start || log.timestamp > filter.timeRange.end) {
-        return false;
-      }
-    }
-
-    return true;
-  });
+/**
+ * Precompute searchable text for a log entry
+ * This avoids recomputing String(arg) on every search keystroke
+ */
+const getLogSearchableText = (log: LogEntry): string => {
+  if ((log as any)._searchCache) {
+    return (log as any)._searchCache;
+  }
+  
+  const searchableText = [
+    log.message,
+    ...log.args.map((arg: any) => String(arg))
+  ].join(' ').toLowerCase();
+  
+  // Cache on the log object (mutation for perf, won't affect React since we filter to new array)
+  (log as any)._searchCache = searchableText;
+  return searchableText;
 };
 
-export const useDevConsoleNetwork = () => {
-  const requests = useDevConsoleStore((state) => state.networkRequests);
+/**
+ * Optimized hook to get filtered logs
+ * Uses Zustand selector to prevent unnecessary re-renders
+ * Only recomputes when relevant state changes
+ */
+export const useDevConsoleLogs = () => {
+  // Use shallow comparison for better performance
+  const logs = useDevConsoleStore((state) => state.logs);
   const filter = useDevConsoleStore((state) => state.filter);
+  
+  // Memoize filtered results - recompute only when logs array or filter changes
+  return useMemo(() => {
+    const searchLower = filter.search?.toLowerCase() || '';
+    
+    return logs.filter((log) => {
+      // Level filter (fastest check first)
+      if (!filter.levels.includes(log.level)) return false;
 
-  // Apply search filter
-  return requests.filter((req) => {
-    if (filter.search) {
-      const searchLower = filter.search.toLowerCase();
-      const urlMatch = req.url.toLowerCase().includes(searchLower);
-      const methodMatch = req.method.toLowerCase().includes(searchLower);
-      if (!urlMatch && !methodMatch) return false;
-    }
-
-    if (filter.timeRange) {
-      if (req.timestamp < filter.timeRange.start || req.timestamp > filter.timeRange.end) {
-        return false;
+      // Search filter (use precomputed cache)
+      if (searchLower) {
+        const searchableText = getLogSearchableText(log);
+        if (!searchableText.includes(searchLower)) return false;
       }
-    }
 
-    return true;
-  });
+      // Time range filter
+      if (filter.timeRange) {
+        if (log.timestamp < filter.timeRange.start || log.timestamp > filter.timeRange.end) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [logs, filter.levels, filter.search, filter.timeRange]);
+};
+
+/**
+ * Precompute searchable text for a network request
+ */
+const getNetworkSearchableText = (req: NetworkRequest): string => {
+  if ((req as any)._searchCache) {
+    return (req as any)._searchCache;
+  }
+  
+  const searchableText = [req.url, req.method].join(' ').toLowerCase();
+  (req as any)._searchCache = searchableText;
+  return searchableText;
+};
+
+/**
+ * Optimized hook to get filtered network requests
+ * Uses Zustand selector to prevent unnecessary re-renders
+ * Only recomputes when relevant state changes
+ */
+export const useDevConsoleNetwork = () => {
+  // Use shallow comparison for better performance
+  const networkRequests = useDevConsoleStore((state) => state.networkRequests);
+  const filter = useDevConsoleStore((state) => state.filter);
+  
+  // Memoize filtered results
+  return useMemo(() => {
+    const searchLower = filter.search?.toLowerCase() || '';
+    
+    return networkRequests.filter((req) => {
+      // Search filter (use precomputed cache)
+      if (searchLower) {
+        const searchableText = getNetworkSearchableText(req);
+        if (!searchableText.includes(searchLower)) return false;
+      }
+
+      // Time range filter
+      if (filter.timeRange) {
+        if (req.timestamp < filter.timeRange.start || req.timestamp > filter.timeRange.end) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [networkRequests, filter.search, filter.timeRange]);
 };

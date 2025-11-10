@@ -1,9 +1,39 @@
-import { useDevConsoleStore } from "../../utils/stores/devConsole";
-
 // ============================================================================
 // NETWORK INTERCEPTOR
 // Intercepts fetch and XMLHttpRequest to capture network activity
 // ============================================================================
+
+// Storage key for capture settings
+const CAPTURE_SETTINGS_KEY = 'devConsole_captureSettings';
+
+// Interface for capture settings stored in chrome.storage
+interface CaptureSettings {
+  captureNetwork: boolean;
+}
+
+// Cache for capture settings
+let captureSettings: CaptureSettings = { captureNetwork: true };
+
+// Load capture settings from chrome.storage
+async function loadCaptureSettings() {
+  try {
+    const result = await chrome.storage.local.get(CAPTURE_SETTINGS_KEY);
+    captureSettings = result[CAPTURE_SETTINGS_KEY] || { captureNetwork: true };
+  } catch (error) {
+    console.warn('[DevConsole] Could not load capture settings:', error);
+  }
+}
+
+// Listen for changes to capture settings
+if (typeof chrome !== 'undefined' && chrome.storage) {
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName === 'local' && changes[CAPTURE_SETTINGS_KEY]) {
+      captureSettings = changes[CAPTURE_SETTINGS_KEY].newValue || { captureNetwork: true };
+    }
+  });
+  // Initial load
+  loadCaptureSettings();
+}
 
 let isIntercepting = false;
 const originalFetch = window.fetch;
@@ -43,9 +73,8 @@ function parseGraphQLOperation(body: any): {
  */
 function installFetchInterceptor() {
   window.fetch = async (...args: Parameters<typeof fetch>) => {
-    const store = useDevConsoleStore.getState();
-
-    if (!store.captureNetwork) {
+    // Check if we should capture this request (using cached settings)
+    if (!captureSettings.captureNetwork) {
       return originalFetch(...args);
     }
 
@@ -108,19 +137,27 @@ function installFetchInterceptor() {
         responseHeaders[key] = value;
       });
 
-      // Store network request
-      store.addNetworkRequest({
-        method,
-        url,
-        status: response.status,
-        statusText: response.statusText,
-        duration,
-        requestHeaders,
-        requestBody,
-        responseHeaders,
-        responseBody,
-        type: graphqlInfo.isGraphQL ? "graphql" : "fetch",
-      });
+      // Send network request to background script or devtools via chrome.runtime messaging
+      try {
+        chrome.runtime.sendMessage({
+          type: 'NETWORK_REQUEST',
+          payload: {
+            method,
+            url,
+            status: response.status,
+            statusText: response.statusText,
+            duration,
+            requestHeaders,
+            requestBody,
+            responseHeaders,
+            responseBody,
+            type: graphqlInfo.isGraphQL ? "graphql" : "fetch",
+          }
+        });
+      } catch (messagingError) {
+        // If messaging fails, silently ignore
+        console.warn('[DevConsole] Failed to send network request:', messagingError);
+      }
 
       // Log GraphQL operations specially
       if (graphqlInfo.isGraphQL) {
@@ -140,14 +177,23 @@ function installFetchInterceptor() {
     } catch (error) {
       const duration = performance.now() - startTime;
 
-      store.addNetworkRequest({
-        method,
-        url,
-        duration,
-        requestBody,
-        error: error instanceof Error ? error.message : String(error),
-        type: graphqlInfo.isGraphQL ? "graphql" : "fetch",
-      });
+      // Send error to background script or devtools via chrome.runtime messaging
+      try {
+        chrome.runtime.sendMessage({
+          type: 'NETWORK_REQUEST',
+          payload: {
+            method,
+            url,
+            duration,
+            requestBody,
+            error: error instanceof Error ? error.message : String(error),
+            type: graphqlInfo.isGraphQL ? "graphql" : "fetch",
+          }
+        });
+      } catch (messagingError) {
+        // If messaging fails, silently ignore
+        console.warn('[DevConsole] Failed to send network error:', messagingError);
+      }
 
       throw error;
     }
@@ -161,23 +207,21 @@ function installXHRInterceptor() {
   // @ts-ignore
   window.XMLHttpRequest = function () {
     const xhr = new OriginalXHR();
-    const store = useDevConsoleStore.getState();
-
-    if (!store.captureNetwork) {
+    
+    // Check if we should capture - if not, return original XHR (using cached settings)
+    if (!captureSettings.captureNetwork) {
       return xhr;
-    }
-
-    let method = "GET";
+    }    let method = "GET";
     let url = "";
     let requestBody: any;
     let startTime: number;
 
     // Intercept open
     const originalOpen = xhr.open;
-    xhr.open = function (m: string, u: string, ...args: any[]) {
+    xhr.open = function (m: string, u: string, async: boolean = true, ...args: any[]) {
       method = m;
       url = u;
-      return originalOpen.apply(this, [m, u, ...args]);
+      return originalOpen.call(this, m, u, async, ...args);
     };
 
     // Intercept send
@@ -210,32 +254,50 @@ function installXHRInterceptor() {
         if (key) responseHeaders[key] = value;
       });
 
-      store.addNetworkRequest({
-        method,
-        url,
-        status: xhr.status,
-        statusText: xhr.statusText,
-        duration,
-        requestHeaders,
-        requestBody,
-        responseHeaders,
-        responseBody,
-        type: "xhr",
-      });
+      // Send network request to background script or devtools via chrome.runtime messaging
+      try {
+        chrome.runtime.sendMessage({
+          type: 'NETWORK_REQUEST',
+          payload: {
+            method,
+            url,
+            status: xhr.status,
+            statusText: xhr.statusText,
+            duration,
+            requestHeaders,
+            requestBody,
+            responseHeaders,
+            responseBody,
+            type: "xhr",
+          }
+        });
+      } catch (messagingError) {
+        // If messaging fails, silently ignore
+        console.warn('[DevConsole] Failed to send XHR request:', messagingError);
+      }
     });
 
     // Intercept error
     xhr.addEventListener("error", function () {
       const duration = performance.now() - startTime;
 
-      store.addNetworkRequest({
-        method,
-        url,
-        duration,
-        requestBody,
-        error: "Network request failed",
-        type: "xhr",
-      });
+      // Send error to background script or devtools via chrome.runtime messaging
+      try {
+        chrome.runtime.sendMessage({
+          type: 'NETWORK_REQUEST',
+          payload: {
+            method,
+            url,
+            duration,
+            requestBody,
+            error: "Network request failed",
+            type: "xhr",
+          }
+        });
+      } catch (messagingError) {
+        // If messaging fails, silently ignore
+        console.warn('[DevConsole] Failed to send XHR error:', messagingError);
+      }
     });
 
     return xhr;
@@ -250,8 +312,6 @@ function installXHRInterceptor() {
  */
 export function installNetworkInterceptor() {
   if (isIntercepting) return;
-
-
 
   isIntercepting = true;
 

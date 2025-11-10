@@ -2,11 +2,12 @@ import { useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Eye, Code, Send, CheckCircle, AlertCircle, Loader, Camera, Sparkles } from "lucide-react";
+import { X, Eye, Code, Send, CheckCircle, AlertCircle, Loader, Camera, Sparkles, Settings } from "lucide-react";
 import { cn } from "../../utils";
 import { createContextPack, generateGitHubIssueMarkdown } from "../../lib/devConsole/contextPacker";
 import { createGitHubIssue, type GitHubConfig } from "../../lib/devConsole/githubApi";
-import { useAI } from "../../hooks/useAI";
+import { useGitHubSettings } from "../../hooks/useGitHubSettings";
+import { useGitHubIssueGenerator } from "../../hooks/ai/useGitHubIssueGenerator";
 import { AIActionButton } from "./AI";
 import { LogEntry, useGitHubIssueSlideoutStore } from "@/utils/stores";
 
@@ -19,9 +20,20 @@ interface GitHubIssueSlideoutProps {
   onClose: () => void;
   selectedLog?: LogEntry | null;
   githubConfig?: GitHubConfig;
+  onOpenSettings?: () => void;
 }
 
-export function GitHubIssueSlideout({ isOpen, onClose, selectedLog, githubConfig }: GitHubIssueSlideoutProps) {
+export function GitHubIssueSlideout({ isOpen, onClose, selectedLog, githubConfig, onOpenSettings }: GitHubIssueSlideoutProps) {
+  // GitHub Settings Hook
+  const { settings: githubSettings } = useGitHubSettings();
+
+  // Use prop githubConfig if provided, otherwise use settings from hook
+  const effectiveGithubConfig = githubConfig || (githubSettings ? {
+    username: githubSettings.username,
+    repo: githubSettings.repo,
+    token: githubSettings.token,
+  } : null);
+
   // Zustand Store - Centralized state management
   const {
     title,
@@ -29,29 +41,26 @@ export function GitHubIssueSlideout({ isOpen, onClose, selectedLog, githubConfig
     screenshot,
     activeView,
     isGenerating,
-    isCapturingScreenshot,
     isPublishing,
     publishStatus,
     setTitle,
     setBody,
-    setScreenshot,
     setActiveView,
     setIsGenerating,
-    setIsCapturingScreenshot,
     setIsPublishing,
     setPublishStatus,
     updateContent,
     resetContent,
   } = useGitHubIssueSlideoutStore();
 
-  // AI Hook for intelligent issue generation - MUST be called before any early returns
+    // AI Hook for intelligent issue generation - MUST be called before any early returns
   const {
     availability: aiAvailability,
-    isLoading: isAIGenerating,
-    analyzeLog,
-    summary: aiSummary,
-    reset: resetAI,
-  } = useAI({ autoCheck: true });
+    generating: isAIGenerating,
+    generatedIssue: aiGeneratedIssue,
+    generateIssue: generateWithAI,
+    clearIssue: resetAI,
+  } = useGitHubIssueGenerator();
 
   // Reset state when slideout closes
   useEffect(() => {
@@ -60,11 +69,10 @@ export function GitHubIssueSlideout({ isOpen, onClose, selectedLog, githubConfig
       resetContent();
       setActiveView("preview");
       setIsGenerating(false);
-      setIsCapturingScreenshot(false);
       setIsPublishing(false);
       resetAI();
     }
-  }, [isOpen, resetAI, resetContent, setActiveView, setIsGenerating, setIsCapturingScreenshot, setIsPublishing]);
+  }, [isOpen, resetAI, resetContent, setActiveView, setIsGenerating, setIsPublishing]);
 
   // Auto-generate issue when slideout opens OR when selectedLog changes
   useEffect(() => {
@@ -116,182 +124,71 @@ export function GitHubIssueSlideout({ isOpen, onClose, selectedLog, githubConfig
 
   // AI-powered issue generation
   const handleAIGenerate = async () => {
-    if (!selectedLog && !body) {
-      setPublishStatus({
-        type: "error",
-        message: "No log selected or existing content to analyze.",
-      });
-      return;
-    }
-
+    setIsGenerating(true);
     setPublishStatus({ type: null, message: "" });
 
     try {
-      // Build comprehensive context for AI analysis
-      let contextForAI = "";
-
+      // Build context from selected log if available
+      let context = '';
+      
       if (selectedLog) {
-        contextForAI = `Log Level: ${selectedLog.level}\nMessage: ${selectedLog.message}`;
+        const contextParts: string[] = [];
+        
+        contextParts.push(`Log Level: ${selectedLog.level}`);
+        contextParts.push(`Message: ${selectedLog.message}`);
 
         if (selectedLog.args && selectedLog.args.length > 0) {
-          contextForAI += `\nArguments: ${JSON.stringify(selectedLog.args)}`;
+          contextParts.push(`Arguments: ${JSON.stringify(selectedLog.args, null, 2)}`);
         }
 
         if (selectedLog.stack) {
-          contextForAI += `\nStack Trace: ${selectedLog.stack}`;
+          contextParts.push(`Stack Trace:\n${selectedLog.stack}`);
         }
 
         if (selectedLog.source) {
-          contextForAI += `\nSource: ${selectedLog.source.file}:${selectedLog.source.line}`;
+          contextParts.push(`Source: ${selectedLog.source.file}:${selectedLog.source.line}`);
         }
-      } else if (body) {
-        // Use existing body content
-        contextForAI = body;
+
+        context = contextParts.join('\n\n');
       }
 
-      // Analyze with AI to generate comprehensive issue
-      await analyzeLog(
-        contextForAI,
-        selectedLog?.level || 'info',
-        selectedLog?.stack,
-        `You are generating a GitHub issue. Follow these strict formatting rules:
+      // Generate issue with AI using current title, body, and context
+      const result = await generateWithAI({
+        title: title || undefined,
+        body: body || undefined,
+        context: context || undefined,
+      });
 
-1. TITLE (First line only):
-   - Start with "Title: " followed by a short, clear title (max 60 characters)
-   - Be specific and descriptive
-   - Example: "Title: API request timeout on campaign creation"
-   - Example: "Title: Console error when rendering profile page"
+      if (result) {
+        // Update content with AI-generated issue
+        updateContent({
+          title: result.title,
+          body: result.body,
+        });
 
-2. BODY (GitHub Flavored Markdown):
-   - Use proper markdown formatting
-   - Start with ## Description
-   - Include ## Technical Details with code blocks
-   - Add ## Stack Trace (if available) in \`\`\` code blocks
-   - Include ## Impact and any other relevant sections
-   - Use **bold** for important terms
-   - Use \`code\` for file names, variables, functions
-   - Use bullet points (-) for lists
-   - Use numbered lists (1. 2. 3.) for steps
-
-3. CODE FORMATTING:
-   - Wrap all code/stack traces in triple backticks with language
-   - Example: \`\`\`javascript\ncode here\n\`\`\`
-   - Example: \`\`\`bash\ncommand here\n\`\`\`
-
-4. STRUCTURE:
-   - Be concise but comprehensive
-   - Focus on actionable information
-   - Include error messages verbatim in code blocks
-   - Highlight file names and line numbers
-
-Generate now:`
-      );
+        setPublishStatus({
+          type: "success",
+          message: "✓ AI-generated issue ready for review!",
+        });
+      }
     } catch (error) {
       console.error("Failed to generate AI issue:", error);
       setPublishStatus({
         type: "error",
         message: "AI generation failed. Check console for details.",
       });
-    }
-  };
-
-  // Update title and body when AI analysis completes
-  useEffect(() => {
-    if (aiSummary && !isAIGenerating) {
-      // Extract title from AI summary (first line should be "Title: ...")
-      const lines = aiSummary.split('\n').filter(l => l.trim());
-      let extractedTitle = '';
-      let extractedBody = '';
-
-      if (lines.length > 0) {
-        const firstLine = lines[0].trim();
-
-        // Check for "Title:" prefix (case insensitive)
-        if (firstLine.toLowerCase().startsWith('title:')) {
-          extractedTitle = firstLine.replace(/^title:\s*/i, '').trim();
-          // Rest of the content is the body
-          extractedBody = lines.slice(1).join('\n').trim();
-        }
-        // Check for markdown heading
-        else if (firstLine.startsWith('# ')) {
-          extractedTitle = firstLine.replace(/^#\s*/, '').trim();
-          extractedBody = lines.slice(1).join('\n').trim();
-        }
-        // Fallback: use first line as title if it's short
-        else if (firstLine.length <= 80) {
-          extractedTitle = firstLine.replace(/^[#*-]\s*/, '').trim();
-          extractedBody = lines.slice(1).join('\n').trim();
-        }
-        // If first line is too long, extract from content
-        else {
-          // Try to find a title in the content
-          for (let i = 0; i < Math.min(3, lines.length); i++) {
-            const line = lines[i].trim();
-            if (line.toLowerCase().startsWith('title:')) {
-              extractedTitle = line.replace(/^title:\s*/i, '').trim();
-              // Remove this line from body
-              extractedBody = lines.filter((_, idx) => idx !== i).join('\n').trim();
-              break;
-            }
-          }
-
-          // If still no title, generate from content
-          if (!extractedTitle) {
-            extractedTitle = 'Issue detected in application';
-            extractedBody = aiSummary;
-          }
-        }
-      }
-
-      // Limit title length
-      if (extractedTitle.length > 80) {
-        extractedTitle = extractedTitle.substring(0, 77) + '...';
-      }
-
-      // Clean up body - remove any remaining "Title:" lines
-      extractedBody = extractedBody.replace(/^title:.*\n?/gim, '').trim();
-
-      // Update content using Zustand action
-      updateContent({
-        title: extractedTitle || 'Issue detected in application',
-        body: extractedBody,
-      });
-
-      setPublishStatus({
-        type: "success",
-        message: "✓ AI-generated issue ready for review!",
-      });
-    }
-  }, [aiSummary, isAIGenerating, updateContent, setPublishStatus]);
-
-  const handleCaptureScreenshot = async () => {
-    setIsCapturingScreenshot(true);
-    try {
-      const pack = await createContextPack({
-        includeScreenshot: true,
-        eventCount: 0, // Don't need events, just screenshot
-        networkCount: 0,
-      });
-
-      if (pack.screenshot) {
-        setScreenshot(pack.screenshot);
-      }
-    } catch (error) {
-      console.error("Failed to capture screenshot:", error);
-      setPublishStatus({
-        type: "error",
-        message: "Failed to capture screenshot. Check console for details.",
-      });
     } finally {
-      setIsCapturingScreenshot(false);
+      setIsGenerating(false);
     }
   };
+
+
 
   const handlePublish = async () => {
-    if (!githubConfig || !githubConfig.token || !githubConfig.repo) {
+    if (!effectiveGithubConfig || !effectiveGithubConfig.token || !effectiveGithubConfig.repo || !effectiveGithubConfig.username) {
       setPublishStatus({
         type: "error",
-        message: "GitHub configuration not found. Please set GITHUB_TOKEN, GITHUB_REPO, and GITHUB_USERNAME environment variables.",
+        message: "GitHub configuration not found. Please configure GitHub settings in the Settings tab.",
       });
       return;
     }
@@ -308,7 +205,7 @@ Generate now:`
     setPublishStatus({ type: null, message: "" });
 
     try {
-      const response = await createGitHubIssue(githubConfig, {
+      const response = await createGitHubIssue(effectiveGithubConfig, {
         title: title.trim(),
         body: body.trim(),
         labels: ["bug", "auto-generated"],
@@ -612,12 +509,21 @@ Generate now:`
 
               <div className="flex items-center justify-between">
                 <div className="text-xs text-gray-500 dark:text-gray-400">
-                  {githubConfig?.repo ? (
+                  {effectiveGithubConfig?.repo ? (
                     <span>
-                      Publishing to: <span className="font-mono">{githubConfig.repo}</span>
+                      Publishing to: <span className="font-mono">{effectiveGithubConfig.repo}</span>
                     </span>
                   ) : (
-                    <span className="text-warning">⚠️ GitHub config not set in environment variables</span>
+                    <button
+                      onClick={() => {
+                        onClose();
+                        onOpenSettings?.();
+                      }}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg text-sm font-medium transition-colors border border-primary/20"
+                    >
+                      <Settings className="w-4 h-4" />
+                      Configure GitHub Settings
+                    </button>
                   )}
                 </div>
 

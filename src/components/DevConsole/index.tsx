@@ -9,8 +9,6 @@ import {
   uninstallNetworkInterceptor,
 } from "../../lib/devConsole/networkInterceptor";
 import { DevConsolePanel, type GitHubConfig } from "./DevConsolePanel";
-import { DevConsoleErrorBadge, DevConsoleHotkeyIndicator } from "./DevConsoleBadge";
-import { DevConsoleCommandPalette } from "./CommandPalette";
 
 // ============================================================================
 // MAIN DEVELOPER CONSOLE
@@ -79,15 +77,10 @@ export function DevConsole({ githubConfig }: DevConsoleProps = {}) {
   return (
     <>
       <DevConsolePanel githubConfig={githubConfig} />
-      <DevConsoleErrorBadge />
-      <DevConsoleHotkeyIndicator />
-      <DevConsoleCommandPalette />
+    
     </>
   );
 }
 
 // Export components individually for flexibility
 export { DevConsolePanel } from "./DevConsolePanel";
-export { DevConsoleErrorBadge, DevConsoleHotkeyIndicator } from "./DevConsoleBadge";
-export { DevConsoleCommandPalette } from "./CommandPalette";
-export { DevConsoleErrorBoundary } from "../../lib/devConsole/ErrorBoundary";
