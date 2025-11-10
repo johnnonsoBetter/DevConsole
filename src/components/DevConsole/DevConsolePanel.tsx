@@ -6,31 +6,31 @@
 
 import ReactJson from '@microlink/react-json-view';
 import {
-  Activity,
-  Camera,
-  Download,
-  Github,
-  Info,
-  Network,
-  RefreshCw,
-  Search,
-  Settings,
-  Sparkles,
-  Terminal,
-  Trash2,
-  X,
-  Zap
+    Activity,
+    Camera,
+    Download,
+    Github,
+    Info,
+    Network,
+    RefreshCw,
+    Search,
+    Settings,
+    Sparkles,
+    Terminal,
+    Trash2,
+    X,
+    Zap
 } from 'lucide-react';
 import { lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  copyContextPackToClipboard,
-  createContextPack,
-  exportContextPack,
+    copyContextPackToClipboard,
+    createContextPack,
+    exportContextPack,
 } from '../../lib/devConsole/contextPacker';
 import { cn } from '../../utils';
 import { ensureJsonObject } from '../../utils/jsonSanitizer';
 import {
-  useDevConsoleStore
+    useDevConsoleStore
 } from '../../utils/stores/devConsole';
 import { DurationChip, GraphQLChip, LogLevelChip, MethodChip, StatusChip } from './Chips';
 import { EmptyStateHelper } from './EmptyStateHelper';
@@ -45,11 +45,11 @@ import { useUnifiedTheme } from '../../hooks/useTheme';
 import { humanizeTime } from '../../utils/timeUtils';
 import { BetterTabs } from '../ui/better-tabs';
 import {
-  AIDownloadProgress,
-  AIFirstUsePrompt,
-  AIInsightPanel,
-  AIUnsupportedNotice,
-  CopyAIPromptButton,
+    AIDownloadProgress,
+    AIFirstUsePrompt,
+    AIInsightPanel,
+    AIUnsupportedNotice,
+    CopyAIPromptButton,
 } from './AI';
 import { AIPanel } from './AIPanel';
 import { GitHubIssueSlideout } from './GitHubIssueSlideout';
