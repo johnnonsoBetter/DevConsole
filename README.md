@@ -113,18 +113,6 @@ To use AI features, you need Chrome Canary:
 
 ---
 
-## Keyboard Shortcuts
-
-| Shortcut | Action |
-|----------|--------|
-| `Ctrl + ~` | Toggle DevConsole |
-| `Cmd/Ctrl + K` | Command palette |
-| `Alt + \`` | Show autofill suggestions (when in input) |
-| `Ctrl + F` | Fill all form fields |
-| `ESC` | Close panels |
-
----
-
 ## Tech Stack
 
 - **React 18** + **TypeScript**
