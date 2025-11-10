@@ -10,15 +10,33 @@ import { useDevConsoleStore } from '../utils/stores/devConsole';
  * Cache the inspected tab ID so we can scope all communication.
  */
 const inspectedTabId = chrome.devtools.inspectedWindow.tabId;
+const DEBUG_BRIDGE = false;
+const debugBridgeLog = (...args: any[]) => {
+  if (!DEBUG_BRIDGE) return;
+  console.debug('[DevToolsBridge]', ...args);
+};
+
+let applyLocalClearLogs: () => void = () => {
+  useDevConsoleStore.setState((state) => state);
+};
+let applyLocalClearNetwork: () => void = () => {
+  useDevConsoleStore.setState((state) => state);
+};
 
 /**
  * Send a command to the background script
  */
 export function sendBackgroundCommand(type: string, payload?: any) {
   chrome.runtime.sendMessage({ type, payload, tabId: inspectedTabId }, () => {
-    if (chrome.runtime.lastError) {
-      console.error('Failed to send command:', chrome.runtime.lastError);
+    const err = chrome.runtime.lastError;
+    if (!err) return;
+
+    // Ignore the noisy async warning Chrome emits when no response is expected
+    if (/message channel closed/i.test(err.message ?? "")) {
+      return;
     }
+
+    console.error('[DevConsole] Failed to send command:', err);
   });
 }
 
@@ -31,6 +49,9 @@ function wrapStoreActions() {
   // Store original actions
   const originalClearLogs = store.clearLogs;
   const originalClearNetwork = store.clearNetwork;
+
+  applyLocalClearLogs = originalClearLogs;
+  applyLocalClearNetwork = originalClearNetwork;
   
   // Override clearLogs to also send to background
   useDevConsoleStore.setState({
@@ -52,7 +73,7 @@ function wrapStoreActions() {
 export function initializeBackgroundBridge() {
   // Listen for messages from background script
   chrome.runtime.onMessage.addListener((message) => {
-    console.log('DevTools received message:', message.type);
+    debugBridgeLog('message', message.type);
 
     switch (message.type) {
       case 'DEVTOOLS_UPDATE':
@@ -64,7 +85,7 @@ export function initializeBackgroundBridge() {
         break;
     }
 
-    return true;
+    return false;
   });
 
   // Request initial state from background
@@ -75,7 +96,7 @@ export function initializeBackgroundBridge() {
     }
 
     if (response) {
-      console.log('Loaded initial state:', response);
+      debugBridgeLog('initial state received');
       loadInitialState(response);
     }
   });
@@ -83,7 +104,7 @@ export function initializeBackgroundBridge() {
   // Wrap store actions to also send commands to background
   wrapStoreActions();
 
-  console.log('🔌 DevTools background bridge initialized');
+  debugBridgeLog('bridge initialized');
 }
 
 /**
@@ -92,7 +113,7 @@ export function initializeBackgroundBridge() {
 function handleDevToolsUpdate(updateType: string, payload: any) {
   const store = useDevConsoleStore.getState();
 
-  console.log('🔄 DevTools update received:', updateType, payload);
+  debugBridgeLog('update', updateType);
 
   switch (updateType) {
     case 'LOG_ADDED':
@@ -105,7 +126,6 @@ function handleDevToolsUpdate(updateType: string, payload: any) {
         stack: payload.stack,
         source: payload.source,
       };
-      console.log('Adding log entry:', logEntry);
       store.addLog(logEntry);
       break;
 
@@ -125,18 +145,17 @@ function handleDevToolsUpdate(updateType: string, payload: any) {
         error: payload.error,
         type: payload.type || 'fetch',
       };
-      console.log('Adding network request:', networkRequest);
       store.addNetworkRequest(networkRequest as any);
       break;
 
     case 'LOGS_CLEARED':
       if (payload && payload.tabId !== inspectedTabId) return;
-      store.clearLogs();
+      applyLocalClearLogs();
       break;
 
     case 'NETWORK_CLEARED':
       if (payload && payload.tabId !== inspectedTabId) return;
-      store.clearNetwork();
+      applyLocalClearNetwork();
       break;
 
     case 'SETTINGS_UPDATED':
@@ -150,7 +169,7 @@ function handleDevToolsUpdate(updateType: string, payload: any) {
       break;
 
     default:
-      console.log('Unknown update type:', updateType);
+      debugBridgeLog('unknown update type', updateType);
   }
 }
 
@@ -200,8 +219,9 @@ function loadInitialState(state: any) {
     });
   }
 
-  console.log(
-    `Loaded ${relevantLogs.length} logs and ${relevantNetworkRequests.length} network requests for tab ${inspectedTabId}`
+  debugBridgeLog(
+    'initial load',
+    `logs=${relevantLogs.length}, network=${relevantNetworkRequests.length}, tab=${inspectedTabId}`
   );
 }
 

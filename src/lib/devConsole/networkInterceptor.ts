@@ -137,26 +137,27 @@ function installFetchInterceptor() {
         responseHeaders[key] = value;
       });
 
-      // Send network request to background script or devtools via chrome.runtime messaging
+      // Send network request via window message for content script relay
       try {
-        chrome.runtime.sendMessage({
-          type: 'NETWORK_REQUEST',
+        window.postMessage({
+          __devConsole: true,
+          type: 'DEVCONSOLE_NETWORK',
           payload: {
             method,
             url,
             status: response.status,
             statusText: response.statusText,
             duration,
+            timestamp: Date.now(),
             requestHeaders,
             requestBody,
             responseHeaders,
             responseBody,
             type: graphqlInfo.isGraphQL ? "graphql" : "fetch",
           }
-        });
+        }, '*');
       } catch (messagingError) {
         // If messaging fails, silently ignore
-        console.warn('[DevConsole] Failed to send network request:', messagingError);
       }
 
       // Log GraphQL operations specially
@@ -177,22 +178,23 @@ function installFetchInterceptor() {
     } catch (error) {
       const duration = performance.now() - startTime;
 
-      // Send error to background script or devtools via chrome.runtime messaging
+      // Send error via window message for content script relay
       try {
-        chrome.runtime.sendMessage({
-          type: 'NETWORK_REQUEST',
+        window.postMessage({
+          __devConsole: true,
+          type: 'DEVCONSOLE_NETWORK',
           payload: {
             method,
             url,
             duration,
+            timestamp: Date.now(),
             requestBody,
             error: error instanceof Error ? error.message : String(error),
             type: graphqlInfo.isGraphQL ? "graphql" : "fetch",
           }
-        });
+        }, '*');
       } catch (messagingError) {
         // If messaging fails, silently ignore
-        console.warn('[DevConsole] Failed to send network error:', messagingError);
       }
 
       throw error;
@@ -254,26 +256,27 @@ function installXHRInterceptor() {
         if (key) responseHeaders[key] = value;
       });
 
-      // Send network request to background script or devtools via chrome.runtime messaging
+      // Send network request via window message for content script relay
       try {
-        chrome.runtime.sendMessage({
-          type: 'NETWORK_REQUEST',
+        window.postMessage({
+          __devConsole: true,
+          type: 'DEVCONSOLE_NETWORK',
           payload: {
             method,
             url,
             status: xhr.status,
             statusText: xhr.statusText,
             duration,
+            timestamp: Date.now(),
             requestHeaders,
             requestBody,
             responseHeaders,
             responseBody,
             type: "xhr",
           }
-        });
+        }, '*');
       } catch (messagingError) {
         // If messaging fails, silently ignore
-        console.warn('[DevConsole] Failed to send XHR request:', messagingError);
       }
     });
 
@@ -281,22 +284,23 @@ function installXHRInterceptor() {
     xhr.addEventListener("error", function () {
       const duration = performance.now() - startTime;
 
-      // Send error to background script or devtools via chrome.runtime messaging
+      // Send error via window message for content script relay
       try {
-        chrome.runtime.sendMessage({
-          type: 'NETWORK_REQUEST',
+        window.postMessage({
+          __devConsole: true,
+          type: 'DEVCONSOLE_NETWORK',
           payload: {
             method,
             url,
             duration,
+            timestamp: Date.now(),
             requestBody,
             error: "Network request failed",
             type: "xhr",
           }
-        });
+        }, '*');
       } catch (messagingError) {
         // If messaging fails, silently ignore
-        console.warn('[DevConsole] Failed to send XHR error:', messagingError);
       }
     });
 

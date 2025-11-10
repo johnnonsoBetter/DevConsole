@@ -83,4 +83,3 @@ export function DevConsole({ githubConfig }: DevConsoleProps = {}) {
 }
 
 // Export components individually for flexibility
-export { DevConsolePanel } from "./DevConsolePanel";

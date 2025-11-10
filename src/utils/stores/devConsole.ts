@@ -1,6 +1,6 @@
 import { produce } from "immer";
-import { create } from "zustand";
 import { useMemo } from "react";
+import { create } from "zustand";
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -56,8 +56,6 @@ export interface PerformanceMetric {
   metadata?: Record<string, any>;
 }
 
-export type ConsoleTab = "logs" | "network" | "graphql" | "ai" | "tools" | "settings";
-
 export interface ConsoleFilter {
   levels: LogLevel[];
   search: string;
@@ -78,9 +76,6 @@ interface IStore {
   position: "bottom" | "left" | "right" | "floating";
   size: { width: number; height: number };
   isDragging: boolean;
-
-  // Active Tab
-  activeTab: ConsoleTab;
 
   // Data Collections
   logs: LogEntry[];
@@ -105,7 +100,13 @@ interface IStore {
   captureConsole: boolean;
   captureNetwork: boolean;
   captureState: boolean;
-  logsToBeExported?: string
+  logsToBeExported?: string;
+  dataToBeExported?: {
+    logs: LogEntry[];
+    networkRequests: NetworkRequest[];
+    stateSnapshots: StateSnapshot[];
+    performanceMetrics: PerformanceMetric[];
+  };
   databaseSnapshots?: boolean;
 
   // Settings Object
@@ -116,7 +117,6 @@ interface IStore {
   setOpen: (open: boolean) => void;
   setPosition: (position: "bottom" | "left" | "right" | "floating") => void;
   setSize: (size: { width: number; height: number }) => void;
-  setActiveTab: (tab: ConsoleTab) => void;
   toggleCommandPalette: () => void;
 
   // Actions - Data Management
@@ -161,12 +161,11 @@ export const useDevConsoleStore = create<IStore>((set) => ({
   isOpen: false,
   position: "bottom",
   size: { width: 1200, height: 400 },
-  activeTab: "logs",
   logs: [],
   networkRequests: [],
   stateSnapshots: [],
   performanceMetrics: [],
-  filter: DEFAULT_FILTER,
+  filter: { ...DEFAULT_FILTER },
   commandPaletteOpen: false,
   unreadErrorCount: 0,
   showNotifications: true,
@@ -208,13 +207,6 @@ export const useDevConsoleStore = create<IStore>((set) => ({
       })
     ),
 
-  setActiveTab: (tab) =>
-    set(
-      produce((draft) => {
-        draft.activeTab = tab;
-      })
-    ),
-
   toggleCommandPalette: () =>
     set(
       produce((draft) => {
@@ -231,7 +223,11 @@ export const useDevConsoleStore = create<IStore>((set) => ({
           timestamp: Date.now(),
         };
 
-        draft.logs = [newLog, ...draft.logs];
+        draft.logs = [newLog, ...draft.logs].slice(0, draft.maxLogs);
+
+        if (newLog.level === "error" && !draft.isOpen) {
+          draft.unreadErrorCount += 1;
+        }
       })
     ),
 
@@ -244,9 +240,10 @@ export const useDevConsoleStore = create<IStore>((set) => ({
           timestamp: Date.now(),
         };
 
-        draft.networkRequests = [newRequest, ...draft.networkRequests];
-
-       
+        draft.networkRequests = [newRequest, ...draft.networkRequests].slice(
+          0,
+          draft.maxNetworkRequests
+        );
       })
     ),
 
@@ -261,7 +258,10 @@ export const useDevConsoleStore = create<IStore>((set) => ({
 
         draft.stateSnapshots = [newSnapshot, ...draft.stateSnapshots];
 
-       
+        // Prevent unbounded growth
+        if (draft.stateSnapshots.length > 200) {
+          draft.stateSnapshots = draft.stateSnapshots.slice(0, 200);
+        }
       })
     ),
 
@@ -276,7 +276,9 @@ export const useDevConsoleStore = create<IStore>((set) => ({
 
         draft.performanceMetrics = [newMetric, ...draft.performanceMetrics];
 
-        // Limit metrics
+        if (draft.performanceMetrics.length > 500) {
+          draft.performanceMetrics = draft.performanceMetrics.slice(0, 500);
+        }
       })
     ),
 
@@ -330,7 +332,7 @@ export const useDevConsoleStore = create<IStore>((set) => ({
   resetFilter: () =>
     set(
       produce((draft) => {
-        draft.filter = DEFAULT_FILTER;
+        draft.filter = { ...DEFAULT_FILTER };
       })
     ),
     
@@ -397,15 +399,11 @@ const getLogSearchableText = (log: LogEntry): string => {
   return searchableText;
 };
 
-/**
- * Optimized hook to get filtered logs
- * Uses Zustand selector to prevent unnecessary re-renders
- * Only recomputes when relevant state changes
- */
 export const useDevConsoleLogs = () => {
-  // Use shallow comparison for better performance
-  const logs = useDevConsoleStore((state) => state.logs);
-  const filter = useDevConsoleStore((state) => state.filter);
+  const { logs, filter } = useDevConsoleStore((state) => ({
+    logs: state.logs,
+    filter: state.filter,
+  }));
   
   // Memoize filtered results - recompute only when logs array or filter changes
   return useMemo(() => {
@@ -446,15 +444,11 @@ const getNetworkSearchableText = (req: NetworkRequest): string => {
   return searchableText;
 };
 
-/**
- * Optimized hook to get filtered network requests
- * Uses Zustand selector to prevent unnecessary re-renders
- * Only recomputes when relevant state changes
- */
 export const useDevConsoleNetwork = () => {
-  // Use shallow comparison for better performance
-  const networkRequests = useDevConsoleStore((state) => state.networkRequests);
-  const filter = useDevConsoleStore((state) => state.filter);
+  const { networkRequests, filter } = useDevConsoleStore((state) => ({
+    networkRequests: state.networkRequests,
+    filter: state.filter,
+  }));
   
   // Memoize filtered results
   return useMemo(() => {

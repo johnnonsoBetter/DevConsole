@@ -2,9 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { DevConsolePanel, type GitHubConfig } from '../components/DevConsole/DevConsolePanel';
 import { Toaster } from 'sonner';
 import { initializeBackgroundBridge } from './backgroundBridge';
-import { loadGitHubConfig } from '../utils/extensionSettings';
-import { SettingsPanel } from '../components/DevConsole/SettingsPanel';
-import { Settings } from 'lucide-react';
+import { loadGitHubConfig } from '@/utils/extensionSettings';
 
 // Chrome Extension DevTools Panel
 // Uses the existing DevConsole UI components
@@ -22,11 +20,14 @@ const DevToolsPanel: React.FC<DevToolsPanelProps> = () => {
 
   // Load GitHub config from storage
   useEffect(() => {
-    loadGitHubConfig().then((config) => {
+   const  _loadGitHubConfig = async () => {
+      const config = await loadGitHubConfig(); 
       if (config) {
         setGithubConfig(config);
       }
-    });
+    }
+
+    _loadGitHubConfig()
   }, []);
 
   const handleSaveSettings = (config: GitHubConfig) => {
@@ -38,16 +39,9 @@ const DevToolsPanel: React.FC<DevToolsPanelProps> = () => {
       {/* Settings Button */}
      
 
-      {/* Settings Panel */}
-      <SettingsPanel
-        isOpen={showSettings}
-        onClose={() => setShowSettings(false)}
-        onSave={handleSaveSettings}
-      />
-
+   
       {/* Main Console */}
       <DevConsolePanel githubConfig={githubConfig} />
-      <Toaster position="top-right" />
     </div>
   );
 };

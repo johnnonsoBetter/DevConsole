@@ -202,21 +202,24 @@ function captureLog(level: LogLevel, args: any[]) {
       message = "[Unable to serialize arguments]";
     }
 
-    // Send log to background script or devtools via chrome.runtime messaging
+    // Send log to background script via messaging service
+    // Post to window for content script relay
     try {
-      chrome.runtime.sendMessage({
-        type: 'CONSOLE_LOG',
+      window.postMessage({
+        __devConsole: true,
+        type: 'DEVCONSOLE_LOG',
         payload: {
           level,
           message,
           args,
+          timestamp: Date.now(),
           stack: cleanedStack,
           source,
         }
-      });
+      }, '*');
     } catch (messagingError) {
-      // If messaging fails, fall back to logging to console
-      originalConsole.warn('[DevConsole] Failed to send log message:', messagingError);
+      // If messaging fails, silently ignore
+      originalConsole.warn('[DevConsole] Failed to send log:', messagingError);
     }
   } catch (error) {
     // Silently fail to prevent error loops

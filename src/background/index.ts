@@ -58,6 +58,10 @@ let devConsoleState: DevConsoleState = {
   }
 };
 
+const SAVE_STATE_DEBOUNCE_MS = 1500;
+let saveStateTimer: number | null = null;
+let saveStateInFlight: Promise<void> | null = null;
+
 // Initialize extension
 chrome.runtime.onInstalled.addListener(() => {
   console.log('DevConsole Extension installed');
@@ -77,12 +81,42 @@ async function loadState() {
 }
 
 // Save state to Chrome storage
-async function saveState() {
+async function persistState() {
   try {
     await chrome.storage.local.set({ devConsoleState });
   } catch (error) {
     console.error('Failed to save state:', error);
+  } finally {
+    saveStateInFlight = null;
   }
+}
+
+function scheduleSaveState(immediate = false) {
+  if (immediate) {
+    if (saveStateTimer) {
+      clearTimeout(saveStateTimer);
+      saveStateTimer = null;
+    }
+    if (!saveStateInFlight) {
+      saveStateInFlight = persistState();
+    }
+    return;
+  }
+
+  if (saveStateTimer) return;
+
+  saveStateTimer = setTimeout(() => {
+    saveStateTimer = null;
+    if (!saveStateInFlight) {
+      saveStateInFlight = persistState();
+    }
+  }, SAVE_STATE_DEBOUNCE_MS) as unknown as number;
+}
+
+if (chrome.runtime.onSuspend) {
+  chrome.runtime.onSuspend.addListener(() => {
+    scheduleSaveState(true);
+  });
 }
 
 // Message handler
@@ -90,6 +124,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const tabId = sender.tab?.id || 0;
 
   console.log('Background received message:', message.type, 'from tab:', tabId);
+
+  let keepChannelOpen = false;
 
   switch (message.type) {
     case 'DEVCONSOLE_BATCH':
@@ -150,7 +186,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       console.warn('Unknown message type:', message.type);
   }
 
-  return true; // Keep message channel open
+  return keepChannelOpen;
 });
 
 // Handle console log from content script
@@ -180,7 +216,7 @@ function handleConsoleLog(logData: any, tabId: number) {
     devConsoleState.logs = devConsoleState.logs.slice(-devConsoleState.settings.maxLogs);
   }
 
-  saveState();
+  scheduleSaveState();
   notifyDevTools('LOG_ADDED', logEntry);
 }
 
@@ -209,14 +245,14 @@ function handleNetworkRequest(requestData: any, tabId: number) {
     devConsoleState.networkRequests = devConsoleState.networkRequests.slice(-devConsoleState.settings.maxLogs);
   }
 
-  saveState();
+  scheduleSaveState();
   notifyDevTools('NETWORK_ADDED', networkRequest);
 }
 
 // Update settings
 function updateSettings(newSettings: Partial<ExtensionSettings>) {
   devConsoleState.settings = { ...devConsoleState.settings, ...newSettings };
-  saveState();
+  scheduleSaveState();
   notifyDevTools('SETTINGS_UPDATED', devConsoleState.settings);
 }
 
@@ -227,7 +263,7 @@ function clearLogs(tabId?: number) {
   } else {
     devConsoleState.logs = [];
   }
-  saveState();
+  scheduleSaveState();
   notifyDevTools('LOGS_CLEARED', typeof tabId === 'number' ? { tabId } : null);
 }
 
@@ -238,14 +274,14 @@ function clearNetworkRequests(tabId?: number) {
   } else {
     devConsoleState.networkRequests = [];
   }
-  saveState();
+  scheduleSaveState();
   notifyDevTools('NETWORK_CLEARED', typeof tabId === 'number' ? { tabId } : null);
 }
 
 // Toggle recording
 function toggleRecording() {
   devConsoleState.isRecording = !devConsoleState.isRecording;
-  saveState();
+  scheduleSaveState();
   notifyDevTools('RECORDING_TOGGLED', devConsoleState.isRecording);
 }
 
@@ -267,7 +303,7 @@ function generateId(): string {
 }
 
 // Handle tab updates
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (changeInfo.status === 'loading') {
     // Clear logs for this tab when navigating
     clearLogs(tabId);
@@ -282,4 +318,5 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   clearNetworkRequests(tabId);
 });
 
-export {};
+export { };
+
