@@ -50,9 +50,8 @@
   
   "web_accessible_resources": [
     {
-      "resources": ["page-hook-logic.js"],
-      "matches": ["<all_urls>"],
-      "run_at": "document_idle"
+      "resources": ["page-hook-logic.js", "src/lib/autofill/autofill.css"],
+      "matches": ["<all_urls>"]
     }
   ]
 }

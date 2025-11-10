@@ -66,6 +66,13 @@ let saveStateInFlight: Promise<void> | null = null;
 chrome.runtime.onInstalled.addListener(() => {
   console.log('DevConsole Extension installed');
   loadState();
+  
+  // Initialize autofill counters
+  chrome.storage.local.get(['autofillFillCount'], (result) => {
+    if (result.autofillFillCount === undefined) {
+      chrome.storage.local.set({ autofillFillCount: 0 });
+    }
+  });
 });
 
 // Load state from Chrome storage
@@ -180,6 +187,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     
     case 'TOGGLE_RECORDING':
       toggleRecording();
+      break;
+    
+    // Autofill feature messages
+    case 'AUTOFILL_INCREMENT_COUNT':
+      incrementAutofillCount();
+      sendResponse({ success: true });
+      keepChannelOpen = false;
+      break;
+    
+    case 'AUTOFILL_GET_STATS':
+      getAutofillStats().then(stats => sendResponse(stats));
+      keepChannelOpen = true;
       break;
     
     default:
@@ -317,6 +336,39 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   clearLogs(tabId);
   clearNetworkRequests(tabId);
 });
+
+// ============================================
+// Autofill Feature Functions
+// ============================================
+
+/**
+ * Increment autofill usage count
+ */
+function incrementAutofillCount(): void {
+  chrome.storage.local.get(['autofillFillCount'], (result) => {
+    const newCount = (result.autofillFillCount || 0) + 1;
+    chrome.storage.local.set({ autofillFillCount: newCount });
+  });
+}
+
+/**
+ * Get autofill statistics
+ */
+async function getAutofillStats(): Promise<{
+  fillCount: number;
+  datasets: any[];
+  usageMap: any;
+}> {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(['autofillFillCount', 'datasets', 'usageMap'], (result) => {
+      resolve({
+        fillCount: result.autofillFillCount || 0,
+        datasets: result.datasets || [],
+        usageMap: result.usageMap || {}
+      });
+    });
+  });
+}
 
 export { };
 

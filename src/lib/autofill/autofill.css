@@ -1,0 +1,323 @@
+/**
+ * Autofill Extension Styles
+ * Blue icons, suggestion boxes, Fill All button, and confirmations
+ * 
+ * PASTE THE CONTENT.CSS CODE HERE
+ */
+
+/* TODO: Paste your content.css code here */
+.autofill-suggestion-box {
+  position: absolute;
+  z-index: 2147483647 !important;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  padding: 12px;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  animation: autofillSlideIn 0.2s ease-out;
+  max-width: 400px;
+}
+
+@keyframes autofillSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.autofill-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.autofill-icon {
+  width: 16px;
+  height: 16px;
+  color: #3b82f6;
+}
+
+.autofill-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.autofill-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.autofill-btn {
+  padding: 10px 14px;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #374151;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+
+.autofill-btn:hover {
+  background: #3b82f6;
+  color: white;
+  border-color: #3b82f6;
+  transform: translateX(4px);
+}
+
+.autofill-trigger-icon {
+  position: absolute;
+  z-index: 2147483646 !important;
+  width: 20px;
+  height: 20px;
+  background: #3b82f6;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+}
+
+.autofill-trigger-icon:hover {
+  background: #2563eb;
+  transform: scale(1.1);
+}
+
+.autofill-trigger-icon svg {
+  width: 12px;
+  height: 12px;
+  color: white;
+  stroke: white;
+  fill: white;
+}
+
+.autofill-confirmation {
+  position: absolute;
+  z-index: 2147483647 !important;
+  background: #10b981;
+  color: white;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+/* Fill All Button */
+.autofill-fill-all-button {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 2147483645 !important;
+  background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+  color: white;
+  padding: 16px 24px;
+  border-radius: 50px;
+  box-shadow: 0 8px 32px rgba(139, 92, 246, 0.4);
+  cursor: pointer;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 0;
+  transform: translateY(20px) scale(0.9);
+  user-select: none;
+}
+
+.autofill-fill-all-button.visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.autofill-fill-all-button:hover {
+  transform: translateY(-4px) scale(1.05);
+  box-shadow: 0 12px 40px rgba(139, 92, 246, 0.5);
+}
+
+.autofill-fill-all-button:active {
+  transform: translateY(-2px) scale(1.02);
+}
+
+.fill-all-icon {
+  width: 20px;
+  height: 20px;
+  color: white;
+  flex-shrink: 0;
+}
+
+.fill-all-text {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.fill-all-count {
+  background: rgba(255, 255, 255, 0.25);
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-left: 4px;
+}
+
+/* Fill All Confirmation */
+.autofill-fill-all-confirmation {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 2147483647 !important;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  padding: 16px 24px;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(16, 185, 129, 0.4);
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  opacity: 0;
+  transform: translateX(400px);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.autofill-fill-all-confirmation.visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.autofill-fill-all-confirmation svg {
+  width: 24px;
+  height: 24px;
+  color: white;
+  flex-shrink: 0;
+}
+
+/* Image Suggestions Styles */
+.autofill-image-box {
+  max-width: 500px;
+}
+
+.autofill-image-loading {
+  padding: 20px;
+  text-align: center;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.autofill-image-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.autofill-image-option {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+  border: 2px solid transparent;
+}
+
+.autofill-image-option:hover {
+  transform: scale(1.05);
+  border-color: #3b82f6;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.autofill-image-option img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.autofill-image-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.7), transparent);
+  color: white;
+  padding: 8px;
+  font-size: 11px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.autofill-image-option:hover .autofill-image-overlay {
+  opacity: 1;
+}
+
+.autofill-image-credit {
+  margin-top: 8px;
+  padding: 8px;
+  text-align: center;
+  font-size: 11px;
+  color: #9ca3af;
+  border-top: 1px solid #e5e7eb;
+}
+
+.autofill-image-error {
+  padding: 20px;
+  text-align: center;
+  color: #ef4444;
+  font-size: 14px;
+}
+
+.autofill-error {
+  background: #ef4444 !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .autofill-fill-all-button {
+    bottom: 16px;
+    right: 16px;
+    padding: 14px 20px;
+    font-size: 14px;
+  }
+
+  .fill-all-icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .autofill-fill-all-confirmation {
+    top: 16px;
+    right: 16px;
+    left: 16px;
+    font-size: 14px;
+  }
+
+  .autofill-image-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

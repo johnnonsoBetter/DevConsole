@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import { useDevConsoleStore } from "../../utils/stores/devConsole";
 import {
   installConsoleInterceptor,
   uninstallConsoleInterceptor,
@@ -8,6 +7,7 @@ import {
   installNetworkInterceptor,
   uninstallNetworkInterceptor,
 } from "../../lib/devConsole/networkInterceptor";
+import { useDevConsoleStore } from "../../utils/stores/devConsole";
 import { DevConsolePanel, type GitHubConfig } from "./DevConsolePanel";
 
 // ============================================================================
@@ -83,3 +83,7 @@ export function DevConsole({ githubConfig }: DevConsoleProps = {}) {
 }
 
 // Export components individually for flexibility
+export { DevConsolePanel } from './DevConsolePanel';
+export type { GitHubConfig } from './DevConsolePanel';
+export { UnifiedSettingsPanel } from './UnifiedSettingsPanel';
+

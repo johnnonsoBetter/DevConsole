@@ -3,6 +3,7 @@
  * Runs in the content-script isolated world; injects page-level code and relays messages to the extension.
  */
 
+import { initializeAutofill } from '../lib/autofill';
 import { injectPageScript } from './pageScriptInjector';
 
 // ---------------------------
@@ -172,9 +173,19 @@ if (!shouldSkipInjection()) {
   console.log('[DevConsole] 🚀 Initializing DevConsole content script...');
   injectPageScript();
   setupMessageRelay();
-  console.log('[DevConsole] ✅ Content script initialized - relay active');
+  
+  // Initialize autofill feature
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      initializeAutofill();
+    });
+  } else {
+    initializeAutofill();
+  }
+  
+  console.log('[DevConsole] ✅ Content script initialized - relay active + autofill enabled');
 } else {
   console.log('[DevConsole] ⏭️  Injection skipped for this origin');
 }
 
-export {};
+export { };

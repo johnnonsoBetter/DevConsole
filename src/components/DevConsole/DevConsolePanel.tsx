@@ -7,15 +7,9 @@
 import ReactJson from '@microlink/react-json-view';
 import {
   Activity,
-  AlertTriangle,
-  Bug,
-  Camera,
-  Database,
   Download,
   Github,
-  Globe,
   Info,
-  Layers,
   Network,
   RefreshCw,
   Search,
@@ -24,8 +18,7 @@ import {
   Terminal,
   Trash2,
   X,
-  XCircle,
-  Zap,
+  Zap
 } from 'lucide-react';
 import { lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -36,7 +29,6 @@ import {
 import { cn } from '../../utils';
 import { ensureJsonObject } from '../../utils/jsonSanitizer';
 import {
-  LogLevel,
   useDevConsoleStore
 } from '../../utils/stores/devConsole';
 import { DurationChip, GraphQLChip, LogLevelChip, MethodChip, StatusChip } from './Chips';
@@ -60,9 +52,9 @@ import {
 } from './AI';
 import { AIPanel } from './AIPanel';
 import { GitHubIssueSlideout } from './GitHubIssueSlideout';
-import { GitHubSettingsPanel } from './GitHubSettingsPanel';
 import { MobileBottomSheet, MobileBottomSheetContent } from './MobileBottomSheet';
 import { ThemeToggle } from './ThemeToggle';
+import { UnifiedSettingsPanel } from './UnifiedSettingsPanel';
 
 // ============================================================================
 // TYPES
@@ -88,17 +80,6 @@ const CONSOLE_TABS = [
   { id: 'settings', label: 'Settings', icon: Settings },
 ] as const;
 
-/** Icons and colors for different log levels */
-const LOG_LEVEL_CONFIG: Record<LogLevel, { icon: any; color: string }> = {
-  log: { icon: Info, color: 'text-gray-500' },
-  info: { icon: Info, color: 'text-info' },
-  warn: { icon: AlertTriangle, color: 'text-warning' },
-  error: { icon: XCircle, color: 'text-destructive' },
-  debug: { icon: Bug, color: 'text-purple-500' },
-  ui: { icon: Layers, color: 'text-primary' },
-  db: { icon: Database, color: 'text-success' },
-  api: { icon: Globe, color: 'text-secondary' },
-};
 
 // ============================================================================
 // MAIN DEVELOPER CONSOLE COMPONENT
@@ -178,7 +159,7 @@ export function DevConsolePanel({ githubConfig }: DevConsolePanelProps = {}) {
               {tab.id === 'graphql' && <GraphQLExplorer />}
               {tab.id === 'ai' && <AIPanel />}
               {tab.id === 'tools' && <ToolsPanel />}
-              {tab.id === 'settings' && <GitHubSettingsPanel />}
+              {tab.id === 'settings' && <UnifiedSettingsPanel />}
             </>
           ),
         };
@@ -669,43 +650,8 @@ function LogsPanel({ githubConfig }: LogsPanelProps) {
           </div>
 
           {/* Log Level Filter Buttons */}
-          <div className="flex gap-1 items-center">
-            <span className="text-xs text-gray-500 dark:text-gray-400 mr-1 hidden sm:block">
-              Filter:
-            </span>
-            {(['log', 'info', 'warn', 'error'] as LogLevel[]).map((level) => {
-              const isActive = filter.levels.includes(level);
-              const { icon: Icon, color } = LOG_LEVEL_CONFIG[level];
-              return (
-                <button
-                  key={level}
-                  onClick={() => {
-                    const newLevels = isActive
-                      ? filter.levels.filter((l) => l !== level)
-                      : [...filter.levels, level];
-                    setFilter({ levels: newLevels });
-                  }}
-                  className={cn(
-                    'p-2 rounded-lg transition-all hover:shadow-apple-sm active:scale-95',
-                    'min-h-[36px] min-w-[36px]',
-                    isActive
-                      ? 'bg-white dark:bg-gray-800 shadow-apple-sm'
-                      : 'bg-gray-100/50 dark:bg-gray-800/50 opacity-60 hover:opacity-100 hover:bg-white dark:hover:bg-gray-800'
-                  )}
-                  title={`${level.charAt(0).toUpperCase() + level.slice(1)} logs`}
-                  aria-label={`Filter ${level} logs`}
-                  aria-pressed={isActive}
-                >
-                  <Icon
-                    className={cn(
-                      'w-4 h-4 transition-colors',
-                      isActive ? color : 'text-gray-400 dark:text-gray-500'
-                    )}
-                  />
-                </button>
-              );
-            })}
-          </div>
+       
+       
 
           {/* Clear Action */}
           <button

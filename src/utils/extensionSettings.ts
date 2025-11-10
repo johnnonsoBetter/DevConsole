@@ -9,8 +9,13 @@ export interface GitHubConfig {
   token: string;
 }
 
+export interface UnsplashConfig {
+  accessKey: string;
+}
+
 export interface ExtensionSettings {
   githubConfig?: GitHubConfig;
+  unsplashConfig?: UnsplashConfig;
   darkMode?: boolean;
   maxLogs?: number;
   maxNetworkRequests?: number;
@@ -72,4 +77,26 @@ export async function loadGitHubConfig(): Promise<GitHubConfig | undefined> {
  */
 export async function clearGitHubConfig(): Promise<void> {
   await updateSettings({ githubConfig: undefined });
+}
+
+/**
+ * Save Unsplash configuration
+ */
+export async function saveUnsplashConfig(config: UnsplashConfig): Promise<void> {
+  await updateSettings({ unsplashConfig: config });
+}
+
+/**
+ * Load Unsplash configuration
+ */
+export async function loadUnsplashConfig(): Promise<UnsplashConfig | undefined> {
+  const settings = await loadSettings();
+  return settings.unsplashConfig;
+}
+
+/**
+ * Clear Unsplash configuration
+ */
+export async function clearUnsplashConfig(): Promise<void> {
+  await updateSettings({ unsplashConfig: undefined });
 }
