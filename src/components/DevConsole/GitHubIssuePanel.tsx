@@ -1,15 +1,13 @@
-import { useEffect } from "react";
+
+import { useGitHubIssueSlideoutStore } from "@/utils/stores";
+import DOMPurify from "dompurify";
+import { AlertCircle, CheckCircle, Code, Eye, Github, Loader, Send, Settings } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import DOMPurify from "dompurify";
-import { Github, Eye, Code, Send, Settings, CheckCircle, AlertCircle, Loader, Sparkles } from "lucide-react";
-import { cn } from "../../utils";
+import { useGitHubSettings } from "../../hooks/useGitHubSettings";
 import { createContextPack, generateGitHubIssueMarkdown } from "../../lib/devConsole/contextPacker";
 import { createGitHubIssue } from "../../lib/devConsole/githubApi";
-import { useGitHubSettings } from "../../hooks/useGitHubSettings";
-import { AIActionButton } from "./AI";
-import { useGitHubIssueSlideoutStore } from "@/utils/stores";
-import { useGitHubIssueGenerator } from "@/hooks/ai";
+import { cn } from "../../utils";
 
 // ============================================================================
 // GITHUB ISSUE PANEL
@@ -34,15 +32,6 @@ export function GitHubIssuePanel({ onOpenSettings }: { onOpenSettings: () => voi
     updateContent,
     resetContent,
   } = useGitHubIssueSlideoutStore();
-
-  // AI Hook for intelligent issue generation
-  const {
-    generating: isAIGenerating,
-    generatedIssue,
-    generateIssue,
-    availability: aiAvailability,
-
-  } = useGitHubIssueGenerator();
 
   const handleGenerateFromContext = async () => {
     setPublishStatus({ type: null, message: "" });
@@ -71,59 +60,6 @@ export function GitHubIssuePanel({ onOpenSettings }: { onOpenSettings: () => voi
       });
     }
   };
-
-  // AI-powered issue generation using the new hook
-  const handleAIGenerate = async () => {
-    if (!body && !title) {
-      // If no content yet, generate from context first
-      await handleGenerateFromContext();
-      return;
-    }
-
-    setPublishStatus({ type: null, message: "" });
-
-    try {
-      // Generate improved issue using the AI hook
-      const result = await generateIssue({
-        title: title || undefined,
-        body: body || undefined,
-      });
-
-      if (result) {
-        // Update content with AI-generated result
-        updateContent({
-          title: result.title,
-          body: result.body,
-        });
-
-        setPublishStatus({
-          type: "success",
-          message: "✓ AI-generated issue ready for review!",
-        });
-      }
-    } catch (error) {
-      console.error("Failed to generate AI issue:", error);
-      setPublishStatus({
-        type: "error",
-        message: "AI generation failed. Check console for details.",
-      });
-    }
-  };
-
-  // Update content when AI generation completes
-  useEffect(() => {
-    if (generatedIssue && !isAIGenerating) {
-      updateContent({
-        title: generatedIssue.title,
-        body: generatedIssue.body,
-      });
-
-      setPublishStatus({
-        type: "success",
-        message: "✓ AI-generated issue ready for review!",
-      });
-    }
-  }, [generatedIssue, isAIGenerating, updateContent, setPublishStatus]);
 
   const handlePublish = async () => {
     // Check if settings are configured
@@ -204,18 +140,6 @@ export function GitHubIssuePanel({ onOpenSettings }: { onOpenSettings: () => voi
             <Settings className="w-4 h-4 text-gray-600 dark:text-gray-400" />
           </button>
 
-          {/* AI Transform Button */}
-          {aiAvailability !== 'unavailable' && (
-            <AIActionButton
-              onClick={handleAIGenerate}
-              loading={isAIGenerating}
-              label="Transform"
-              loadingLabel="Transforming..."
-              variant="primary"
-              size="sm"
-            />
-          )}
-
           {/* View Toggle */}
           <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
             <button
@@ -262,28 +186,11 @@ export function GitHubIssuePanel({ onOpenSettings }: { onOpenSettings: () => voi
 
               <button
                 onClick={handleGenerateFromContext}
-                disabled={isAIGenerating}
                 className="w-full px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                {isAIGenerating ? (
-                  <>
-                    <Loader className="w-4 h-4 animate-spin" />
-                    Generating from Context...
-                  </>
-                ) : (
-                  <>
-                    <Github className="w-4 h-4" />
-                    Generate Issue from Context
-                  </>
-                )}
+                <Github className="w-4 h-4" />
+                Generate Issue from Context
               </button>
-
-              <div className="mt-3 p-2 bg-info/10 border border-info/20 rounded-lg">
-                <p className="text-xs text-info flex items-center gap-2">
-                  <Sparkles className="w-3 h-3" />
-                  <span>Tip: After generating, use the <strong>Transform</strong> button above to refine the issue with AI.</span>
-                </p>
-              </div>
             </div>
 
             {/* Issue Title */}

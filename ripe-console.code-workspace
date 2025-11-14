@@ -1,0 +1,15 @@
+{
+	"folders": [
+		{
+			"name": "ripe-console",
+			"path": "."
+		}
+	],
+	"settings": {
+		"prettier.enable": true,
+		"editor.codeActionsOnSave": {
+			"source.organizeImports": "explicit",
+			"source.removeUnused.ts": "explicit"
+		}
+	}
+}

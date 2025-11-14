@@ -6,54 +6,49 @@
 
 import ReactJson from '@microlink/react-json-view';
 import {
-    Activity,
-    Camera,
-    Download,
-    Github,
-    Info,
-    Network,
-    RefreshCw,
-    Search,
-    Settings,
-    Sparkles,
-    Terminal,
-    Trash2,
-    X,
-    Zap
+  Activity,
+  Camera,
+  Download,
+  Github,
+  Info,
+  Network,
+  RefreshCw,
+  Search,
+  Settings,
+  Sparkles,
+  Terminal,
+  Trash2,
+  X,
+  Zap
 } from 'lucide-react';
 import { lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createLogExplainer } from '../../lib/ai/services/logExplainer';
 import {
-    copyContextPackToClipboard,
-    createContextPack,
-    exportContextPack,
+  copyContextPackToClipboard,
+  createContextPack,
+  exportContextPack,
 } from '../../lib/devConsole/contextPacker';
 import { cn } from '../../utils';
 import { ensureJsonObject } from '../../utils/jsonSanitizer';
+import { useAISettingsStore } from '../../utils/stores/aiSettings';
 import {
-    useDevConsoleStore
+  useDevConsoleStore
 } from '../../utils/stores/devConsole';
-import { DurationChip, GraphQLChip, LogLevelChip, MethodChip, StatusChip } from './Chips';
+import { Chip, DurationChip, GraphQLChip, LogLevelChip, MethodChip, StatusChip } from './Chips';
 import { EmptyStateHelper } from './EmptyStateHelper';
+import type { LogExplanationData } from './LogExplanation';
+import { LogExplanation } from './LogExplanation';
 import { DurationSparkline } from './Sparkline';
 const GraphQLExplorer = lazy(() => import('../DevConsole/GraphQLExplorer').then(module => ({default: module.GraphQLExplorer})));
 
-import { useSummarizerModel } from '@/hooks/ai';
-import { AIModel, useChromeAI } from '@/hooks/useChromeAI';
 import { useGitHubSettings } from '../../hooks/useGitHubSettings';
 import { useIsMobile } from '../../hooks/useMediaQuery';
 import { useUnifiedTheme } from '../../hooks/useTheme';
 import { humanizeTime } from '../../utils/timeUtils';
 import { BetterTabs } from '../ui/better-tabs';
-import {
-    AIDownloadProgress,
-    AIFirstUsePrompt,
-    AIInsightPanel,
-    AIUnsupportedNotice,
-    CopyAIPromptButton,
-} from './AI';
-import { AIPanel } from './AIPanel';
 import { GitHubIssueSlideout } from './GitHubIssueSlideout';
 import { MobileBottomSheet, MobileBottomSheetContent } from './MobileBottomSheet';
+import { NetworkKeyInfo } from './NetworkKeyInfo';
 import { ThemeToggle } from './ThemeToggle';
 import { UnifiedSettingsPanel } from './UnifiedSettingsPanel';
 
@@ -76,7 +71,6 @@ const CONSOLE_TABS = [
   { id: 'logs', label: 'Logs', icon: Terminal },
   { id: 'network', label: 'Network', icon: Network },
   { id: 'graphql', label: 'GraphQL', icon: Zap },
-  { id: 'ai', label: 'AI APIs', icon: Sparkles },
   { id: 'tools', label: 'Tools', icon: Activity },
   { id: 'settings', label: 'Settings', icon: Settings },
 ] as const;
@@ -158,7 +152,6 @@ export function DevConsolePanel({ githubConfig }: DevConsolePanelProps = {}) {
               )}
               {tab.id === 'network' && <NetworkPanel />}
               {tab.id === 'graphql' && <GraphQLExplorer />}
-              {tab.id === 'ai' && <AIPanel />}
               {tab.id === 'tools' && <ToolsPanel />}
               {tab.id === 'settings' && <UnifiedSettingsPanel />}
             </>
@@ -298,10 +291,20 @@ LazyReactJson.displayName = 'LazyReactJson';
  */
 interface LogDetailsContentProps {
   selectedLog: any;
+  explanation?: LogExplanationData;
+  isExplaining?: boolean;
+  explainError?: string;
+  streamingText?: string;
+  onClearExplanation?: () => void;
 }
 
 function LogDetailsContent({
   selectedLog,
+  explanation,
+  isExplaining,
+  explainError,
+  streamingText,
+  onClearExplanation,
 }: LogDetailsContentProps) {
   const { isDarkMode } = useUnifiedTheme();
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
@@ -312,79 +315,19 @@ function LogDetailsContent({
   const toggleSection = useCallback((section: string) => {
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
   }, []);
-
-  const {
-    availability,
-    downloadProgress,
-  } = useChromeAI(AIModel.SUMMARIZER);
-  
-  // Prepare log details for the hook
-  const additionalContext = selectedLog?.args?.length > 0 
-    ? `Arguments: ${JSON.stringify(selectedLog.args)}` 
-    : undefined;
-  
-  const {
-    summarizeData,
-    summarizeError: aiError,
-    summarizing,
-  } = useSummarizerModel({
-    logMessage: selectedLog?.message,
-    logLevel: selectedLog?.level,
-    stackTrace: selectedLog?.stack,
-    additionalContext,
-  });
-
-  const handleActivateAI = useCallback(async () => {
-    // This will trigger the Chrome AI download
-    // The hook will automatically analyze once available
-  }, []);
-
-  /**
-   * Render AI status section based on availability state
-   */
-  const renderAISection = useCallback(() => {
-    if (availability === 'unavailable') {
-      return (
-        <AIUnsupportedNotice
-          reason="AI features are not available in this browser"
-          browserName="Current Browser"
-        />
-      );
-    }
-
-    if (availability === 'downloading' && downloadProgress > 0 && downloadProgress < 100) {
-      return <AIDownloadProgress progress={downloadProgress} modelName="Gemini Nano" />;
-    }
-
-    if (availability === 'downloadable') {
-      return <AIFirstUsePrompt onActivate={handleActivateAI} loading={summarizing} />;
-    }
-
-    if (summarizeData || summarizing || aiError) {
-      return (
-        <AIInsightPanel
-          summary={summarizeData || ''}
-          loading={summarizing}
-          error={aiError?.message || null}
-          title="🤖 AI Log Analysis"
-        />
-      );
-    }
-
-    return null;
-  }, [
-    availability,
-    downloadProgress,
-    summarizeData,
-    summarizing,
-    aiError,
-    handleActivateAI,
-  ]);
   
   return (
     <div className="space-y-4">
-      {/* AI Insights Section */}
-      {renderAISection()}
+      {/* AI Explanation Display */}
+      {(explanation || isExplaining || explainError || streamingText) && (
+        <LogExplanation
+          explanation={explanation}
+          isLoading={isExplaining}
+          error={explainError}
+          streamingText={streamingText}
+          onClose={onClearExplanation}
+        />
+      )}
 
       {/* Message */}
       <div>
@@ -488,6 +431,14 @@ interface LogRowProps {
  * Only re-renders when log or selection state changes
  */
 const LogRow = memo(({ log, isSelected, onSelect, style }: LogRowProps) => {
+  // Format source for better readability
+  const formattedSource = useMemo(() => {
+    if (!log.source?.file) return null;
+    // Extract just the filename
+    const filename = log.source.file.split('/').pop()?.split('?')[0] || log.source.file;
+    return `${filename}:${log.source.line || ''}`;
+  }, [log.source]);
+
   return (
     <div
       style={style}
@@ -509,9 +460,16 @@ const LogRow = memo(({ log, isSelected, onSelect, style }: LogRowProps) => {
         </div>
         <div className="flex items-center gap-2 mt-0.5">
           {log.args.length > 0 && (
-            <span className="text-xs text-gray-400">
-              +{log.args.length} arg{log.args.length > 1 ? 's' : ''}
-            </span>
+            <button
+              className="text-xs text-primary hover:text-primary/80 hover:underline transition-colors"
+              title="Click to view arguments"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelect(log);
+              }}
+            >
+              ⊕ {log.args.length} arg{log.args.length > 1 ? 's' : ''}
+            </button>
           )}
           {/* Show time on mobile (when Time column is hidden) */}
           <span
@@ -535,9 +493,12 @@ const LogRow = memo(({ log, isSelected, onSelect, style }: LogRowProps) => {
 
       {/* Source - Secondary info (hidden on small screens) */}
       <div className="px-3 sm:px-4 py-3 hidden md:block">
-        {log.source && (
-          <span className="text-xs text-gray-400 font-mono">
-            {log.source.file}:{log.source.line}
+        {formattedSource && (
+          <span 
+            className="text-xs text-gray-400 font-mono hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+            title={log.source?.file}
+          >
+            {formattedSource}
           </span>
         )}
       </div>
@@ -553,6 +514,7 @@ interface LogsPanelProps {
 
 function LogsPanel({ githubConfig }: LogsPanelProps) {
   const { filter, setFilter, logs, clearLogs } = useDevConsoleStore();
+  const aiSettings = useAISettingsStore();
   const [search, setSearch] = useState(filter.search);
   const [selectedLog, setSelectedLog] = useState<any>(null);
   const [detailPanelWidth, setDetailPanelWidth] = useState(50);
@@ -562,8 +524,81 @@ function LogsPanel({ githubConfig }: LogsPanelProps) {
   const resizeStartWidth = useRef(0);
   const isMobile = useIsMobile();
 
+  // AI Explanation state
+  const [explanation, setExplanation] = useState<LogExplanationData | undefined>();
+  const [isExplaining, setIsExplaining] = useState(false);
+  const [explainError, setExplainError] = useState<string | undefined>();
+  const [streamingText, setStreamingText] = useState<string>('');
+
   // Show only the most recent 10 logs for better performance and UX
   const recentLogs = useMemo(() => logs.slice(0, 10), [logs]);
+
+  // Check if AI is ready to use
+  const isAIReady = useMemo(() => {
+    return (
+      aiSettings.enabled &&
+      ((aiSettings.useGateway && aiSettings.gatewayApiKey) ||
+        (!aiSettings.useGateway && aiSettings.apiKey))
+    );
+  }, [aiSettings]);
+
+  // Handle explain log
+  const handleExplainLog = useCallback(async () => {
+    if (!selectedLog) return;
+
+    // Check if AI is configured
+    if (!isAIReady) {
+      setExplainError(
+        '⚙️ AI features require configuration. Please enable AI and add your API key in Settings → AI to use this feature.'
+      );
+      return;
+    }
+
+    setIsExplaining(true);
+    setExplainError(undefined);
+    setStreamingText('');
+    setExplanation(undefined);
+
+    try {
+      const explainer = createLogExplainer(aiSettings);
+      
+      // Stream the explanation
+      let fullText = '';
+      for await (const chunk of explainer.streamExplanation({
+        level: selectedLog.level,
+        message: selectedLog.message,
+        args: selectedLog.args || [],
+        stack: selectedLog.stack,
+        source: selectedLog.source,
+        timestamp: selectedLog.timestamp,
+      })) {
+        fullText += chunk;
+        setStreamingText(fullText);
+      }
+
+      // Parse the complete explanation
+      setExplanation({
+        summary: fullText.split('\n')[0] || 'AI analysis complete',
+        explanation: fullText,
+      });
+      setStreamingText('');
+    } catch (error) {
+      console.error('Failed to explain log:', error);
+      setExplainError(
+        error instanceof Error ? error.message : 'Failed to generate explanation'
+      );
+    } finally {
+      setIsExplaining(false);
+    }
+  }, [isAIReady, aiSettings, selectedLog]);
+
+  // Clear explanation when log changes
+  useEffect(() => {
+    setExplanation(undefined);
+    setExplainError(undefined);
+    setStreamingText('');
+    setIsExplaining(false);
+  }, [selectedLog?.id]);
 
 
   // Debounce search input
@@ -634,35 +669,78 @@ function LogsPanel({ githubConfig }: LogsPanelProps) {
         style={{ width: !isMobile && selectedLog ? `${100 - detailPanelWidth}%` : '100%' }}
       >
         {/* Filters */}
-        <div className="flex items-center gap-2 px-3 sm:px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30">
-          <div className="flex-1 relative">
-            <Search
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
-              aria-hidden="true"
-            />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search logs..."
-              className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all shadow-apple-xs"
-              aria-label="Search logs by message content"
-            />
+        <div className="flex flex-col gap-2 px-3 sm:px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30">
+          {/* Search and actions row */}
+          <div className="flex items-center gap-2">
+            <div className="flex-1 relative">
+              <Search
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
+                aria-hidden="true"
+              />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search logs..."
+                className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all shadow-apple-xs"
+                aria-label="Search logs by message content"
+              />
+            </div>
+
+            {/* Clear Action */}
+            <button
+              onClick={clearLogs}
+              className="p-2 hover:bg-white dark:hover:bg-gray-800 rounded-lg transition-all hover:shadow-apple-sm active:scale-95 min-h-[36px] min-w-[36px]"
+              title="Clear All Logs"
+              aria-label="Clear all console logs"
+            >
+              <Trash2 className="w-4 h-4 text-gray-500 dark:text-gray-400 hover:text-destructive dark:hover:text-destructive transition-colors" />
+            </button>
           </div>
 
           {/* Log Level Filter Buttons */}
-       
-       
-
-          {/* Clear Action */}
-          <button
-            onClick={clearLogs}
-            className="p-2 hover:bg-white dark:hover:bg-gray-800 rounded-lg transition-all hover:shadow-apple-sm active:scale-95 min-h-[36px] min-w-[36px]"
-            title="Clear All Logs"
-            aria-label="Clear all console logs"
-          >
-            <Trash2 className="w-4 h-4 text-gray-500 dark:text-gray-400 hover:text-destructive dark:hover:text-destructive transition-colors" />
-          </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Filter:</span>
+            {(['error', 'warn', 'info', 'log'] as const).map((level) => {
+              const isActive = filter.levels.includes(level);
+              return (
+                <button
+                  key={level}
+                  onClick={() => {
+                    setFilter({
+                      levels: isActive
+                        ? filter.levels.filter(l => l !== level)
+                        : [...filter.levels, level]
+                    });
+                  }}
+                  className={cn(
+                    'px-2 py-1 rounded text-xs font-medium transition-all hover:shadow-apple-sm active:scale-95',
+                    isActive
+                      ? level === 'error'
+                        ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border border-red-300 dark:border-red-700'
+                        : level === 'warn'
+                        ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border border-yellow-300 dark:border-yellow-700'
+                        : level === 'info'
+                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-700'
+                        : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600'
+                      : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750'
+                  )}
+                  title={`${isActive ? 'Hide' : 'Show'} ${level} logs`}
+                >
+                  {level.toUpperCase()}
+                </button>
+              );
+            })}
+            {filter.levels.length < 4 && (
+              <button
+                onClick={() => setFilter({ levels: ['error', 'warn', 'info', 'log'] })}
+                className="text-xs text-primary hover:text-primary/80 font-medium transition-colors"
+                title="Show all levels"
+              >
+                Show All
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Table - Simple List (First 10 Logs) */}
@@ -718,9 +796,17 @@ function LogsPanel({ githubConfig }: LogsPanelProps) {
               subtitle={`${selectedLog.level} • ${humanizeTime(selectedLog.timestamp)}`}
               headerActions={
                 <div className="flex items-center gap-2">
-                  {/* Copy AI Prompt Button */}
-                  <CopyAIPromptButton log={selectedLog} size="sm" />
-
+                  {/* AI Explain Button - Always visible */}
+                  {!explanation && !isExplaining && (
+                    <button
+                      onClick={handleExplainLog}
+                      disabled={isExplaining}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all border bg-gradient-to-r from-purple-500/10 to-blue-500/10 hover:from-purple-500/20 hover:to-blue-500/20 text-purple-600 dark:text-purple-400 border-purple-300 dark:border-purple-700 hover:shadow-apple-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Explain this log with AI"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                   {/* GitHub Issue Button */}
                   <button
                     onClick={() => setShowGitHubIssue(true)}
@@ -738,7 +824,18 @@ function LogsPanel({ githubConfig }: LogsPanelProps) {
               }
             >
               <MobileBottomSheetContent>
-                <LogDetailsContent selectedLog={selectedLog} />
+                <LogDetailsContent 
+                  selectedLog={selectedLog}
+                  explanation={explanation}
+                  isExplaining={isExplaining}
+                  explainError={explainError}
+                  streamingText={streamingText}
+                  onClearExplanation={() => {
+                    setExplanation(undefined);
+                    setExplainError(undefined);
+                    setStreamingText('');
+                  }}
+                />
               </MobileBottomSheetContent>
             </MobileBottomSheet>
           ) : (
@@ -747,16 +844,16 @@ function LogsPanel({ githubConfig }: LogsPanelProps) {
               {/* Resize Handle */}
               <div
                 className={cn(
-                  'w-1 cursor-ew-resize hover:bg-primary/30 active:bg-primary/50 transition-colors relative group',
-                  isResizing && 'bg-primary/50'
+                  'w-1 cursor-col-resize hover:bg-primary/20 active:bg-primary/40 transition-all relative group bg-gray-200 dark:bg-gray-800',
+                  isResizing && 'bg-primary/40'
                 )}
                 onMouseDown={handleResizeStart}
               >
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1 h-12 rounded-full bg-gray-300 dark:bg-gray-700 group-hover:bg-primary transition-colors" />
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-16 rounded-full bg-gray-400 dark:bg-gray-600 group-hover:bg-primary dark:group-hover:bg-primary transition-colors shadow-sm" />
               </div>
 
               <div className="flex flex-col" style={{ width: `${detailPanelWidth}%` }}>
-                <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30">
+                <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30 shrink-0">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
                       Log Details
@@ -772,9 +869,19 @@ function LogsPanel({ githubConfig }: LogsPanelProps) {
 
                   {/* Action Buttons */}
                   <div className="flex items-center gap-2 flex-wrap">
-                    {/* Copy AI Prompt Button */}
-                    {selectedLog && <CopyAIPromptButton log={selectedLog} size="sm" />}
-
+                    {/* AI Explain Button - Always visible */}
+                    {!explanation && !isExplaining && (
+                      <button
+                        onClick={handleExplainLog}
+                        disabled={isExplaining}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border bg-gradient-to-r from-purple-500/10 to-blue-500/10 hover:from-purple-500/20 hover:to-blue-500/20 text-purple-600 dark:text-purple-400 border-purple-300 dark:border-purple-700 hover:shadow-apple-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Explain this log with AI"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Explain with AI</span>
+                        <span className="sm:hidden">AI</span>
+                      </button>
+                    )}
                     {/* GitHub Issue Button - Always show for any selected log */}
                     <button
                       onClick={() => setShowGitHubIssue(true)}
@@ -793,7 +900,18 @@ function LogsPanel({ githubConfig }: LogsPanelProps) {
                   </div>
                 </div>
                 <div className="flex-1 overflow-auto p-4">
-                  <LogDetailsContent selectedLog={selectedLog} />
+                  <LogDetailsContent 
+                    selectedLog={selectedLog}
+                    explanation={explanation}
+                    isExplaining={isExplaining}
+                    explainError={explainError}
+                    streamingText={streamingText}
+                    onClearExplanation={() => {
+                      setExplanation(undefined);
+                      setExplainError(undefined);
+                      setStreamingText('');
+                    }}
+                  />
                 </div>
               </div>
             </>
@@ -816,8 +934,27 @@ interface NetworkRowProps {
  * Memoized NetworkRow component for virtualization
  */
 const NetworkRow = ({ request: req, isSelected, onSelect, style, endpointStats }: NetworkRowProps) => {
-  const endpoint = useMemo(() => new URL(req.url, window.location.origin).pathname, [req.url]);
+  const endpoint = useMemo(() => {
+    try {
+      return new URL(req.url, window.location.origin).pathname;
+    } catch {
+      return req.url;
+    }
+  }, [req.url]);
+  
   const trendData = useMemo(() => endpointStats[endpoint]?.slice(-20) || [], [endpointStats, endpoint]);
+
+  // Calculate response size if available
+  const responseSize = useMemo(() => {
+    if (req.responseBody) {
+      const sizeBytes = JSON.stringify(req.responseBody).length;
+      // Simple byte formatting
+      if (sizeBytes < 1024) return `${sizeBytes}B`;
+      if (sizeBytes < 1024 * 1024) return `${(sizeBytes / 1024).toFixed(1)}KB`;
+      return `${(sizeBytes / (1024 * 1024)).toFixed(1)}MB`;
+    }
+    return null;
+  }, [req.responseBody]);
 
   return (
     <div
@@ -852,6 +989,11 @@ const NetworkRow = ({ request: req, isSelected, onSelect, style, endpointStats }
           <span title={new Date(req.timestamp).toLocaleString()}>
             {humanizeTime(req.timestamp)}
           </span>
+          {responseSize && (
+            <span className="hidden lg:inline" title="Response size">
+              {responseSize}
+            </span>
+          )}
           <span className="sm:hidden">
             <DurationChip duration={req.duration || 0} threshold={500} />
           </span>
@@ -888,15 +1030,124 @@ NetworkRow.displayName = 'NetworkRow';
  */
 function NetworkPanel() {
   const {networkRequests, clearNetwork} = useDevConsoleStore();
+  const aiSettings = useAISettingsStore();
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
   const [detailPanelWidth, setDetailPanelWidth] = useState(50);
   const [isResizing, setIsResizing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [detailTab, setDetailTab] = useState<'keyinfo' | 'details'>('keyinfo');
   const resizeStartX = useRef(0);
   const resizeStartWidth = useRef(0);
   const isMobile = useIsMobile();
 
-  // Show only the most recent 10 requests for better performance and UX
-  const recentRequests = useMemo(() => networkRequests.slice(0, 10), [networkRequests]);
+  // AI Explanation state
+  const [explanation, setExplanation] = useState<LogExplanationData | undefined>();
+  const [isExplaining, setIsExplaining] = useState(false);
+  const [explainError, setExplainError] = useState<string | undefined>();
+  const [streamingText, setStreamingText] = useState<string>('');
+
+  // Filter and show only the most recent 10 requests
+  const recentRequests = useMemo(() => {
+    let filtered = networkRequests;
+    
+    // Apply search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(req => 
+        req.url.toLowerCase().includes(query) ||
+        req.method.toLowerCase().includes(query) ||
+        (req.status && String(req.status).includes(query))
+      );
+    }
+    
+    return filtered.slice(0, 10);
+  }, [networkRequests, searchQuery]);
+
+  // Handle explain network request
+  const handleExplainRequest = useCallback(async () => {
+    if (!selectedRequest) return;
+
+    // Check if AI is configured - get fresh state from store
+    const isAIReady = (
+      aiSettings.enabled &&
+      ((aiSettings.useGateway && aiSettings.gatewayApiKey) ||
+        (!aiSettings.useGateway && aiSettings.apiKey))
+    );
+
+    if (!isAIReady) {
+      console.log('[AI Network] AI not ready:', { enabled: aiSettings.enabled, useGateway: aiSettings.useGateway, hasGatewayKey: !!aiSettings.gatewayApiKey, hasApiKey: !!aiSettings.apiKey });
+      setExplainError(
+        '⚙️ AI features require configuration. Please enable AI and add your API key in Settings → AI to use this feature.'
+      );
+      return;
+    }
+
+    console.log('[AI Network] Starting explanation for request:', selectedRequest.url);
+    setIsExplaining(true);
+    setExplainError(undefined);
+    setStreamingText('');
+    setExplanation(undefined);
+
+    try {
+      const explainer = createLogExplainer(aiSettings);
+      
+      // Format network request as a log entry for explanation
+      const requestLog = {
+        level: selectedRequest.status >= 400 ? 'error' : selectedRequest.status >= 300 ? 'warn' : 'info',
+        message: `${selectedRequest.method} ${selectedRequest.url} - Status: ${selectedRequest.status || 'Pending'}`,
+        args: [
+          {
+            method: selectedRequest.method,
+            url: selectedRequest.url,
+            status: selectedRequest.status,
+            duration: selectedRequest.duration,
+            requestBody: selectedRequest.requestBody,
+            responseBody: selectedRequest.responseBody,
+            responseHeaders: selectedRequest.responseHeaders,
+          }
+        ],
+        timestamp: selectedRequest.timestamp,
+      };
+      
+      console.log('[AI Network] Request log formatted:', requestLog);
+      
+      // Stream the explanation
+      let fullText = '';
+      let chunkCount = 0;
+      for await (const chunk of explainer.streamExplanation(requestLog)) {
+        chunkCount++;
+        fullText += chunk;
+        setStreamingText(fullText);
+        console.log('[AI Network] Received chunk', chunkCount, '- total length:', fullText.length);
+      }
+
+      console.log('[AI Network] Streaming complete. Total text:', fullText.substring(0, 100) + '...');
+      
+      // Parse the complete explanation
+      setExplanation({
+        summary: fullText.split('\n')[0] || 'AI analysis complete',
+        explanation: fullText,
+      });
+      setStreamingText('');
+      console.log('[AI Network] Explanation set successfully');
+    } catch (error) {
+      console.error('[AI Network] Failed to explain request:', error);
+      setExplainError(
+        error instanceof Error ? error.message : 'Failed to generate explanation'
+      );
+    } finally {
+      console.log('[AI Network] Cleaning up - setting isExplaining to false');
+      setIsExplaining(false);
+    }
+  }, [aiSettings, selectedRequest]);
+
+  // Clear explanation when request changes
+  useEffect(() => {
+    setExplanation(undefined);
+    setExplainError(undefined);
+    setStreamingText('');
+    setIsExplaining(false);
+  }, [selectedRequest?.id]);
 
   /**
    * Group requests by endpoint for sparkline visualization
@@ -967,23 +1218,41 @@ function NetworkPanel() {
         )}
         style={{ width: !isMobile && selectedRequest ? `${100 - detailPanelWidth}%` : '100%' }}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-3 sm:px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30">
-          <div>
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-              Network Requests
-            </h3>
-            <p className="text-xs text-muted-foreground">
-              {networkRequests.length} request{networkRequests.length !== 1 ? 's' : ''} captured
-            </p>
+        {/* Header with Search */}
+        <div className="px-3 sm:px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30 space-y-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                Network Requests
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                {networkRequests.length} request{networkRequests.length !== 1 ? 's' : ''} captured
+              </p>
+            </div>
+            <button
+              onClick={clearNetwork}
+              className="p-2 hover:bg-white dark:hover:bg-gray-800 rounded-lg transition-all hover:shadow-apple-sm active:scale-95 min-h-[36px] min-w-[36px]"
+              title="Clear Network History"
+            >
+              <Trash2 className="w-4 h-4 text-gray-500 dark:text-gray-400 hover:text-destructive dark:hover:text-destructive transition-colors" />
+            </button>
           </div>
-          <button
-            onClick={clearNetwork}
-            className="p-2 hover:bg-white dark:hover:bg-gray-800 rounded-lg transition-all hover:shadow-apple-sm active:scale-95 min-h-[36px] min-w-[36px]"
-            title="Clear Network History"
-          >
-            <Trash2 className="w-4 h-4 text-gray-500 dark:text-gray-400 hover:text-destructive dark:hover:text-destructive transition-colors" />
-          </button>
+          
+          {/* Search */}
+          <div className="relative">
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
+              aria-hidden="true"
+            />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Filter by URL, method, or status..."
+              className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all shadow-apple-xs"
+              aria-label="Search network requests"
+            />
+          </div>
         </div>
 
         {/* Table - Simple list (no virtualization for 10 items) */}
@@ -1048,8 +1317,50 @@ function NetworkPanel() {
               onClose={() => setSelectedRequest(null)}
               title="Request Details"
               subtitle={`${selectedRequest.method} • ${selectedRequest.status || 'Pending'}`}
+              headerActions={
+                <button
+                  onClick={handleExplainRequest}
+                  disabled={isExplaining}
+                  className="p-2 hover:bg-white dark:hover:bg-gray-800 rounded-lg transition-all hover:shadow-apple-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Explain with AI"
+                >
+                  <Sparkles className={cn(
+                    "w-4 h-4 text-purple-500 dark:text-purple-400",
+                    isExplaining && "animate-pulse"
+                  )} />
+                </button>
+              }
             >
-              <NetworkRequestDetails request={selectedRequest} />
+              <MobileBottomSheetContent>
+                <BetterTabs
+                  tabs={[
+                    {
+                      id: 'keyinfo',
+                      label: 'Key Info',
+                      icon: <span className="text-base">📊</span>,
+                      content: <NetworkKeyInfo request={selectedRequest} allRequests={networkRequests} />
+                    },
+                    {
+                      id: 'details',
+                      label: 'Details',
+                      icon: <span className="text-base">🔍</span>,
+                      content: (
+                        <NetworkRequestDetails 
+                          request={selectedRequest}
+                          explanation={explanation}
+                          isExplaining={isExplaining}
+                          explainError={explainError}
+                          streamingText={streamingText}
+                        />
+                      )
+                    }
+                  ]}
+                  activeTab={detailTab}
+                  onTabChange={(tab) => setDetailTab(tab as 'keyinfo' | 'details')}
+                  variant="default"
+                  className="h-full"
+                />
+              </MobileBottomSheetContent>
             </MobileBottomSheet>
           ) : (
             /* Desktop: Resizable Side Panel */
@@ -1057,33 +1368,81 @@ function NetworkPanel() {
               {/* Resize Handle */}
               <div
                 className={cn(
-                  'w-1 cursor-ew-resize hover:bg-primary/30 active:bg-primary/50 transition-colors relative group',
-                  isResizing && 'bg-primary/50'
+                  'w-1 cursor-col-resize hover:bg-primary/20 active:bg-primary/40 transition-all relative group bg-gray-200 dark:bg-gray-800',
+                  isResizing && 'bg-primary/40'
                 )}
                 onMouseDown={handleResizeStart}
               >
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1 h-12 rounded-full bg-gray-300 dark:bg-gray-700 group-hover:bg-primary transition-colors" />
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-16 rounded-full bg-gray-400 dark:bg-gray-600 group-hover:bg-primary dark:group-hover:bg-primary transition-colors shadow-sm" />
               </div>
 
               <div className="flex flex-col" style={{ width: `${detailPanelWidth}%` }}>
-                <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30 flex items-center justify-between">
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                      Request Details
-                    </h3>
-                    <p className="text-xs text-muted-foreground">
-                      {selectedRequest.method} • {selectedRequest.status || 'Pending'}
-                    </p>
+                <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30 shrink-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                        Request Details
+                      </h3>
+                      <div className="flex items-center gap-2 mt-1">
+                        <MethodChip method={selectedRequest.method} />
+                        <StatusChip status={selectedRequest.status || null} />
+                        {selectedRequest.duration && (
+                          <DurationChip duration={selectedRequest.duration} threshold={500} />
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={handleExplainRequest}
+                        disabled={isExplaining}
+                        className="p-1.5 hover:bg-white dark:hover:bg-gray-800 rounded-lg transition-all hover:shadow-apple-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Explain with AI"
+                      >
+                        <Sparkles className={cn(
+                          "w-4 h-4 text-purple-500 dark:text-purple-400",
+                          isExplaining && "animate-pulse"
+                        )} />
+                      </button>
+                      <button
+                        onClick={() => setSelectedRequest(null)}
+                        className="p-1.5 hover:bg-white dark:hover:bg-gray-800 rounded-lg transition-all hover:shadow-apple-sm active:scale-95"
+                        title="Close Details"
+                      >
+                        <X className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                      </button>
+                    </div>
                   </div>
-                  <button
-                    onClick={() => setSelectedRequest(null)}
-                    className="p-1.5 hover:bg-white dark:hover:bg-gray-800 rounded-lg transition-all hover:shadow-apple-sm active:scale-95"
-                    title="Close Details"
-                  >
-                    <X className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                  </button>
                 </div>
-                <NetworkRequestDetails request={selectedRequest} />
+                
+                {/* Enhanced Tabs */}
+                <BetterTabs
+                  tabs={[
+                    {
+                      id: 'keyinfo',
+                      label: 'Key Info',
+                      icon: <span className="text-base">📊</span>,
+                      content: <NetworkKeyInfo request={selectedRequest} allRequests={networkRequests} />
+                    },
+                    {
+                      id: 'details',
+                      label: 'Details',
+                      icon: <span className="text-base">🔍</span>,
+                      content: (
+                        <NetworkRequestDetails 
+                          request={selectedRequest}
+                          explanation={explanation}
+                          isExplaining={isExplaining}
+                          explainError={explainError}
+                          streamingText={streamingText}
+                        />
+                      )
+                    }
+                  ]}
+                  activeTab={detailTab}
+                  onTabChange={(tab) => setDetailTab(tab as 'keyinfo' | 'details')}
+                  variant="default"
+                  className="flex-1"
+                />
               </div>
             </>
           )}
@@ -1094,55 +1453,314 @@ function NetworkPanel() {
 }
 
 /**
- * NetworkRequestDetails Component
- * Shows detailed information about a selected network request
- * Includes headers, request body, and response data
- * Uses lazy ReactJson rendering for better performance
  */
-function NetworkRequestDetails({ request }: { request: any }) {
-  const [activeSection, setActiveSection] = useState<'headers' | 'body' | 'response'>('response');
-  const { isDarkMode } = useUnifiedTheme();
+interface NetworkRequestDetailsProps {
+  request: any;
+  explanation?: LogExplanationData;
+  isExplaining?: boolean;
+  explainError?: string;
+  streamingText?: string;
+}
 
-  /**
-   * Get data for currently active section - memoized
-   */
-  const sectionData = useMemo(() => {
-    switch (activeSection) {
-      case 'headers':
-        return request.responseHeaders || {};
-      case 'body':
-        return request.requestBody || {};
-      case 'response':
-        return request.responseBody || {};
-      default:
-        return {};
+function NetworkRequestDetails({ 
+  request, 
+  explanation,
+  isExplaining = false,
+  explainError,
+  streamingText = ''
+}: NetworkRequestDetailsProps) {
+  const { isDarkMode } = useUnifiedTheme();
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    queryParams: false,
+    requestHeaders: false,
+    requestBody: false,
+    responseHeaders: false,
+    responseBody: false,
+  });
+
+  const toggleSection = useCallback((section: string) => {
+    setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
+  }, []);
+
+  // Extract useful data
+  const contentType = useMemo(() => {
+    return request.responseHeaders?.['content-type'] || 
+           request.responseHeaders?.['Content-Type'] || 
+           'unknown';
+  }, [request.responseHeaders]);
+
+  const responseSize = useMemo(() => {
+    if (request.responseBody) {
+      const sizeBytes = JSON.stringify(request.responseBody).length;
+      if (sizeBytes < 1024) return `${sizeBytes} B`;
+      if (sizeBytes < 1024 * 1024) return `${(sizeBytes / 1024).toFixed(1)} KB`;
+      return `${(sizeBytes / (1024 * 1024)).toFixed(2)} MB`;
     }
-  }, [activeSection, request]);
+    return '—';
+  }, [request.responseBody]);
+
+  // Parse query parameters from URL
+  const queryParams = useMemo(() => {
+    try {
+      const url = new URL(request.url, window.location.origin);
+      const params: Record<string, string> = {};
+      url.searchParams.forEach((value, key) => {
+        params[key] = value;
+      });
+      return Object.keys(params).length > 0 ? params : null;
+    } catch {
+      return null;
+    }
+  }, [request.url]);
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-      <div className="flex gap-1 px-4 py-2 border-b border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30">
-        {(['headers', 'body', 'response'] as const).map((section) => (
-          <button
-            key={section}
-            onClick={() => setActiveSection(section)}
-            className={cn(
-              'px-3 py-1.5 rounded-lg text-sm font-medium capitalize transition-all hover:shadow-apple-sm active:scale-95',
-              activeSection === section
-                ? 'bg-primary text-white shadow-apple-sm'
-                : 'text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100'
-            )}
-          >
-            {section}
-          </button>
-        ))}
-      </div>
-      <div className="flex-1 overflow-auto p-4">
-        <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-          {/* Only render ReactJson for active section */}
-          <LazyReactJson data={sectionData} isDarkMode={isDarkMode} name={activeSection} />
+    <div className="h-full overflow-y-auto p-4 space-y-4">
+      {/* AI Explanation Section */}
+      {(explanation || isExplaining || explainError || streamingText) && (
+        <LogExplanation
+          explanation={explanation}
+          isLoading={isExplaining}
+          error={explainError}
+          streamingText={streamingText}
+        />
+      )}
+      
+      {/* ============ ESSENTIAL INFO (Always Visible) ============ */}
+      
+      {/* Request Overview */}
+      <div>
+        <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2 flex items-center gap-2">
+          <span>🌐</span> Request Overview
+        </h4>
+        <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700 space-y-3">
+          {/* URL */}
+          <div>
+            <span className="text-xs text-gray-500 dark:text-gray-400 block mb-1">URL</span>
+            <div className="bg-white dark:bg-gray-900 rounded px-2 py-1.5 border border-gray-200 dark:border-gray-700">
+              <p className="text-xs font-mono text-gray-900 dark:text-gray-100 break-all">
+                {request.url}
+              </p>
+            </div>
+          </div>
+
+          {/* Method & Status Row */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <span className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Method</span>
+              <MethodChip method={request.method} />
+            </div>
+            <div>
+              <span className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Status</span>
+              {request.status ? (
+                <StatusChip status={request.status} />
+              ) : (
+                <Chip variant="neutral">Pending</Chip>
+              )}
+            </div>
+          </div>
+
+          {/* Content-Type */}
+          <div>
+            <span className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Content-Type</span>
+            <span className="text-xs font-mono text-gray-900 dark:text-gray-100">
+              {contentType}
+            </span>
+          </div>
+
+          {/* Size & Duration Row */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <span className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Size</span>
+              <span className="text-xs font-mono text-gray-900 dark:text-gray-100 font-semibold">
+                {responseSize}
+              </span>
+            </div>
+            <div>
+              <span className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Duration</span>
+              <DurationChip duration={request.duration || 0} threshold={500} />
+            </div>
+          </div>
+
+          {/* Timestamp */}
+          <div>
+            <span className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Timestamp</span>
+            <span className="text-xs font-mono text-gray-900 dark:text-gray-100">
+              {new Date(request.timestamp).toLocaleString()}
+            </span>
+          </div>
         </div>
       </div>
+
+      {/* ============ OPTIONAL/EXPANDABLE SECTIONS ============ */}
+
+      {/* Query Parameters */}
+      {queryParams && (
+        <div>
+          <button
+            onClick={() => toggleSection('queryParams')}
+            className="w-full flex items-center justify-between text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+          >
+            <span className="flex items-center gap-2">
+              <span>🔍</span> Query Parameters ({Object.keys(queryParams).length})
+            </span>
+            <span className="text-xs">{expandedSections.queryParams ? '▼' : '▶'}</span>
+          </button>
+          {expandedSections.queryParams && (
+            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+              <div className="space-y-2">
+                {Object.entries(queryParams).map(([key, value]) => (
+                  <div key={key} className="flex items-start gap-2 text-xs">
+                    <span className="font-mono text-primary font-semibold">{key}:</span>
+                    <span className="font-mono text-gray-900 dark:text-gray-100 break-all">{value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Request Headers */}
+      {request.requestHeaders && Object.keys(request.requestHeaders).length > 0 && (
+        <div>
+          <button
+            onClick={() => toggleSection('requestHeaders')}
+            className="w-full flex items-center justify-between text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+          >
+            <span className="flex items-center gap-2">
+              <span>📨</span> Request Headers ({Object.keys(request.requestHeaders).length})
+            </span>
+            <span className="text-xs">{expandedSections.requestHeaders ? '▼' : '▶'}</span>
+          </button>
+          {expandedSections.requestHeaders && (
+            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+              <LazyReactJson data={request.requestHeaders} isDarkMode={isDarkMode} name="requestHeaders" />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Request Body */}
+      {request.requestBody && (
+        <div>
+          <button
+            onClick={() => toggleSection('requestBody')}
+            className="w-full flex items-center justify-between text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+          >
+            <span className="flex items-center gap-2">
+              <span>📦</span> Request Body
+            </span>
+            <span className="text-xs">{expandedSections.requestBody ? '▼' : '▶'}</span>
+          </button>
+          {expandedSections.requestBody && (
+            <div>
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-2 mb-2">
+                <p className="text-xs text-yellow-800 dark:text-yellow-300 flex items-center gap-1">
+                  <span>⚠️</span>
+                  <span>May contain sensitive data (API keys, credentials)</span>
+                </p>
+              </div>
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                <LazyReactJson data={request.requestBody} isDarkMode={isDarkMode} name="body" />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Response Headers */}
+      {request.responseHeaders && Object.keys(request.responseHeaders).length > 0 && (
+        <div>
+          <button
+            onClick={() => toggleSection('responseHeaders')}
+            className="w-full flex items-center justify-between text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+          >
+            <span className="flex items-center gap-2">
+              <span>📋</span> Response Headers ({Object.keys(request.responseHeaders).length})
+            </span>
+            <span className="text-xs">{expandedSections.responseHeaders ? '▼' : '▶'}</span>
+          </button>
+          {expandedSections.responseHeaders && (
+            <div>
+              {/* Show key headers by default */}
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 space-y-2 mb-2">
+                <h5 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">Key Headers</h5>
+                {(['content-type', 'Content-Type', 'content-length', 'Content-Length', 'cache-control', 'Cache-Control', 'server', 'Server']).map((key) => {
+                  const value = request.responseHeaders[key];
+                  if (!value) return null;
+                  return (
+                    <div key={key} className="flex items-start gap-2 text-xs">
+                      <span className="font-mono text-primary font-semibold min-w-[120px]">{key}:</span>
+                      <span className="font-mono text-gray-900 dark:text-gray-100 break-all">{value}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <details className="bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                <summary className="px-3 py-2 cursor-pointer text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100">
+                  Show All Headers
+                </summary>
+                <div className="p-3 pt-0">
+                  <LazyReactJson data={request.responseHeaders} isDarkMode={isDarkMode} name="headers" />
+                </div>
+              </details>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Response Body */}
+      {request.responseBody ? (
+        <div>
+          <button
+            onClick={() => toggleSection('responseBody')}
+            className="w-full flex items-center justify-between text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+          >
+            <span className="flex items-center gap-2">
+              <span>📤</span> Response Body
+            </span>
+            <span className="text-xs">{expandedSections.responseBody ? '▼' : '▶'}</span>
+          </button>
+          {expandedSections.responseBody && (
+            <div>
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-2 mb-2">
+                <p className="text-xs text-yellow-800 dark:text-yellow-300 flex items-center gap-1">
+                  <span>⚠️</span>
+                  <span>May contain sensitive data. Size: {responseSize}</span>
+                </p>
+              </div>
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 max-h-96 overflow-auto">
+                <LazyReactJson data={request.responseBody} isDarkMode={isDarkMode} name="response" />
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div>
+          <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2 flex items-center gap-2">
+            <span>📤</span> Response Body
+          </h4>
+          <div className="flex items-center justify-center h-24 bg-gray-50 dark:bg-gray-800 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-700">
+            <div className="text-center">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                No response data available
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Error Display */}
+      {request.error && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+          <h4 className="text-xs font-semibold text-red-700 dark:text-red-400 uppercase mb-2 flex items-center gap-2">
+            <span>❌</span> Error
+          </h4>
+          <p className="text-sm font-mono text-red-900 dark:text-red-100">
+            {request.error}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

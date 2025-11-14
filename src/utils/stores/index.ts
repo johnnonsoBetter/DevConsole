@@ -1,3 +1,4 @@
 // Export all stores
-export * from './devConsole';
-export * from './githubIssueSlideout';
+export * from "./aiSettings";
+export * from "./devConsole";
+export * from "./githubIssueSlideout";

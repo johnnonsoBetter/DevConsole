@@ -1,15 +1,13 @@
+import { LogEntry, useGitHubIssueSlideoutStore } from "@/utils/stores";
+import { AnimatePresence, motion } from "framer-motion";
+import { AlertCircle, CheckCircle, Code, Eye, Loader, Send, Settings, X } from "lucide-react";
 import { useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { motion, AnimatePresence } from "framer-motion";
-import { X, Eye, Code, Send, CheckCircle, AlertCircle, Loader, Camera, Sparkles, Settings } from "lucide-react";
-import { cn } from "../../utils";
+import { useGitHubSettings } from "../../hooks/useGitHubSettings";
 import { createContextPack, generateGitHubIssueMarkdown } from "../../lib/devConsole/contextPacker";
 import { createGitHubIssue, type GitHubConfig } from "../../lib/devConsole/githubApi";
-import { useGitHubSettings } from "../../hooks/useGitHubSettings";
-import { useGitHubIssueGenerator } from "../../hooks/ai/useGitHubIssueGenerator";
-import { AIActionButton } from "./AI";
-import { LogEntry, useGitHubIssueSlideoutStore } from "@/utils/stores";
+import { cn } from "../../utils";
 
 // ============================================================================
 // GITHUB ISSUE SLIDEOUT
@@ -53,15 +51,6 @@ export function GitHubIssueSlideout({ isOpen, onClose, selectedLog, githubConfig
     resetContent,
   } = useGitHubIssueSlideoutStore();
 
-    // AI Hook for intelligent issue generation - MUST be called before any early returns
-  const {
-    availability: aiAvailability,
-    generating: isAIGenerating,
-    generatedIssue: aiGeneratedIssue,
-    generateIssue: generateWithAI,
-    clearIssue: resetAI,
-  } = useGitHubIssueGenerator();
-
   // Reset state when slideout closes
   useEffect(() => {
     if (!isOpen) {
@@ -70,15 +59,12 @@ export function GitHubIssueSlideout({ isOpen, onClose, selectedLog, githubConfig
       setActiveView("preview");
       setIsGenerating(false);
       setIsPublishing(false);
-      resetAI();
     }
-  }, [isOpen, resetAI, resetContent, setActiveView, setIsGenerating, setIsPublishing]);
+  }, [isOpen, resetContent, setActiveView, setIsGenerating, setIsPublishing]);
 
   // Auto-generate issue when slideout opens OR when selectedLog changes
   useEffect(() => {
     if (isOpen && !isGenerating) {
-      // Reset AI state before generating new issue
-      resetAI();
       handleGenerateIssue();
     }
   }, [isOpen, selectedLog?.id]); // Regenerate when log changes
@@ -121,68 +107,6 @@ export function GitHubIssueSlideout({ isOpen, onClose, selectedLog, githubConfig
       setIsGenerating(false);
     }
   };
-
-  // AI-powered issue generation
-  const handleAIGenerate = async () => {
-    setIsGenerating(true);
-    setPublishStatus({ type: null, message: "" });
-
-    try {
-      // Build context from selected log if available
-      let context = '';
-      
-      if (selectedLog) {
-        const contextParts: string[] = [];
-        
-        contextParts.push(`Log Level: ${selectedLog.level}`);
-        contextParts.push(`Message: ${selectedLog.message}`);
-
-        if (selectedLog.args && selectedLog.args.length > 0) {
-          contextParts.push(`Arguments: ${JSON.stringify(selectedLog.args, null, 2)}`);
-        }
-
-        if (selectedLog.stack) {
-          contextParts.push(`Stack Trace:\n${selectedLog.stack}`);
-        }
-
-        if (selectedLog.source) {
-          contextParts.push(`Source: ${selectedLog.source.file}:${selectedLog.source.line}`);
-        }
-
-        context = contextParts.join('\n\n');
-      }
-
-      // Generate issue with AI using current title, body, and context
-      const result = await generateWithAI({
-        title: title || undefined,
-        body: body || undefined,
-        context: context || undefined,
-      });
-
-      if (result) {
-        // Update content with AI-generated issue
-        updateContent({
-          title: result.title,
-          body: result.body,
-        });
-
-        setPublishStatus({
-          type: "success",
-          message: "✓ AI-generated issue ready for review!",
-        });
-      }
-    } catch (error) {
-      console.error("Failed to generate AI issue:", error);
-      setPublishStatus({
-        type: "error",
-        message: "AI generation failed. Check console for details.",
-      });
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-
 
   const handlePublish = async () => {
     if (!effectiveGithubConfig || !effectiveGithubConfig.token || !effectiveGithubConfig.repo || !effectiveGithubConfig.username) {
@@ -264,19 +188,6 @@ export function GitHubIssueSlideout({ isOpen, onClose, selectedLog, githubConfig
               </div>
 
               <div className="flex items-center gap-2">
-                {/* AI Transform Button */}
-                {aiAvailability !== 'unavailable' && (
-                  <AIActionButton
-                    onClick={handleAIGenerate}
-                    loading={isAIGenerating}
-                    disabled={!selectedLog && !body}
-                    label="Transform"
-                    loadingLabel="Transforming..."
-                    variant="primary"
-                    size="sm"
-                  />
-                )}
-
                 {/* View Toggle */}
                 <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
                   <button

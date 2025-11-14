@@ -7,40 +7,42 @@
  */
 
 import {
-  CheckCircle,
-  ChevronRight,
-  ExternalLink,
-  Eye,
-  EyeOff,
-  Github,
-  Image,
-  Info,
-  Loader,
-  Save,
-  Settings,
-  Shield,
-  TestTube,
-  XCircle,
-  Zap
+    Bot,
+    CheckCircle,
+    ChevronRight,
+    ExternalLink,
+    Eye,
+    EyeOff,
+    Github,
+    Image,
+    Info,
+    Loader,
+    Save,
+    Settings,
+    Shield,
+    TestTube,
+    XCircle,
+    Zap
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useGitHubSettings, type GitHubSettings } from "../../hooks/useGitHubSettings";
 import { testGitHubConnection } from "../../lib/devConsole/githubApi";
 import {
-  clearGraphQLSettings,
-  loadGraphQLSettings,
-  saveGraphQLSettings,
-  testGraphQLConnection,
-  validateGraphQLEndpoint,
-  type GraphQLSettings,
+    clearGraphQLSettings,
+    loadGraphQLSettings,
+    saveGraphQLSettings,
+    testGraphQLConnection,
+    validateGraphQLEndpoint,
+    type GraphQLSettings,
 } from "../../lib/devConsole/graphqlSettings";
 import { cn } from "../../utils";
 import {
-  clearUnsplashConfig,
-  loadUnsplashConfig,
-  saveUnsplashConfig,
-  type UnsplashConfig,
+    clearUnsplashConfig,
+    loadUnsplashConfig,
+    saveUnsplashConfig,
+    type UnsplashConfig,
 } from "../../utils/extensionSettings";
+import { AISettingsPanel } from "./AISettingsPanel";
 
 // ============================================================================
 // TYPES
@@ -53,7 +55,7 @@ interface StatusMessage {
   message: string;
 }
 
-type SettingsSection = 'github' | 'graphql' | 'general' | 'unsplash';
+type SettingsSection = 'github' | 'graphql' | 'general' | 'unsplash' | 'ai';
 
 // ============================================================================
 // MAIN UNIFIED SETTINGS PANEL
@@ -71,6 +73,13 @@ export function UnifiedSettingsPanel() {
             Settings
           </h3>
           <nav className="space-y-1">
+            <SettingsNavItem
+              icon={Bot}
+              label="AI Providers"
+              description="Configure AI models & keys"
+              active={activeSection === 'ai'}
+              onClick={() => setActiveSection('ai')}
+            />
             <SettingsNavItem
               icon={Github}
               label="GitHub Integration"
@@ -105,6 +114,7 @@ export function UnifiedSettingsPanel() {
 
       {/* Settings Content */}
       <div className="flex-1 overflow-auto">
+        {activeSection === 'ai' && <AISettingsSection />}
         {activeSection === 'github' && <GitHubSettingsSection />}
         {activeSection === 'graphql' && <GraphQLSettingsSection />}
         {activeSection === 'unsplash' && <UnsplashSettingsSection />}
@@ -1113,4 +1123,12 @@ function StatusBanner({ type, message }: StatusBannerProps) {
       <p className="flex-1">{message}</p>
     </div>
   );
+}
+
+// ============================================================================
+// AI SETTINGS SECTION
+// ============================================================================
+
+function AISettingsSection() {
+  return <AISettingsPanel />;
 }

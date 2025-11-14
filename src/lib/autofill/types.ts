@@ -42,24 +42,24 @@ export interface AutofillStats {
   usageMap: UsageMap;
 }
 
-export type FieldType = 
-  | 'email'
-  | 'phone'
-  | 'name'
-  | 'firstName'
-  | 'lastName'
-  | 'address'
-  | 'city'
-  | 'state'
-  | 'zip'
-  | 'country'
-  | 'company'
-  | 'title'
-  | 'website'
-  | 'message'
-  | 'image'
-  | 'text'
-  | 'url'
-  | 'date'
-  | 'number'
-  | 'tel';
+export type FieldType =
+  | "email"
+  | "phone"
+  | "name"
+  | "firstName"
+  | "lastName"
+  | "address"
+  | "city"
+  | "state"
+  | "zip"
+  | "country"
+  | "company"
+  | "title"
+  | "website"
+  | "message"
+  | "image"
+  | "text"
+  | "url"
+  | "date"
+  | "number"
+  | "tel";

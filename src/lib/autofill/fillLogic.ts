@@ -3,11 +3,20 @@
  * Handles filling inputs with data and events
  */
 
-import { DataStore } from './datastore';
-import { detectInputType } from './fieldDetector';
-import type { Dataset, FieldType } from './types';
-import { checkAndShowFillAllButton, closeSuggestionBox, showConfirmationMessage, showFillAllConfirmation } from './uiManager';
-import { fetchUnsplashImages, fillImageInput, getImageSearchQuery } from './unsplashService';
+import { DataStore } from "./datastore";
+import { detectInputType } from "./fieldDetector";
+import type { Dataset, FieldType } from "./types";
+import {
+  checkAndShowFillAllButton,
+  closeSuggestionBox,
+  showConfirmationMessage,
+  showFillAllConfirmation,
+} from "./uiManager";
+import {
+  fetchUnsplashImages,
+  fillImageInput,
+  getImageSearchQuery,
+} from "./unsplashService";
 
 // Store reference
 let dataStore: DataStore | null = null;
@@ -20,36 +29,45 @@ export function initializeDataStore(store: DataStore): void {
   dataStore = store;
 }
 
-/**
- * Fallback static suggestions (used when dataStore is not initialized)
- */
+// function getStaticSuggestions(fieldType: FieldType): string[] {
+//   return STATIC_SUGGESTIONS[fieldType] || STATIC_SUGGESTIONS.text;
+// }
+
 function getStaticSuggestions(fieldType: FieldType): string[] {
   const staticSuggestions: Record<string, string[]> = {
-    email: ['john.doe@example.com', 'jane.smith@company.com', 'contact@business.com'],
-    name: ['John Doe', 'Jane Smith', 'Alex Johnson'],
-    firstName: ['John', 'Jane', 'Alex'],
-    lastName: ['Doe', 'Smith', 'Johnson'],
-    phone: ['+1 (555) 123-4567', '+1 (555) 987-6543', '+1 (555) 456-7890'],
-    tel: ['+1 (555) 123-4567', '+1 (555) 987-6543', '+1 (555) 456-7890'],
-    address: ['123 Main Street', '456 Oak Avenue', '789 Pine Road'],
-    city: ['New York', 'San Francisco', 'Austin', 'Seattle'],
-    state: ['NY', 'CA', 'TX', 'WA'],
-    zip: ['10001', '94102', '78701', '98101'],
-    country: ['United States', 'United Kingdom', 'Canada', 'Australia'],
-    company: ['Tech Corp', 'Innovation Labs', 'Digital Solutions Inc.'],
-    title: ['Software Engineer', 'Product Manager', 'UX Designer'],
-    website: ['https://example.com', 'https://company.com', 'https://website.com'],
-    url: ['https://example.com', 'https://company.com', 'https://website.com'],
+    email: [
+      "john.doe@example.com",
+      "jane.smith@company.com",
+      "contact@business.com",
+    ],
+    name: ["John Doe", "Jane Smith", "Alex Johnson"],
+    firstName: ["John", "Jane", "Alex"],
+    lastName: ["Doe", "Smith", "Johnson"],
+    phone: ["+1 (555) 123-4567", "+1 (555) 987-6543", "+1 (555) 456-7890"],
+    tel: ["+1 (555) 123-4567", "+1 (555) 987-6543", "+1 (555) 456-7890"],
+    address: ["123 Main Street", "456 Oak Avenue", "789 Pine Road"],
+    city: ["New York", "San Francisco", "Austin", "Seattle"],
+    state: ["NY", "CA", "TX", "WA"],
+    zip: ["10001", "94102", "78701", "98101"],
+    country: ["United States", "United Kingdom", "Canada", "Australia"],
+    company: ["Tech Corp", "Innovation Labs", "Digital Solutions Inc."],
+    title: ["Software Engineer", "Product Manager", "UX Designer"],
+    website: [
+      "https://example.com",
+      "https://company.com",
+      "https://website.com",
+    ],
+    url: ["https://example.com", "https://company.com", "https://website.com"],
     message: [
       "I'm interested in learning more about this opportunity.",
       "Thank you for reaching out. I'd love to connect.",
-      "Could we schedule a time to discuss this further?"
+      "Could we schedule a time to discuss this further?",
     ],
-    text: ['Sample text', 'Example content', 'Test data'],
-    number: ['123', '456', '789'],
-    date: ['2025-01-01', '2025-06-15', '2025-12-31']
+    text: ["Sample text", "Example content", "Test data"],
+    number: ["123", "456", "789"],
+    date: ["2025-01-01", "2025-06-15", "2025-12-31"],
   };
-  
+
   return staticSuggestions[fieldType] || staticSuggestions.text;
 }
 
@@ -63,8 +81,8 @@ export function getSuggestionsForField(fieldType: FieldType): string[] {
 
   const allDatasets = dataStore.getAllDatasets();
   const suggestions: string[] = [];
-  
-  allDatasets.forEach(dataset => {
+
+  allDatasets.forEach((dataset) => {
     const value = dataStore!.getFieldData(dataset, fieldType);
     if (value && !suggestions.includes(value)) {
       suggestions.push(value);
@@ -84,16 +102,16 @@ export function fillInput(
   showConfirmation: boolean = true
 ): void {
   input.value = value;
-  input.dispatchEvent(new Event('input', { bubbles: true }));
-  input.dispatchEvent(new Event('change', { bubbles: true }));
-  input.dispatchEvent(new Event('blur', { bubbles: true }));
-  
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+  input.dispatchEvent(new Event("change", { bubbles: true }));
+  input.dispatchEvent(new Event("blur", { bubbles: true }));
+
   closeSuggestionBox();
-  
+
   if (showConfirmation) {
     showConfirmationMessage(input);
   }
-  
+
   // Re-check if we should show/hide Fill All button
   setTimeout(checkAndShowFillAllButton, 100);
 }
@@ -101,42 +119,64 @@ export function fillInput(
 /**
  * Get all fillable inputs on the page
  */
-export function getAllFillableInputs(): Array<HTMLInputElement | HTMLTextAreaElement> {
-  const inputs = document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
+export function getAllFillableInputs(): Array<
+  HTMLInputElement | HTMLTextAreaElement
+> {
+  const inputs = document.querySelectorAll<
+    HTMLInputElement | HTMLTextAreaElement
+  >(
     'input[type="text"], input[type="number"], input[type="email"], input[type="tel"], input[type="file"], input:not([type]), textarea'
   );
-  
+
   const fillableInputs: Array<HTMLInputElement | HTMLTextAreaElement> = [];
-  
-  inputs.forEach(input => {
+
+  inputs.forEach((input) => {
     if (input instanceof HTMLInputElement) {
-      if (input.type === 'password' || input.type === 'hidden') return;
-      
+      if (input.type === "password" || input.type === "hidden") return;
+
       // For file inputs, include even if hidden (common pattern)
-      if (input.type === 'file') {
+      if (input.type === "file") {
         if (!input.disabled) {
           fillableInputs.push(input);
         }
         return;
       }
-      
+
       const rect = input.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) return;
-      
+
       // Check if input is visible and not disabled
       if (input.offsetParent !== null && !input.disabled && !input.readOnly) {
+        fillableInputs.push(input);
+      }
+
+      if (
+        input.offsetParent !== null &&
+        !input.disabled &&
+        !input.readOnly &&
+        input.getAttribute("aria-hidden") !== "true"
+      ) {
         fillableInputs.push(input);
       }
     } else if (input instanceof HTMLTextAreaElement) {
       const rect = input.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) return;
-      
+
       if (input.offsetParent !== null && !input.disabled && !input.readOnly) {
+        fillableInputs.push(input);
+      }
+
+      if (
+        input.offsetParent !== null &&
+        !input.disabled &&
+        !input.readOnly &&
+        input.getAttribute("aria-hidden") !== "true"
+      ) {
         fillableInputs.push(input);
       }
     }
   });
-  
+
   return fillableInputs;
 }
 
@@ -146,10 +186,10 @@ export function getAllFillableInputs(): Array<HTMLInputElement | HTMLTextAreaEle
 export async function fillAllInputs(): Promise<void> {
   const inputs = getAllFillableInputs();
   let filledCount = 0;
-  
+
   // Initialize dataStore if needed
   if (!dataStore) {
-    console.error('❌ DataStore not initialized');
+    console.error("❌ DataStore not initialized");
     return;
   }
 
@@ -158,16 +198,16 @@ export async function fillAllInputs(): Promise<void> {
   currentDataset = dataStore.selectDataset(formFingerprint);
 
   if (!currentDataset) {
-    console.error('❌ No dataset available for filling');
+    console.error("❌ No dataset available for filling");
     return;
   }
 
   console.log(`🎯 Using dataset: ${currentDataset.name} for this form`);
-  
+
   for (const input of inputs) {
     const inputType = detectInputType(input);
-    
-    if (inputType === 'image' && input instanceof HTMLInputElement) {
+
+    if (inputType === "image" && input instanceof HTMLInputElement) {
       // Handle image inputs
       const query = getImageSearchQuery(input);
       const images = await fetchUnsplashImages(query, 1);
@@ -184,11 +224,11 @@ export async function fillAllInputs(): Promise<void> {
       }
     }
   }
-  
+
   // Show summary confirmation with dataset name
   if (filledCount > 0) {
     showFillAllConfirmation(filledCount, currentDataset.name);
-    
+
     // Re-check inputs after a delay to show button again if needed
     setTimeout(checkAndShowFillAllButton, 2000);
   }
