@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Console APIs - DevConsole Extension</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 900px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .test-section {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    button {
+      background: #9E7AFF;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      margin: 5px;
+      font-size: 14px;
+    }
+    button:hover {
+      background: #8B67E6;
+    }
+    h1 {
+      color: #333;
+    }
+    h2 {
+      color: #555;
+      margin-top: 0;
+    }
+    .info {
+      background: #e3f2fd;
+      padding: 12px;
+      border-radius: 4px;
+      margin-bottom: 16px;
+      border-left: 4px solid #2196F3;
+    }
+  </style>
+</head>
+<body>
+  <h1>🧪 DevConsole Extension - Console API Test Suite</h1>
+  
+  <div class="info">
+    <strong>Instructions:</strong> Load this page with the DevConsole extension active. 
+    Click the buttons below to test different console APIs. Open the DevConsole panel 
+    (DevTools → DevConsole tab) to verify that all logs are captured.
+  </div>
+
+  <div class="test-section">
+    <h2>1. Basic Console Methods</h2>
+    <button onclick="testBasicMethods()">Test log/info/warn/error/debug</button>
+  </div>
+
+  <div class="test-section">
+    <h2>2. Grouping Methods</h2>
+    <button onclick="testGrouping()">Test group/groupEnd/groupCollapsed</button>
+  </div>
+
+  <div class="test-section">
+    <h2>3. Table Method</h2>
+    <button onclick="testTable()">Test console.table()</button>
+  </div>
+
+  <div class="test-section">
+    <h2>4. Timing Methods</h2>
+    <button onclick="testTiming()">Test time/timeEnd/timeLog</button>
+  </div>
+
+  <div class="test-section">
+    <h2>5. Counting Methods</h2>
+    <button onclick="testCounting()">Test count/countReset</button>
+  </div>
+
+  <div class="test-section">
+    <h2>6. Trace Method</h2>
+    <button onclick="testTrace()">Test console.trace()</button>
+  </div>
+
+  <div class="test-section">
+    <h2>7. Assert Method</h2>
+    <button onclick="testAssert()">Test console.assert()</button>
+  </div>
+
+  <div class="test-section">
+    <h2>8. Clear Method</h2>
+    <button onclick="testClear()">Test console.clear()</button>
+  </div>
+
+  <div class="test-section">
+    <h2>9. Custom Methods</h2>
+    <button onclick="testCustomMethods()">Test console.ui/db/api</button>
+  </div>
+
+  <div class="test-section">
+    <h2>10. All Tests</h2>
+    <button onclick="runAllTests()" style="background: #10B981;">Run All Tests</button>
+  </div>
+
+  <script>
+    function testBasicMethods() {
+      console.log('✓ This is a log message');
+      console.info('ℹ️ This is an info message');
+      console.warn('⚠️ This is a warning message');
+      console.error('❌ This is an error message');
+      console.debug('🐛 This is a debug message');
+    }
+
+    function testGrouping() {
+      console.group('🗂️ Group 1');
+      console.log('Inside Group 1');
+      console.info('More info in Group 1');
+      console.groupEnd();
+
+      console.groupCollapsed('📁 Collapsed Group');
+      console.log('This is inside a collapsed group');
+      console.warn('Warning inside collapsed group');
+      console.groupEnd();
+    }
+
+    function testTable() {
+      const users = [
+        { id: 1, name: 'Alice', role: 'Admin' },
+        { id: 2, name: 'Bob', role: 'User' },
+        { id: 3, name: 'Charlie', role: 'Moderator' }
+      ];
+      console.table(users);
+    }
+
+    function testTiming() {
+      console.time('⏱️ Timer Test');
+      
+      // Simulate some work
+      let sum = 0;
+      for (let i = 0; i < 1000000; i++) {
+        sum += i;
+      }
+      
+      console.timeLog('⏱️ Timer Test', 'Intermediate checkpoint');
+      
+      // More work
+      for (let i = 0; i < 1000000; i++) {
+        sum += i;
+      }
+      
+      console.timeEnd('⏱️ Timer Test');
+    }
+
+    function testCounting() {
+      console.count('🔢 Button Clicks');
+      console.count('🔢 Button Clicks');
+      console.count('🔢 Button Clicks');
+      console.count('🔢 Another Counter');
+      console.countReset('🔢 Button Clicks');
+      console.count('🔢 Button Clicks'); // Should restart at 1
+    }
+
+    function testTrace() {
+      function innerFunction() {
+        console.trace('🔍 Stack trace from nested function');
+      }
+      
+      function middleFunction() {
+        innerFunction();
+      }
+      
+      middleFunction();
+    }
+
+    function testAssert() {
+      console.assert(true, '✓ This assertion passes (should not appear)');
+      console.assert(false, '❌ This assertion fails (should appear)');
+      console.assert(1 === 2, '❌ Math assertion failed');
+    }
+
+    function testClear() {
+      console.log('This message appears before clear');
+      console.clear();
+      console.log('✓ Console cleared! This message appears after clear');
+    }
+
+    function testCustomMethods() {
+      if (console.ui) {
+        console.ui('🎨 UI event logged');
+      } else {
+        console.warn('console.ui not available');
+      }
+      
+      if (console.db) {
+        console.db('💾 Database operation logged');
+      } else {
+        console.warn('console.db not available');
+      }
+      
+      if (console.api) {
+        console.api('🌐 API call logged');
+      } else {
+        console.warn('console.api not available');
+      }
+    }
+
+    function runAllTests() {
+      console.log('\n🚀 === STARTING ALL TESTS ===\n');
+      
+      testBasicMethods();
+      console.log('\n---\n');
+      
+      testGrouping();
+      console.log('\n---\n');
+      
+      testTable();
+      console.log('\n---\n');
+      
+      testTiming();
+      console.log('\n---\n');
+      
+      testCounting();
+      console.log('\n---\n');
+      
+      testTrace();
+      console.log('\n---\n');
+      
+      testAssert();
+      console.log('\n---\n');
+      
+      testCustomMethods();
+      
+      console.log('\n✅ === ALL TESTS COMPLETED ===\n');
+      
+      // Note: console.clear() is intentionally not run in "all tests" 
+      // to preserve the test output
+    }
+
+    // Run a basic test on page load
+    console.log('🎉 Test page loaded successfully! Extension should capture this message.');
+  </script>
+</body>
+</html>

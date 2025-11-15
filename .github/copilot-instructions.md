@@ -35,13 +35,13 @@
 
 ## Project Layout & Pointers
 
-- `manifest.json`: MV3 manifest (permissions: `storage`, `activeTab`, `<all_urls>`). Update this if new capabilities need permissions or resources.
+- `manifest.json`: MV3 manifest (permissions: `storage`, `activeTab`, `debugger`, `<all_urls>`). Update this if new capabilities need permissions or resources.
 - `public/popup.*`: Toolbar popup instructions/status.
 - `src/background/service-worker.ts`: Central state manager, `MessageReceiver` handlers, chrome storage persistence.
-- `src/content/`: `page-hook-logic.ts` (console/network interception), `index.ts` (message batching + autofill bootstrap), `pageScriptInjector.ts` (injects hooks).
-- `src/devtools/`: DevTools entrypoints (`devtools.ts`, `DevToolsPanel.tsx`, `bridge.ts`, `theme-init.ts`).
+- `src/content/`: `page-hook-logic.ts` (console/network interception in page context - injected into page), `index.ts` (message relay with batching + autofill bootstrap), `pageScriptInjector.ts` (creates script tag to inject page-hook-logic).
+- `src/devtools/`: DevTools entrypoints (`devtools.ts`, `DevToolsPanel.tsx`, `bridge.ts`, `backgroundBridge.ts`, `theme-init.ts`).
 - `src/components/DevConsole/`: Tab components (`DevConsolePanel`, `LogsPanel`, `NetworkPanel`, `GraphQLExplorer`, `AIPanel`, `CodeSandboxPanel`, `UnifiedSettingsPanel`, etc.) plus supporting UI (Chips, ThemeToggle, BetterTabs).
-- `src/lib/devConsole/`: Console/network interceptors, AI services (`aiClient`, `logExplainer`), GitHub + GraphQL helpers, contextPacker utilities, prompt formatter.
+- `src/lib/devConsole/`: AI services (`aiClient`, `logExplainer`), GitHub + GraphQL helpers, contextPacker utilities, prompt formatter, settings managers.
 - `src/lib/autofill/`: Dataset management, field detection, fill logic, UI manager, Unsplash service, `autofill.css`.
 - `src/hooks/`: Chrome AI hooks (`useChromeAI`, `usePromptModel`, etc.), GitHub settings hook, theme/media utilities.
 - `src/utils/`: Shared helpers, extension settings persistence, JSON sanitizer, browser support, Zustand stores (`src/utils/stores`).

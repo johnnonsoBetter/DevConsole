@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DevConsole Critical Fixes Test Suite</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #0f172a;
+      color: #e2e8f0;
+    }
+    h1 {
+      color: #9E7AFF;
+      border-bottom: 2px solid #9E7AFF;
+      padding-bottom: 10px;
+    }
+    h2 {
+      color: #818cf8;
+      margin-top: 30px;
+    }
+    .test-section {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px 0;
+    }
+    button {
+      background: #9E7AFF;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      margin: 5px;
+      transition: background 0.2s;
+    }
+    button:hover {
+      background: #7c5fd3;
+    }
+    button.danger {
+      background: #ef4444;
+    }
+    button.danger:hover {
+      background: #dc2626;
+    }
+    button.success {
+      background: #10b981;
+    }
+    button.success:hover {
+      background: #059669;
+    }
+    .status {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: bold;
+      margin-left: 10px;
+    }
+    .status.enabled {
+      background: #10b981;
+      color: white;
+    }
+    .status.disabled {
+      background: #ef4444;
+      color: white;
+    }
+    code {
+      background: #0f172a;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: 'Monaco', 'Courier New', monospace;
+      color: #fbbf24;
+    }
+    .info {
+      background: #1e40af;
+      border-left: 4px solid #3b82f6;
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 4px;
+    }
+    .warning {
+      background: #92400e;
+      border-left: 4px solid #f59e0b;
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 4px;
+    }
+    .controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔧 DevConsole Critical Fixes Test Suite</h1>
+  
+  <div class="info">
+    <strong>Instructions:</strong> Open Chrome DevTools (F12) → DevConsole tab and watch both the console and network panels as you run these tests.
+  </div>
+
+  <!-- Runtime Controls -->
+  <div class="test-section">
+    <h2>1. Runtime Toggle Test</h2>
+    <p>Test the ability to enable/disable capture without page reload.</p>
+    <div class="controls">
+      <button onclick="testEnable()">✅ Enable Capture</button>
+      <button onclick="testDisable()">🛑 Disable Capture</button>
+      <button onclick="testToggle()">🔄 Toggle Capture</button>
+      <button onclick="testStatus()">📊 Show Status</button>
+      <button onclick="testReset()">♻️ Reset Stats</button>
+    </div>
+    <div class="info" style="margin-top: 10px;">
+      After disabling, the next test log should NOT appear in DevConsole panel.
+      <button onclick="console.log('Test log after toggle:', new Date())">Test Log</button>
+    </div>
+  </div>
+
+  <!-- Object Serialization -->
+  <div class="test-section">
+    <h2>2. Object Serialization & Recursion Guards</h2>
+    <p>Test deep nesting limits and large object truncation.</p>
+    <div class="controls">
+      <button onclick="testDeepNesting()">🔁 Deep Nesting (15 levels)</button>
+      <button onclick="testLargeObject()">📦 Large Object (200 props)</button>
+      <button onclick="testCircularRef()">🔄 Circular Reference</button>
+      <button onclick="testComplexTypes()">🎭 Complex Types (Map, Set, FormData)</button>
+    </div>
+  </div>
+
+  <!-- Network Tests -->
+  <div class="test-section">
+    <h2>3. Network Body Reading & Stream Tapping</h2>
+    <p>Test fetch/XHR interception with various response types.</p>
+    <div class="controls">
+      <button onclick="testJSONFetch()">📄 Fetch JSON</button>
+      <button onclick="testLargeResponse()">📊 Large Response</button>
+      <button onclick="testConsumedBody()">⚠️ Consumed Body</button>
+      <button onclick="testXHR()">🔌 XHR Request</button>
+    </div>
+  </div>
+
+  <!-- GraphQL Tests -->
+  <div class="test-section">
+    <h2>4. GraphQL Detection</h2>
+    <p>Test GraphQL operation detection and console logging. Look for formatted output: <code style="color: #10b981;">✓ QUERY GetUser 45ms</code></p>
+    <div class="controls">
+      <button onclick="testGraphQLQuery()">🔍 GraphQL Query</button>
+      <button onclick="testGraphQLMutation()">✏️ GraphQL Mutation</button>
+      <button onclick="testGraphQLError()">❌ GraphQL Error</button>
+      <button onclick="testGraphQLXHR()">🔌 GraphQL via XHR</button>
+    </div>
+  </div>
+
+  <!-- Size Limits -->
+  <div class="test-section">
+    <h2>5. Size-Based Storage Limits</h2>
+    <p>Test message size limits and memory management.</p>
+    <div class="warning">
+      <strong>Warning:</strong> These tests generate large amounts of data and may slow down the browser.
+    </div>
+    <div class="controls">
+      <button onclick="testSingleLargeMessage()">📨 Single Large Message</button>
+      <button onclick="testManyMessages()">📬 Many Messages (100)</button>
+      <button onclick="testMemoryLimit()" class="danger">💥 Hit Memory Limit</button>
+    </div>
+  </div>
+
+  <!-- Flush on Unload -->
+  <div class="test-section">
+    <h2>6. Immediate Flush on beforeunload</h2>
+    <p>Test that messages are flushed immediately when navigating away.</p>
+    <div class="controls">
+      <button onclick="testBeforeUnload()">🚪 Test Navigation Flush</button>
+    </div>
+    <div class="info">
+      This will generate messages then navigate to a blank page. Messages should appear in DevConsole before navigation completes.
+    </div>
+  </div>
+
+  <!-- Console Methods -->
+  <div class="test-section">
+    <h2>7. Console Method Coverage</h2>
+    <p>Test all intercepted console methods.</p>
+    <div class="controls">
+      <button onclick="testConsoleMethods()">🎯 All Console Methods</button>
+      <button onclick="testCustomMethods()">🎨 Custom Methods (ui, db, api)</button>
+    </div>
+  </div>
+
+  <script>
+    // ==========================================
+    // 1. Runtime Toggle Tests
+    // ==========================================
+    
+    function testEnable() {
+      if (window.__devConsoleControl) {
+        window.__devConsoleControl.enable();
+        console.log('✅ Capture enabled via control API');
+      } else {
+        alert('DevConsole control API not available. Is the extension loaded?');
+      }
+    }
+
+    function testDisable() {
+      if (window.__devConsoleControl) {
+        window.__devConsoleControl.disable();
+        console.log('🛑 Capture disabled via control API (you should not see this in DevConsole panel)');
+      } else {
+        alert('DevConsole control API not available. Is the extension loaded?');
+      }
+    }
+
+    function testToggle() {
+      if (window.__devConsoleControl) {
+        window.__devConsoleControl.toggle();
+        console.log('🔄 Capture toggled');
+      } else {
+        alert('DevConsole control API not available. Is the extension loaded?');
+      }
+    }
+
+    function testStatus() {
+      if (window.__devConsoleControl) {
+        window.__devConsoleControl.status();
+      } else {
+        alert('DevConsole control API not available. Is the extension loaded?');
+      }
+    }
+
+    function testReset() {
+      if (window.__devConsoleControl) {
+        window.__devConsoleControl.reset();
+        console.log('♻️ Stats reset');
+      } else {
+        alert('DevConsole control API not available. Is the extension loaded?');
+      }
+    }
+
+    // ==========================================
+    // 2. Object Serialization Tests
+    // ==========================================
+
+    function testDeepNesting() {
+      console.log('🔁 Testing deep nesting (15 levels)...');
+      
+      let obj = { level: 0 };
+      let current = obj;
+      
+      for (let i = 1; i <= 15; i++) {
+        current.nested = { level: i };
+        current = current.nested;
+      }
+      
+      console.log('Deep nested object (should see [Max depth reached]):', obj);
+    }
+
+    function testLargeObject() {
+      console.log('📦 Testing large object (200 properties)...');
+      
+      const largeObj = {};
+      for (let i = 0; i < 200; i++) {
+        largeObj[`property_${i}`] = `value_${i}`;
+      }
+      
+      console.log('Large object (should see truncation indicator):', largeObj);
+    }
+
+    function testCircularRef() {
+      console.log('🔄 Testing circular reference...');
+      
+      const obj = { name: 'parent' };
+      obj.self = obj;
+      obj.child = { parent: obj };
+      
+      console.log('Circular reference (should see [Circular]):', obj);
+    }
+
+    function testComplexTypes() {
+      console.log('🎭 Testing complex types...');
+      
+      const map = new Map();
+      map.set('key1', 'value1');
+      map.set('key2', { nested: 'value' });
+      
+      const set = new Set([1, 2, 3, { obj: 'value' }]);
+      
+      const formData = new FormData();
+      formData.append('field1', 'value1');
+      formData.append('field2', 'value2');
+      
+      console.log('Map:', map);
+      console.log('Set:', set);
+      console.log('FormData:', formData);
+      console.log('Symbol:', Symbol('test'));
+      console.log('Function:', function namedFunc() {});
+    }
+
+    // ==========================================
+    // 3. Network Tests
+    // ==========================================
+
+    async function testJSONFetch() {
+      console.log('📄 Testing JSON fetch...');
+      try {
+        const response = await fetch('https://jsonplaceholder.typicode.com/posts/1');
+        const data = await response.json();
+        console.log('Fetch completed:', data);
+      } catch (error) {
+        console.error('Fetch failed:', error);
+      }
+    }
+
+    async function testLargeResponse() {
+      console.log('📊 Testing large response...');
+      try {
+        const response = await fetch('https://jsonplaceholder.typicode.com/posts');
+        const data = await response.json();
+        console.log('Large response fetched:', data.length, 'items');
+      } catch (error) {
+        console.error('Fetch failed:', error);
+      }
+    }
+
+    async function testConsumedBody() {
+      console.log('⚠️ Testing consumed body (stream tapping should handle this)...');
+      try {
+        const response = await fetch('https://jsonplaceholder.typicode.com/posts/1');
+        
+        // Consume the body
+        const text1 = await response.text();
+        console.log('First read:', text1.substring(0, 50) + '...');
+        
+        // Try to read again (should fail, but DevConsole should still capture)
+        try {
+          const text2 = await response.text();
+          console.log('Second read:', text2);
+        } catch (e) {
+          console.log('Expected error on second read:', e.message);
+        }
+      } catch (error) {
+        console.error('Test failed:', error);
+      }
+    }
+
+    function testXHR() {
+      console.log('🔌 Testing XHR request...');
+      const xhr = new XMLHttpRequest();
+      xhr.open('GET', 'https://jsonplaceholder.typicode.com/posts/1');
+      xhr.onload = function() {
+        console.log('XHR completed:', xhr.status);
+      };
+      xhr.onerror = function() {
+        console.error('XHR failed');
+      };
+      xhr.send();
+    }
+
+    // ==========================================
+    // 4. GraphQL Tests
+    // ==========================================
+
+    async function testGraphQLQuery() {
+      console.log('🔍 Testing GraphQL Query (check for formatted console output)...');
+      
+      // Mock GraphQL endpoint
+      const mockGraphQL = 'https://jsonplaceholder.typicode.com/graphql';
+      
+      try {
+        await fetch(mockGraphQL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: 'query GetUser { user(id: "1") { id name email } }',
+            operationName: 'GetUser'
+          })
+        });
+      } catch (error) {
+        console.log('GraphQL request sent (endpoint may not exist, but detection should work)');
+      }
+    }
+
+    async function testGraphQLMutation() {
+      console.log('✏️ Testing GraphQL Mutation...');
+      
+      const mockGraphQL = 'https://jsonplaceholder.typicode.com/graphql';
+      
+      try {
+        await fetch(mockGraphQL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: 'mutation UpdateProfile($name: String!) { updateProfile(name: $name) { success } }',
+            operationName: 'UpdateProfile',
+            variables: { name: 'John Doe' }
+          })
+        });
+      } catch (error) {
+        console.log('GraphQL mutation sent');
+      }
+    }
+
+    async function testGraphQLError() {
+      console.log('❌ Testing GraphQL Error...');
+      
+      try {
+        await fetch('https://invalid-graphql-endpoint-12345.com/graphql', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: 'query FailingQuery { fail }',
+            operationName: 'FailingQuery'
+          })
+        });
+      } catch (error) {
+        console.log('GraphQL error triggered (expected)');
+      }
+    }
+
+    function testGraphQLXHR() {
+      console.log('🔌 Testing GraphQL via XHR...');
+      
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', 'https://jsonplaceholder.typicode.com/graphql');
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.onload = function() {
+        console.log('GraphQL XHR completed');
+      };
+      xhr.onerror = function() {
+        console.log('GraphQL XHR error (expected)');
+      };
+      xhr.send(JSON.stringify({
+        query: 'query GetPosts { posts { id title } }',
+        operationName: 'GetPosts'
+      }));
+    }
+
+    // ==========================================
+    // 5. Size Limit Tests
+    // ==========================================
+
+    function testSingleLargeMessage() {
+      console.log('📨 Testing single large message...');
+      
+      const hugeString = 'x'.repeat(2 * 1024 * 1024); // 2MB
+      console.log('Huge message (should be truncated):', hugeString);
+    }
+
+    function testManyMessages() {
+      console.log('📬 Testing many messages (100)...');
+      
+      for (let i = 0; i < 100; i++) {
+        console.log(`Message ${i + 1}:`, {
+          id: i,
+          data: new Array(100).fill('x').join(''),
+          timestamp: Date.now()
+        });
+      }
+      
+      console.log('✅ 100 messages logged');
+    }
+
+    function testMemoryLimit() {
+      if (!confirm('This will generate messages until memory limit is hit. Continue?')) {
+        return;
+      }
+      
+      console.log('💥 Attempting to hit memory limit...');
+      
+      let count = 0;
+      const interval = setInterval(() => {
+        const largeData = new Array(10000).fill('x').join('');
+        console.log(`Large message ${++count}:`, largeData, { count, timestamp: Date.now() });
+        
+        if (count >= 1000) {
+          clearInterval(interval);
+          console.log('✅ Test complete. Check if capture was auto-disabled.');
+        }
+      }, 10);
+    }
+
+    // ==========================================
+    // 6. beforeunload Test
+    // ==========================================
+
+    function testBeforeUnload() {
+      console.log('🚪 Testing beforeunload flush...');
+      
+      // Generate several messages
+      for (let i = 0; i < 10; i++) {
+        console.log(`Pre-navigation message ${i + 1}`, { data: 'Should be flushed immediately' });
+      }
+      
+      // Confirm navigation
+      if (confirm('Navigate to blank page? (Messages should be flushed before navigation)')) {
+        setTimeout(() => {
+          window.location.href = 'about:blank';
+        }, 100);
+      }
+    }
+
+    // ==========================================
+    // 7. Console Method Tests
+    // ==========================================
+
+    function testConsoleMethods() {
+      console.log('🎯 Testing all console methods...');
+      
+      console.log('log method');
+      console.info('info method');
+      console.warn('warn method');
+      console.error('error method');
+      console.debug('debug method');
+      
+      console.group('Group');
+      console.log('Inside group');
+      console.groupEnd();
+      
+      console.groupCollapsed('Collapsed Group');
+      console.log('Inside collapsed group');
+      console.groupEnd();
+      
+      console.table([{ id: 1, name: 'Alice' }, { id: 2, name: 'Bob' }]);
+      
+      console.time('timer');
+      setTimeout(() => {
+        console.timeLog('timer', 'checkpoint');
+        console.timeEnd('timer');
+      }, 100);
+      
+      console.count('counter');
+      console.count('counter');
+      console.countReset('counter');
+      
+      console.trace('trace method');
+      
+      console.assert(false, 'Assertion failed (expected)');
+      
+      console.log('✅ All console methods tested');
+    }
+
+    function testCustomMethods() {
+      console.log('🎨 Testing custom methods...');
+      
+      if (console.ui) {
+        console.ui('UI event', { component: 'Button', action: 'click' });
+      }
+      
+      if (console.db) {
+        console.db('Database query', { query: 'SELECT * FROM users', duration: 45 });
+      }
+      
+      if (console.api) {
+        console.api('API call', { endpoint: '/api/users', method: 'GET', status: 200 });
+      }
+      
+      console.log('✅ Custom methods tested (if available)');
+    }
+
+    // ==========================================
+    // Page Load
+    // ==========================================
+
+    window.addEventListener('load', () => {
+      console.log('🔧 DevConsole Test Suite loaded');
+      console.log('💡 Open DevTools → DevConsole tab to see captured logs and network requests');
+      
+      if (!window.__devConsoleControl) {
+        console.warn('⚠️ DevConsole control API not detected. Is the extension installed?');
+      } else {
+        window.__devConsoleControl.status();
+      }
+    });
+  </script>
+</body>
+</html>

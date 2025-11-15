@@ -4,11 +4,11 @@
  * Validates credentials and tests connection to repository
  */
 
-import { useState, useEffect } from "react";
-import { Settings, Save, TestTube, CheckCircle, XCircle, Loader, Eye, EyeOff, Github } from "lucide-react";
-import { cn } from "../../utils";
+import { CheckCircle, Eye, EyeOff, Github, Loader, Save, Settings, TestTube, XCircle } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useGitHubSettings, type GitHubSettings } from "../../hooks/useGitHubSettings";
 import { testGitHubConnection } from "../../lib/devConsole/githubApi";
+import { cn } from "../../utils";
 
 // ============================================================================
 // TYPES
@@ -32,6 +32,8 @@ export function GitHubSettingsPanel() {
     clearSettings,
     validateSettings,
     normalizeRepoFormat,
+    error: loadError,
+    isLoading,
   } = useGitHubSettings();
 
   // Form state
@@ -191,6 +193,38 @@ export function GitHubSettingsPanel() {
               Configure your GitHub credentials to create issues directly from the DevConsole.
             </p>
           </div>
+
+          {/* Extension Context Error */}
+          {loadError && (
+            <div className="mb-4 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+              <div className="flex items-start gap-3">
+                <XCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h4 className="text-sm font-semibold text-destructive mb-1">
+                    Connection Error
+                  </h4>
+                  <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
+                    {loadError}
+                  </p>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">
+                    <strong>To fix this:</strong> Close DevTools completely, then reopen it by pressing F12 or right-click → Inspect.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Loading State */}
+          {isLoading && (
+            <div className="mb-4 p-4 bg-info/10 border border-info/20 rounded-lg">
+              <div className="flex items-center gap-3">
+                <Loader className="w-5 h-5 text-info animate-spin" />
+                <p className="text-sm text-gray-700 dark:text-gray-300">
+                  Loading GitHub settings...
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Settings Form */}
           <div className="space-y-4">

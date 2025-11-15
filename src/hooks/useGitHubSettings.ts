@@ -3,9 +3,9 @@
  * Manages GitHub credentials for issue creation in Chrome Extension
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useState } from "react";
 
-const STORAGE_KEY = 'devconsole_github_settings';
+const STORAGE_KEY = "devconsole_github_settings";
 
 export interface GitHubSettings {
   username: string;
@@ -37,21 +37,21 @@ interface UseGitHubSettingsReturn {
  * - owner/repo -> owner/repo
  */
 function normalizeRepoFormat(repo: string): string {
-  if (!repo) return '';
+  if (!repo) return "";
 
   let normalized = repo.trim();
 
   // Remove protocol
-  normalized = normalized.replace(/^https?:\/\//, '');
+  normalized = normalized.replace(/^https?:\/\//, "");
 
   // Remove github.com domain
-  normalized = normalized.replace(/^github\.com\//, '');
+  normalized = normalized.replace(/^github\.com\//, "");
 
   // Remove trailing slashes
-  normalized = normalized.replace(/\/+$/, '');
+  normalized = normalized.replace(/\/+$/, "");
 
   // Remove .git suffix
-  normalized = normalized.replace(/\.git$/, '');
+  normalized = normalized.replace(/\.git$/, "");
 
   return normalized;
 }
@@ -63,27 +63,27 @@ function validateSettings(settings: Partial<GitHubSettings>): ValidationResult {
   const errors: string[] = [];
 
   if (!settings.username?.trim()) {
-    errors.push('Username is required');
+    errors.push("Username is required");
   }
 
   if (!settings.repo?.trim()) {
-    errors.push('Repository name is required');
+    errors.push("Repository name is required");
   } else {
     const normalized = normalizeRepoFormat(settings.repo);
-    if (!normalized.includes('/')) {
-      errors.push('Repository should be in format: owner/repo');
+    if (!normalized.includes("/")) {
+      errors.push("Repository should be in format: owner/repo");
     } else {
-      const parts = normalized.split('/');
+      const parts = normalized.split("/");
       if (parts.length !== 2 || !parts[0] || !parts[1]) {
-        errors.push('Repository should be in format: owner/repo');
+        errors.push("Repository should be in format: owner/repo");
       }
     }
   }
 
   if (!settings.token?.trim()) {
-    errors.push('GitHub token is required');
+    errors.push("GitHub token is required");
   } else if (settings.token.length < 20) {
-    errors.push('GitHub token appears to be invalid (too short)');
+    errors.push("GitHub token appears to be invalid (too short)");
   }
 
   return {
@@ -106,12 +106,32 @@ export function useGitHubSettings(): UseGitHubSettingsReturn {
       setIsLoading(true);
       setError(null);
       try {
+        // Check if extension context is valid
+        if (!chrome?.runtime?.id) {
+          throw new Error(
+            "Extension context invalidated. Please close and reopen DevTools."
+          );
+        }
+
         const result = await chrome.storage.local.get(STORAGE_KEY);
         setSettings(result[STORAGE_KEY] || null);
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to load GitHub settings';
-        setError(errorMessage);
-        console.error('Failed to load GitHub settings:', err);
+        const errorMessage =
+          err instanceof Error ? err.message : "Failed to load GitHub settings";
+
+        // Provide helpful context for common errors
+        if (
+          errorMessage.includes("Extension context invalidated") ||
+          errorMessage.includes("message port closed")
+        ) {
+          setError(
+            "Extension was reloaded. Please close and reopen DevTools to reconnect."
+          );
+        } else {
+          setError(errorMessage);
+        }
+
+        console.error("Failed to load GitHub settings:", err);
       } finally {
         setIsLoading(false);
       }
@@ -122,7 +142,14 @@ export function useGitHubSettings(): UseGitHubSettingsReturn {
 
   // Listen for storage changes
   useEffect(() => {
-    const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageChange }) => {
+    // Skip if extension context is invalid
+    if (!chrome?.runtime?.id || !chrome?.storage?.onChanged) {
+      return;
+    }
+
+    const handleStorageChange = (changes: {
+      [key: string]: chrome.storage.StorageChange;
+    }) => {
       if (changes[STORAGE_KEY]) {
         setSettings(changes[STORAGE_KEY].newValue || null);
       }
@@ -131,7 +158,13 @@ export function useGitHubSettings(): UseGitHubSettingsReturn {
     chrome.storage.onChanged.addListener(handleStorageChange);
 
     return () => {
-      chrome.storage.onChanged.removeListener(handleStorageChange);
+      try {
+        if (chrome?.storage?.onChanged) {
+          chrome.storage.onChanged.removeListener(handleStorageChange);
+        }
+      } catch (err) {
+        // Ignore cleanup errors if context is invalidated
+      }
     };
   }, []);
 
@@ -139,6 +172,13 @@ export function useGitHubSettings(): UseGitHubSettingsReturn {
   const saveSettings = useCallback(async (newSettings: GitHubSettings) => {
     setError(null);
     try {
+      // Check if extension context is valid
+      if (!chrome?.runtime?.id) {
+        throw new Error(
+          "Extension context invalidated. Please close and reopen DevTools."
+        );
+      }
+
       // Normalize the repo format before saving
       const normalizedSettings = {
         ...newSettings,
@@ -148,9 +188,22 @@ export function useGitHubSettings(): UseGitHubSettingsReturn {
       await chrome.storage.local.set({ [STORAGE_KEY]: normalizedSettings });
       setSettings(normalizedSettings);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to save GitHub settings';
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to save GitHub settings";
+
+      // Provide helpful context for common errors
+      if (
+        errorMessage.includes("Extension context invalidated") ||
+        errorMessage.includes("message port closed")
+      ) {
+        const friendlyError =
+          "Extension was reloaded. Please close and reopen DevTools to reconnect.";
+        setError(friendlyError);
+        throw new Error(friendlyError);
+      }
+
       setError(errorMessage);
-      console.error('Failed to save GitHub settings:', err);
+      console.error("Failed to save GitHub settings:", err);
       throw new Error(errorMessage);
     }
   }, []);
@@ -159,21 +212,39 @@ export function useGitHubSettings(): UseGitHubSettingsReturn {
   const clearSettings = useCallback(async () => {
     setError(null);
     try {
+      // Check if extension context is valid
+      if (!chrome?.runtime?.id) {
+        throw new Error(
+          "Extension context invalidated. Please close and reopen DevTools."
+        );
+      }
+
       await chrome.storage.local.remove(STORAGE_KEY);
       setSettings(null);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to clear GitHub settings';
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to clear GitHub settings";
+
+      // Provide helpful context for common errors
+      if (
+        errorMessage.includes("Extension context invalidated") ||
+        errorMessage.includes("message port closed")
+      ) {
+        const friendlyError =
+          "Extension was reloaded. Please close and reopen DevTools to reconnect.";
+        setError(friendlyError);
+        throw new Error(friendlyError);
+      }
+
       setError(errorMessage);
-      console.error('Failed to clear GitHub settings:', err);
+      console.error("Failed to clear GitHub settings:", err);
       throw new Error(errorMessage);
     }
   }, []);
 
   // Check if settings are configured
   const isConfigured = Boolean(
-    settings?.username &&
-    settings?.repo &&
-    settings?.token
+    settings?.username && settings?.repo && settings?.token
   );
 
   return {

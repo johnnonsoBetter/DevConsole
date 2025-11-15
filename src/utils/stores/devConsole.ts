@@ -6,7 +6,7 @@ import { create } from "zustand";
 // TYPES & INTERFACES
 // ============================================================================
 
-export type LogLevel = "log" | "info" | "warn" | "error" | "debug" | "ui" | "db" | "api";
+export type LogLevel = "log" | "info" | "warn" | "error" | "debug" | "ui" | "db" | "api" | "group" | "groupEnd" | "groupCollapsed" | "table" | "time" | "timeEnd" | "timeLog" | "count" | "countReset" | "trace" | "assert" | "clear";
 
 export interface LogEntry {
   id: string;
@@ -150,7 +150,7 @@ interface IStore {
 }
 
 const DEFAULT_FILTER: ConsoleFilter = {
-  levels: ["log", "info", "warn", "error", "debug", "ui", "db", "api"],
+  levels: ["log", "info", "warn", "error", "debug", "ui", "db", "api", "group", "groupEnd", "groupCollapsed", "table", "time", "timeEnd", "timeLog", "count", "countReset", "trace", "assert", "clear"],
   search: "",
 };
 

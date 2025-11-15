@@ -8,13 +8,13 @@
 // ============================================================================
 
 export type StorageKey =
-  | 'devConsole_logs'
-  | 'devConsole_networkRequests'
-  | 'devConsole_state'
-  | 'devConsole_captureSettings'
-  | 'devConsole_githubSettings'
-  | 'devConsole_graphqlSettings'
-  | 'devConsole_theme';
+  | "devConsole_logs"
+  | "devConsole_networkRequests"
+  | "devConsole_state"
+  | "devConsole_captureSettings"
+  | "devConsole_githubSettings"
+  | "devConsole_graphqlSettings"
+  | "devConsole_theme";
 
 export interface CaptureSettings {
   captureConsole: boolean;
@@ -40,22 +40,47 @@ export class StorageService {
     // Check cache first
     const cached = this.cache.get(key);
     const cacheTime = this.cacheTimestamps.get(key);
-    
-    if (cached !== undefined && cacheTime && Date.now() - cacheTime < this.MAX_CACHE_AGE) {
+
+    if (
+      cached !== undefined &&
+      cacheTime &&
+      Date.now() - cacheTime < this.MAX_CACHE_AGE
+    ) {
       return cached;
+    }
+
+    // Check if extension context is valid
+    if (!chrome?.runtime?.id) {
+      console.warn(
+        `[Storage] Extension context invalidated - returning cached value for ${key}`
+      );
+      return cached ?? null;
     }
 
     // Fetch from chrome.storage
     try {
       const result = await chrome.storage.local.get(key);
       const value = result[key] ?? null;
-      
+
       // Update cache
       this.cache.set(key, value);
       this.cacheTimestamps.set(key, Date.now());
-      
+
       return value;
     } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+
+      // Return cached value if context is invalidated
+      if (
+        errorMsg.includes("Extension context") ||
+        errorMsg.includes("message port")
+      ) {
+        console.warn(
+          `[Storage] Extension context invalidated - returning cached value for ${key}`
+        );
+        return cached ?? null;
+      }
+
       console.error(`[Storage] Failed to get ${key}:`, error);
       return null;
     }
@@ -64,7 +89,11 @@ export class StorageService {
   /**
    * Set value in storage with debouncing
    */
-  static async set(key: StorageKey, value: any, immediate = false): Promise<void> {
+  static async set(
+    key: StorageKey,
+    value: any,
+    immediate = false
+  ): Promise<void> {
     // Update cache immediately
     this.cache.set(key, value);
     this.cacheTimestamps.set(key, Date.now());
@@ -96,11 +125,32 @@ export class StorageService {
     const value = this.pendingWrites.get(key);
     if (value === undefined) return;
 
+    // Check if extension context is valid
+    if (!chrome?.runtime?.id) {
+      console.warn(
+        `[Storage] Extension context invalidated - cannot write ${key}`
+      );
+      return;
+    }
+
     try {
       await chrome.storage.local.set({ [key]: value });
       this.pendingWrites.delete(key);
       this.writeTimers.delete(key);
     } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+
+      // Silently handle context invalidation
+      if (
+        errorMsg.includes("Extension context") ||
+        errorMsg.includes("message port")
+      ) {
+        console.warn(
+          `[Storage] Extension context invalidated - cannot write ${key}`
+        );
+        return;
+      }
+
       console.error(`[Storage] Failed to write ${key}:`, error);
     }
   }
@@ -110,7 +160,7 @@ export class StorageService {
    */
   static async flushAll(): Promise<void> {
     const promises: Promise<void>[] = [];
-    
+
     this.writeTimers.forEach((timer) => {
       clearTimeout(timer);
     });
@@ -135,7 +185,7 @@ export class StorageService {
     this.cache.delete(key);
     this.cacheTimestamps.delete(key);
     this.pendingWrites.delete(key);
-    
+
     const timer = this.writeTimers.get(key);
     if (timer) {
       clearTimeout(timer);
@@ -156,7 +206,7 @@ export class StorageService {
     this.cache.clear();
     this.cacheTimestamps.clear();
     this.pendingWrites.clear();
-    
+
     this.writeTimers.forEach((timer) => {
       clearTimeout(timer);
     });
@@ -165,7 +215,7 @@ export class StorageService {
     try {
       await chrome.storage.local.clear();
     } catch (error) {
-      console.error('[Storage] Failed to clear:', error);
+      console.error("[Storage] Failed to clear:", error);
     }
   }
 
@@ -183,14 +233,17 @@ export class StorageService {
   static onChanged(
     callback: (changes: { [key: string]: chrome.storage.StorageChange }) => void
   ): () => void {
-    const listener = (changes: { [key: string]: chrome.storage.StorageChange }, areaName: string) => {
-      if (areaName === 'local') {
+    const listener = (
+      changes: { [key: string]: chrome.storage.StorageChange },
+      areaName: string
+    ) => {
+      if (areaName === "local") {
         // Invalidate cache for changed keys
         Object.keys(changes).forEach((key) => {
           this.cache.set(key as StorageKey, changes[key].newValue);
           this.cacheTimestamps.set(key as StorageKey, Date.now());
         });
-        
+
         callback(changes);
       }
     };
@@ -211,7 +264,7 @@ export class StorageService {
   ): Promise<T> {
     try {
       const result = await chrome.storage.local.get(keys);
-      
+
       // Update cache for all retrieved keys
       keys.forEach((key) => {
         if (result[key] !== undefined) {
@@ -219,10 +272,10 @@ export class StorageService {
           this.cacheTimestamps.set(key, Date.now());
         }
       });
-      
+
       return result as T;
     } catch (error) {
-      console.error('[Storage] Failed to get multiple keys:', error);
+      console.error("[Storage] Failed to get multiple keys:", error);
       return {} as T;
     }
   }
@@ -230,7 +283,10 @@ export class StorageService {
   /**
    * Set multiple keys at once
    */
-  static async setMultiple(items: Partial<Record<StorageKey, any>>, immediate = false): Promise<void> {
+  static async setMultiple(
+    items: Partial<Record<StorageKey, any>>,
+    immediate = false
+  ): Promise<void> {
     // Update cache immediately
     Object.entries(items).forEach(([key, value]) => {
       this.cache.set(key as StorageKey, value);
@@ -245,7 +301,7 @@ export class StorageService {
           this.pendingWrites.delete(key as StorageKey);
         });
       } catch (error) {
-        console.error('[Storage] Failed to set multiple keys:', error);
+        console.error("[Storage] Failed to set multiple keys:", error);
       }
       return;
     }
