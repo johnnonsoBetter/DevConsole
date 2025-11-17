@@ -1160,31 +1160,56 @@ function WebhookSettingsSection() {
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
 
+      // Send a test request with proper payload
       const response = await fetch(webhookUrl, {
-        method: 'GET',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'copilot_chat',
+          question: 'Connection test from DevConsole',
+        }),
         signal: controller.signal,
       });
 
       clearTimeout(timeoutId);
 
-      if (response.ok || response.status === 405) {
+      if (response.ok) {
+        const data = await response.json();
         setTestStatus({
           type: 'success',
           message: '✅ Webhook Copilot is running and reachable!',
         });
-      } else {
+        console.log('Connection test response:', data);
+      } else if (response.status === 404) {
         setTestStatus({
           type: 'error',
-          message: `❌ Server responded with status: ${response.status}`,
+          message: `❌ Webhook endpoint not found (404). Check that:\n1. Webhook Copilot extension is installed and active in VS Code\n2. The endpoint URL is correct (default: http://localhost:9090/webhook)\n3. VS Code is running`,
+        });
+      } else if (response.status === 405) {
+        setTestStatus({
+          type: 'success',
+          message: '✅ Server is reachable but may need different request format',
+        });
+      } else {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        setTestStatus({
+          type: 'error',
+          message: `❌ Server responded with status ${response.status}: ${errorText}`,
         });
       }
     } catch (error) {
       console.error('Connection test failed:', error);
+      const errorMessage = error instanceof Error && error.name === 'AbortError'
+        ? '❌ Request timed out. Make sure VS Code is running and the Webhook Copilot extension is active.'
+        : '❌ Cannot connect to Webhook Copilot. Ensure:\n1. VS Code is running\n2. Webhook Copilot extension is installed\n3. Server is accessible at the configured URL';
+      
       setTestStatus({
         type: 'error',
-        message: '❌ Cannot connect to Webhook Copilot. Make sure VS Code is running with the extension active.',
+        message: errorMessage,
       });
     } finally {
       setIsTestingConnection(false);
@@ -1335,6 +1360,19 @@ function WebhookSettingsSection() {
               <li>Click "Test Connection" to verify it's working</li>
               <li>Use the Code button on sticky notes to send tasks to Copilot</li>
             </ol>
+            
+            <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">
+              <p className="text-xs font-semibold text-yellow-800 dark:text-yellow-300 mb-1">
+                🔍 Getting 404 Error?
+              </p>
+              <ul className="text-xs text-yellow-700 dark:text-yellow-400 space-y-1 list-disc list-inside">
+                <li>Check the extension is installed and enabled in VS Code</li>
+                <li>Verify the server is running (check VS Code terminal/output)</li>
+                <li>Confirm the port number (9090 is default)</li>
+                <li>Try reloading VS Code window</li>
+                <li>Check for any firewall/security software blocking localhost</li>
+              </ul>
+            </div>
           </div>
         </div>
       </div>

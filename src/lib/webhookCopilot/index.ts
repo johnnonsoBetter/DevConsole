@@ -3,4 +3,4 @@
  * Export all webhook-related utilities
  */
 
-export * from './webhookService';
+export * from "./webhookService";
