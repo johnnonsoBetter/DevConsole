@@ -189,7 +189,7 @@ export class WebhookCopilotService {
       const timeoutId = setTimeout(() => controller.abort(), 3000);
 
       // Use the health check endpoint
-      const baseUrl = this.webhookUrl.replace(/\/webhook$/, '');
+      const baseUrl = this.webhookUrl.replace(/\/webhook$/, "");
       const healthUrl = `${baseUrl}/health`;
 
       const response = await fetch(healthUrl, {
@@ -201,7 +201,7 @@ export class WebhookCopilotService {
 
       if (response.ok) {
         const data = await response.json();
-        return data.status === 'ok';
+        return data.status === "ok";
       }
 
       return false;
@@ -223,7 +223,7 @@ export class WebhookCopilotService {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000);
 
-      const baseUrl = this.webhookUrl.replace(/\/webhook$/, '');
+      const baseUrl = this.webhookUrl.replace(/\/webhook$/, "");
       const healthUrl = `${baseUrl}/health`;
 
       const response = await fetch(healthUrl, {
@@ -256,7 +256,7 @@ export class WebhookCopilotService {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-      const baseUrl = this.webhookUrl.replace(/\/webhook$/, '');
+      const baseUrl = this.webhookUrl.replace(/\/webhook$/, "");
       const testUrl = `${baseUrl}/test`;
 
       const response = await fetch(testUrl, {

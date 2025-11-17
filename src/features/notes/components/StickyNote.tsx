@@ -49,10 +49,22 @@ export function StickyNote({ note, onClose, initialPosition }: StickyNoteProps) 
   const [screenshot, setScreenshot] = useState<string | undefined>(note?.screenshot);
   const [isCapturing, setIsCapturing] = useState(false);
   const [isExecutingCode, setIsExecutingCode] = useState(false);
+  const [notification, setNotification] = useState<{
+    type: 'success' | 'error' | 'info';
+    message: string;
+  } | null>(null);
 
   const noteRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLTextAreaElement>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+
+  // Auto-hide notification after 4 seconds
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => setNotification(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
 
   // Auto-generate title from content or timestamp
   const generateTitle = (content: string): string => {
@@ -174,7 +186,10 @@ export function StickyNote({ note, onClose, initialPosition }: StickyNoteProps) 
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
       if (!tab.id) {
-        alert('❌ Unable to capture screenshot: No active tab found');
+        setNotification({
+          type: 'error',
+          message: 'Unable to capture screenshot: No active tab found',
+        });
         return;
       }
 
@@ -183,10 +198,17 @@ export function StickyNote({ note, onClose, initialPosition }: StickyNoteProps) 
       });
 
       setScreenshot(dataUrl);
+      setNotification({
+        type: 'success',
+        message: '✓ Screenshot captured and attached!',
+      });
       console.log('📸 Screenshot captured and attached to note!');
     } catch (error) {
       console.error('Failed to capture screenshot:', error);
-      alert('❌ Failed to capture screenshot. Make sure the extension has the necessary permissions.');
+      setNotification({
+        type: 'error',
+        message: 'Failed to capture screenshot. Check permissions.',
+      });
     } finally {
       setIsCapturing(false);
     }
@@ -252,29 +274,29 @@ export function StickyNote({ note, onClose, initialPosition }: StickyNoteProps) 
   // Code functionality - Send to Webhook Copilot
   const handleCodeAction = useCallback(async () => {
     if (!content.trim()) {
-      alert('⚠️ Note is empty. Add some content first!');
+      setNotification({
+        type: 'error',
+        message: 'Note is empty. Add some content first!',
+      });
       return;
     }
 
     setIsExecutingCode(true);
+    setNotification({
+      type: 'info',
+      message: 'Connecting to VS Code...',
+    });
 
     try {
       // Check connection first
       const isConnected = await webhookCopilot.checkConnection();
       
       if (!isConnected) {
-        const retry = confirm(
-          '❌ Cannot connect to Webhook Copilot\n\n' +
-          'Make sure:\n' +
-          '1. VS Code is running\n' +
-          '2. Webhook Copilot extension is installed and active\n' +
-          '3. Server is running on http://localhost:9090\n\n' +
-          'Click OK to retry, Cancel to abort.'
-        );
-        
-        if (retry) {
-          return handleCodeAction();
-        }
+        setNotification({
+          type: 'error',
+          message: 'Cannot connect to Webhook Copilot. Make sure VS Code is running with the extension active.',
+        });
+        setIsExecutingCode(false);
         return;
       }
 
@@ -285,6 +307,11 @@ export function StickyNote({ note, onClose, initialPosition }: StickyNoteProps) 
       const isCodeTask = /\b(create|build|implement|add|fix|update|refactor|write|generate)\b/i.test(content);
       const isQuestion = /\?|how|what|why|when|where|explain/i.test(content);
       
+      setNotification({
+        type: 'info',
+        message: 'Sending to Copilot...',
+      });
+
       let response;
       
       if (isQuestion) {
@@ -295,29 +322,18 @@ export function StickyNote({ note, onClose, initialPosition }: StickyNoteProps) 
         const taskDescription = `${noteTitle}\n\n${content}`;
         response = await webhookCopilot.executeTask(taskDescription, true);
       } else {
-        // Default: Ask user which action to use
-        const action = confirm(
-          '🤖 How should Copilot handle this note?\n\n' +
-          'OK = Execute as Task (generates code)\n' +
-          'Cancel = Ask as Question (get explanation)'
-        );
-        
-        if (action) {
-          const taskDescription = `${noteTitle}\n\n${content}`;
-          response = await webhookCopilot.executeTask(taskDescription, true);
-        } else {
-          response = await webhookCopilot.copilotChat(content);
-        }
+        // Default to execute_task
+        const taskDescription = `${noteTitle}\n\n${content}`;
+        response = await webhookCopilot.executeTask(taskDescription, true);
       }
 
       if (response.success) {
         console.log('✅ Webhook Copilot request successful:', response);
         
-        alert(
-          '✅ Task sent to VS Code!\n\n' +
-          '🤖 Copilot is now processing your request.\n' +
-          'Check VS Code for results.'
-        );
+        setNotification({
+          type: 'success',
+          message: '✓ Task sent to VS Code! Check Copilot for results.',
+        });
       } else {
         throw new Error(response.message);
       }
@@ -325,11 +341,10 @@ export function StickyNote({ note, onClose, initialPosition }: StickyNoteProps) 
       console.error('Failed to send webhook:', error);
       
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      alert(
-        '❌ Failed to send task to VS Code\n\n' +
-        `Error: ${errorMessage}\n\n` +
-        'Make sure Webhook Copilot is running and accessible.'
-      );
+      setNotification({
+        type: 'error',
+        message: `Failed to send: ${errorMessage}`,
+      });
     } finally {
       setIsExecutingCode(false);
     }
@@ -386,6 +401,48 @@ export function StickyNote({ note, onClose, initialPosition }: StickyNoteProps) 
       }}
       onMouseDown={handleMouseDown}
     >
+      {/* Notification Toast */}
+      {notification && (
+        <div
+          className={cn(
+            'absolute top-2 left-2 right-2 z-20 p-3 rounded-lg shadow-lg animate-in slide-in-from-top-2 fade-in duration-300',
+            'backdrop-blur-sm border',
+            notification.type === 'success' && 'bg-green-50/95 dark:bg-green-900/95 border-green-300 dark:border-green-700',
+            notification.type === 'error' && 'bg-red-50/95 dark:bg-red-900/95 border-red-300 dark:border-red-700',
+            notification.type === 'info' && 'bg-blue-50/95 dark:bg-blue-900/95 border-blue-300 dark:border-blue-700'
+          )}
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-start gap-2">
+            <div className="flex-1">
+              <p className={cn(
+                'text-xs font-medium',
+                notification.type === 'success' && 'text-green-800 dark:text-green-100',
+                notification.type === 'error' && 'text-red-800 dark:text-red-100',
+                notification.type === 'info' && 'text-blue-800 dark:text-blue-100'
+              )}>
+                {notification.message}
+              </p>
+            </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setNotification(null);
+              }}
+              className={cn(
+                'p-0.5 rounded hover:bg-black/10 transition-colors',
+                notification.type === 'success' && 'text-green-600 dark:text-green-300',
+                notification.type === 'error' && 'text-red-600 dark:text-red-300',
+                notification.type === 'info' && 'text-blue-600 dark:text-blue-300'
+              )}
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div
         className={cn(
