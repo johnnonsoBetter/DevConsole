@@ -287,6 +287,54 @@ export function formatTimestamp(
 }
 
 /**
+ * Format request name like Chrome DevTools
+ * Extracts meaningful name from URL (endpoint, filename, or query params)
+ *
+ * @example
+ * formatRequestName("https://api.example.com/v1/users/settings") // "settings"
+ * formatRequestName("https://cdn.com/page-hook-logic.js") // "page-hook-logic.js"
+ * formatRequestName("https://api.com/graphql") // "graphql"
+ * formatRequestName("https://api.com/check?rnd=123") // "check?rnd=123"
+ */
+export function formatRequestName(url: string): {
+  name: string;
+  hasQuery: boolean;
+} {
+  try {
+    const urlObj = new URL(url, window.location.origin);
+    const pathname = urlObj.pathname;
+    const search = urlObj.search;
+
+    // Extract the last segment of the path
+    const segments = pathname.split("/").filter(Boolean);
+    const lastSegment = segments[segments.length - 1] || "";
+
+    // Check if it's a file (has extension)
+    const isFile = /\.[a-zA-Z0-9]+$/.test(lastSegment);
+
+    // If it's a file, show the filename
+    if (isFile) {
+      return { name: lastSegment, hasQuery: search.length > 0 };
+    }
+
+    // For API endpoints, show the last meaningful segment
+    if (lastSegment) {
+      // If there are query params, append them for tracking/analytics URLs
+      if (search.length > 0 && search.length < 30) {
+        return { name: lastSegment + search, hasQuery: true };
+      }
+      return { name: lastSegment, hasQuery: search.length > 0 };
+    }
+
+    // Fallback to full pathname if no meaningful segment
+    return { name: pathname || "/", hasQuery: search.length > 0 };
+  } catch {
+    // If URL parsing fails, return the original URL
+    return { name: url, hasQuery: false };
+  }
+}
+
+/**
  * Format relative time (2s ago, 5m ago, etc.)
  * Same as humanizeTime but with more precision options
  */

@@ -10,6 +10,16 @@ import { createAIClient } from "./aiClient";
 // TYPES
 // ============================================================================
 
+// Type definition for reference
+interface LogExplanation {
+  summary: string;
+  explanation: string;
+  possibleCauses?: string[];
+  suggestedFixes?: string[];
+  severity: "low" | "medium" | "high" | "critical";
+  technicalDetails?: string; // For developers
+  userFriendlyExplanation?: string; // For non-technical users
+}
 export interface LogData {
   level: string;
   message: string;
@@ -20,15 +30,6 @@ export interface LogData {
     line: number;
   };
   timestamp: number;
-}
-
-export interface LogExplanation {
-  summary: string;
-  explanation: string;
-  possibleCauses?: string[];
-  suggestedFixes?: string[];
-  severity?: "low" | "medium" | "high" | "critical";
-  relatedDocs?: Array<{ title: string; url: string }>;
 }
 
 // ============================================================================
@@ -168,103 +169,392 @@ Keep your tone professional but friendly. Assume the reader is a skilled develop
    * Parse AI response into structured explanation
    * Handles both structured and unstructured responses
    */
+  /**
+   * Parse AI response into structured explanation
+   * Handles both structured and unstructured responses from AI models
+   * Designed to work with responses of varying quality and structure
+   */
   private parseExplanation(text: string): LogExplanation {
-    // Try to extract structured sections from markdown
-    const sections: Record<string, string> = {};
+    // Input validation and normalization
+    if (!text || text.trim().length === 0) {
+      return this.createFallbackExplanation();
+    }
+
+    const normalizedText = text.trim();
+    const sections = this.extractSections(normalizedText);
+
+    return {
+      summary: this.extractSummary(sections, normalizedText),
+      explanation: this.extractExplanation(sections, normalizedText),
+      possibleCauses: this.extractCauses(sections),
+      suggestedFixes: this.extractFixes(sections),
+      severity: this.extractSeverity(sections, normalizedText),
+      technicalDetails: this.extractTechnicalDetails(sections), // New: for devs
+      userFriendlyExplanation: this.extractUserFriendlyText(sections), // New: for non-technical
+    };
+  }
+
+  /**
+   * Extract sections from markdown-formatted text
+   * Supports various header styles and formats
+   */
+  private extractSections(text: string): Map<string, string> {
+    const sections = new Map<string, string>();
+    const lines = text.split("\n");
+
     let currentSection = "summary";
     let currentContent: string[] = [];
 
-    const lines = text.split("\n");
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
 
-    for (const line of lines) {
-      const headerMatch = line.match(/^#+\s*\*?\*?([^*]+)\*?\*?/i);
-      if (headerMatch) {
+      // Match various header formats:
+      // # Header, ## Header, **Header**, Header:, ### Header ###
+      const headerMatch = line.match(
+        /^(?:#{1,6}\s*|\*{1,2})?\s*([^:#*\n]+?)(?:\*{1,2}|:)?\s*$/
+      );
+
+      // Check if this looks like a header (short line, possibly followed by content)
+      const isLikelyHeader =
+        headerMatch &&
+        line.length < 100 &&
+        (line.match(/^#+/) || line.match(/^\*\*/) || line.endsWith(":")) &&
+        !line.match(/^\s*[-*]\s/) && // Not a list item
+        !line.match(/^\d+\./); // Not a numbered list
+
+      if (isLikelyHeader && headerMatch) {
         // Save previous section
         if (currentContent.length > 0) {
-          sections[currentSection] = currentContent.join("\n").trim();
+          const content = currentContent.join("\n").trim();
+          if (content) {
+            sections.set(currentSection, content);
+          }
         }
-        // Start new section
-        currentSection = headerMatch[1].toLowerCase().replace(/[^a-z]/g, "");
+
+        // Normalize section name
+        currentSection = this.normalizeSectionName(headerMatch[1]);
         currentContent = [];
-      } else {
+      } else if (line.trim()) {
+        // Add non-empty lines to current section
         currentContent.push(line);
+      } else if (currentContent.length > 0) {
+        // Preserve single blank lines within sections
+        currentContent.push("");
       }
     }
 
     // Save final section
     if (currentContent.length > 0) {
-      sections[currentSection] = currentContent.join("\n").trim();
+      const content = currentContent.join("\n").trim();
+      if (content) {
+        sections.set(currentSection, content);
+      }
     }
 
-    // Extract structured data
+    return sections;
+  }
+
+  /**
+   * Normalize section names to standard keys
+   * Handles various ways users might name sections
+   */
+  private normalizeSectionName(name: string): string {
+    const normalized = name
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, "")
+      .replace(/\s+/g, "")
+      .trim();
+
+    // Map common variations to standard names
+    const sectionMap: Record<string, string> = {
+      // Summary variations
+      summary: "summary",
+      overview: "summary",
+      tldr: "summary",
+      brief: "summary",
+      short: "summary",
+      quick: "summary",
+
+      // Explanation variations
+      explanation: "explanation",
+      details: "explanation",
+      whatshappening: "explanation",
+      description: "explanation",
+      technical: "technical",
+      technicaldetails: "technical",
+
+      // Causes variations
+      possiblecauses: "causes",
+      causes: "causes",
+      reasons: "causes",
+      why: "causes",
+      whythishappened: "causes",
+      rootcause: "causes",
+
+      // Fixes variations
+      suggestedfixes: "fixes",
+      fixes: "fixes",
+      solutions: "fixes",
+      recommendations: "fixes",
+      howtoresolve: "fixes",
+      nextsteps: "fixes",
+      action: "fixes",
+      actionitems: "fixes",
+
+      // Severity variations
+      severity: "severity",
+      priority: "severity",
+      impact: "severity",
+      urgency: "severity",
+
+      // User-friendly variations
+      simpleexplanation: "userfriendly",
+      nontechnical: "userfriendly",
+      plainenglish: "userfriendly",
+      easyexplanation: "userfriendly",
+    };
+
+    return sectionMap[normalized] || normalized;
+  }
+
+  /**
+   * Extract summary with multiple fallback strategies
+   */
+  private extractSummary(
+    sections: Map<string, string>,
+    fullText: string
+  ): string {
+    // Try standard section names
     const summary =
-      sections["summary"] ||
-      sections["what"] ||
-      text.split("\n")[0] ||
-      "Log analyzed";
+      sections.get("summary") ||
+      sections.get("overview") ||
+      sections.get("brief");
 
+    if (summary) {
+      return this.cleanAndTruncate(summary, 200);
+    }
+
+    // Fallback: use first meaningful sentence
+    const firstSentence = fullText
+      .split(/[.!?]\s+/)
+      .find((s) => s.trim().length > 20);
+
+    if (firstSentence) {
+      return this.cleanAndTruncate(firstSentence, 200);
+    }
+
+    // Last resort: truncate first paragraph
+    const firstParagraph = fullText.split("\n\n")[0];
+    return this.cleanAndTruncate(firstParagraph, 200);
+  }
+
+  /**
+   * Extract detailed explanation
+   */
+  private extractExplanation(
+    sections: Map<string, string>,
+    fullText: string
+  ): string {
     const explanation =
-      sections["explanation"] ||
-      sections["details"] ||
-      sections["technical"] ||
-      text;
+      sections.get("explanation") ||
+      sections.get("details") ||
+      sections.get("description");
 
-    // Parse lists
-    const possibleCauses = this.extractList(
-      sections["possiblecauses"] ||
-        sections["causes"] ||
-        sections["reasons"] ||
-        ""
+    // If we have a dedicated explanation section, use it
+    if (explanation && explanation.length > 50) {
+      return explanation;
+    }
+
+    // Otherwise, use the full text (it's already an explanation)
+    return fullText;
+  }
+
+  /**
+   * Extract technical details section (for developers)
+   */
+  private extractTechnicalDetails(
+    sections: Map<string, string>
+  ): string | undefined {
+    const technical =
+      sections.get("technical") || sections.get("technicaldetails");
+    return technical && technical.length > 0 ? technical : undefined;
+  }
+
+  /**
+   * Extract user-friendly explanation (for non-technical users)
+   */
+  private extractUserFriendlyText(
+    sections: Map<string, string>
+  ): string | undefined {
+    const friendly = sections.get("userfriendly") || sections.get("simple");
+    return friendly && friendly.length > 0 ? friendly : undefined;
+  }
+
+  /**
+   * Extract possible causes with improved list detection
+   */
+  private extractCauses(sections: Map<string, string>): string[] | undefined {
+    const causesText = sections.get("causes") || sections.get("reasons") || "";
+
+    if (!causesText) return undefined;
+
+    const causes = this.extractList(causesText);
+    return causes.length > 0 ? causes : undefined;
+  }
+
+  /**
+   * Extract suggested fixes with improved list detection
+   */
+  private extractFixes(sections: Map<string, string>): string[] | undefined {
+    const fixesText =
+      sections.get("fixes") ||
+      sections.get("solutions") ||
+      sections.get("recommendations") ||
+      "";
+
+    if (!fixesText) return undefined;
+
+    const fixes = this.extractList(fixesText);
+    return fixes.length > 0 ? fixes : undefined;
+  }
+
+  /**
+   * Extract severity with context-aware detection
+   */
+  private extractSeverity(
+    sections: Map<string, string>,
+    fullText: string
+  ): LogExplanation["severity"] {
+    // Check dedicated severity section first
+    const severitySection = sections.get("severity") || "";
+    const severityText = (severitySection + " " + fullText).toLowerCase();
+
+    // Priority order: critical > high > low > medium (default)
+    if (
+      this.matchesSeverity(severityText, [
+        "critical",
+        "severe",
+        "urgent",
+        "emergency",
+      ])
+    ) {
+      return "critical";
+    }
+    if (
+      this.matchesSeverity(severityText, [
+        "high",
+        "major",
+        "important",
+        "serious",
+      ])
+    ) {
+      return "high";
+    }
+    if (
+      this.matchesSeverity(severityText, [
+        "low",
+        "minor",
+        "trivial",
+        "cosmetic",
+      ])
+    ) {
+      return "low";
+    }
+
+    // Default to medium if no clear indicators
+    return "medium";
+  }
+
+  /**
+   * Check if text matches any severity keywords
+   */
+  private matchesSeverity(text: string, keywords: string[]): boolean {
+    return keywords.some(
+      (keyword) =>
+        text.includes(keyword) ||
+        text.includes(`${keyword} severity`) ||
+        text.includes(`${keyword} priority`)
     );
+  }
 
-    const suggestedFixes = this.extractList(
-      sections["suggestedfixes"] ||
-        sections["fixes"] ||
-        sections["solutions"] ||
-        sections["recommendations"] ||
-        ""
-    );
+  /**
+   * Clean text and truncate to max length
+   */
+  private cleanAndTruncate(text: string, maxLength: number): string {
+    const cleaned = text
+      .replace(/^[#*\s]+/, "") // Remove leading markdown
+      .replace(/\*\*/g, "") // Remove bold markers
+      .trim();
 
-    // Extract severity
-    const severityText = (
-      sections["severity"] ||
-      sections["severityassessment"] ||
-      ""
-    ).toLowerCase();
-    let severity: LogExplanation["severity"] = "medium";
-    if (severityText.includes("critical")) severity = "critical";
-    else if (severityText.includes("high")) severity = "high";
-    else if (severityText.includes("low")) severity = "low";
+    if (cleaned.length <= maxLength) {
+      return cleaned;
+    }
 
+    // Truncate at word boundary
+    const truncated = cleaned.substring(0, maxLength);
+    const lastSpace = truncated.lastIndexOf(" ");
+
+    return lastSpace > maxLength * 0.8
+      ? truncated.substring(0, lastSpace) + "..."
+      : truncated + "...";
+  }
+
+  /**
+   * Create fallback explanation when parsing fails
+   */
+  private createFallbackExplanation(): LogExplanation {
     return {
-      summary: summary.substring(0, 200), // Limit summary length
-      explanation,
-      possibleCauses: possibleCauses.length > 0 ? possibleCauses : undefined,
-      suggestedFixes: suggestedFixes.length > 0 ? suggestedFixes : undefined,
-      severity,
+      summary: "Unable to analyze log",
+      explanation:
+        "No valid explanation could be extracted from the AI response.",
+      severity: "medium",
     };
   }
 
   /**
-   * Extract bulleted/numbered list from text
+   * Extract list items from text with improved detection
+   * Handles: bullet points, numbered lists, dashed lists, and inline lists
    */
+
   private extractList(text: string): string[] {
-    if (!text) return [];
+    if (!text || text.trim().length === 0) return [];
 
-    const lines = text
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0);
+    const items: string[] = [];
+    const lines = text.split("\n");
 
-    return lines
-      .filter((line) => {
-        // Match bullets (-, *, •) or numbers (1., 2.)
-        return /^[-*•]\s+/.test(line) || /^\d+\.\s+/.test(line);
-      })
-      .map((line) => {
-        // Remove bullet/number prefix
-        return line.replace(/^[-*•]\s+/, "").replace(/^\d+\.\s+/, "");
-      });
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+
+      // Match various list formats:
+      // - Item, * Item, • Item, 1. Item, 1) Item
+      const listMatch = trimmed.match(/^(?:[-*•]|\d+[.):])\s+(.+)$/);
+
+      if (listMatch) {
+        const item = listMatch[1].trim();
+        if (item.length > 0) {
+          items.push(item);
+        }
+      } else if (items.length === 0 && trimmed.length > 10) {
+        // If no list markers found, treat as a single item (paragraph format)
+        // But only if we haven't found any items yet
+        items.push(trimmed);
+      }
+    }
+
+    // Fallback: if no list items found, try to split by common delimiters
+    if (items.length === 0 && text.length > 0) {
+      const splitItems = text
+        .split(/[,;]\s+(?=[A-Z])/) // Split on comma/semicolon followed by capital
+        .map((item) => item.trim())
+        .filter((item) => item.length > 10);
+
+      if (splitItems.length > 1) {
+        return splitItems;
+      }
+    }
+
+    return items;
   }
 }
 

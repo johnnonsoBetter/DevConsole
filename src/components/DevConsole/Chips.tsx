@@ -50,9 +50,33 @@ export function MethodChip({ method }: { method: string }) {
 /**
  * HTTP Status chip with icon
  */
-export function StatusChip({ status }: { status: number | null }) {
-  if (!status) {
-    return <Chip variant="neutral">...</Chip>;
+export function StatusChip({ status, hasError, isPending }: { status: number | null | undefined; hasError?: boolean; isPending?: boolean }) {
+  // Show pending state
+  if (isPending) {
+    return (
+      <Chip variant="info" className="animate-pulse">
+        <span>⋯</span>
+      </Chip>
+    );
+  }
+  
+  // Show error state if there's an error
+  if (hasError) {
+    return (
+      <Chip variant="error">
+        <span>✕</span>
+        <span>ERR</span>
+      </Chip>
+    );
+  }
+  
+  // If no status and not pending/error, it might be a failed request without details
+  if (!status && status !== 0) {
+    return (
+      <Chip variant="neutral">
+        <span>—</span>
+      </Chip>
+    );
   }
 
   const category = getStatusCategory(status);

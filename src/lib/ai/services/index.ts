@@ -4,5 +4,5 @@
  */
 
 export { AIClient, createAIClient } from "./aiClient";
-export { LogExplainer, createLogExplainer } from "./logExplainer";
-export type { LogData, LogExplanation } from "./logExplainer";
+export { createLogExplainer, LogExplainer } from "./logExplainer";
+export type { LogData } from "./logExplainer";

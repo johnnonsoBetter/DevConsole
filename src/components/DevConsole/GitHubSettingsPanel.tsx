@@ -6,9 +6,9 @@
 
 import { CheckCircle, Eye, EyeOff, Github, Loader, Save, Settings, TestTube, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useGitHubSettings, type GitHubSettings } from "../../hooks/useGitHubSettings";
 import { testGitHubConnection } from "../../lib/devConsole/githubApi";
 import { cn } from "../../utils";
+import { useGitHubSettingsStore, type GitHubSettings } from "../../utils/stores/githubSettings";
 
 // ============================================================================
 // TYPES
@@ -27,19 +27,20 @@ interface StatusMessage {
 
 export function GitHubSettingsPanel() {
   const {
-    settings,
+    username: storedUsername,
+    repo: storedRepo,
+    token: storedToken,
     saveSettings,
     clearSettings,
     validateSettings,
     normalizeRepoFormat,
-    error: loadError,
     isLoading,
-  } = useGitHubSettings();
+  } = useGitHubSettingsStore();
 
   // Form state
-  const [username, setUsername] = useState(settings?.username || "");
-  const [repo, setRepo] = useState(settings?.repo || "");
-  const [token, setToken] = useState(settings?.token || "");
+  const [username, setUsername] = useState(storedUsername || "");
+  const [repo, setRepo] = useState(storedRepo || "");
+  const [token, setToken] = useState(storedToken || "");
   const [showToken, setShowToken] = useState(false);
   
   // UI state
@@ -50,12 +51,10 @@ export function GitHubSettingsPanel() {
 
   // Update form when settings load
   useEffect(() => {
-    if (settings) {
-      setUsername(settings.username);
-      setRepo(settings.repo);
-      setToken(settings.token);
-    }
-  }, [settings]);
+    setUsername(storedUsername || "");
+    setRepo(storedRepo || "");
+    setToken(storedToken || "");
+  }, [storedUsername, storedRepo, storedToken]);
 
   /**
    * Save GitHub settings with validation
@@ -194,25 +193,7 @@ export function GitHubSettingsPanel() {
             </p>
           </div>
 
-          {/* Extension Context Error */}
-          {loadError && (
-            <div className="mb-4 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
-              <div className="flex items-start gap-3">
-                <XCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <h4 className="text-sm font-semibold text-destructive mb-1">
-                    Connection Error
-                  </h4>
-                  <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
-                    {loadError}
-                  </p>
-                  <p className="text-xs text-gray-600 dark:text-gray-400">
-                    <strong>To fix this:</strong> Close DevTools completely, then reopen it by pressing F12 or right-click → Inspect.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
+
 
           {/* Loading State */}
           {isLoading && (

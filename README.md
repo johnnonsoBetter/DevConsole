@@ -48,6 +48,13 @@ npm run build
 - Test queries without leaving DevTools
 - Schema introspection and autocomplete
 
+### 📝 Notes & Documentation
+- **Rich text note-taking** powered by ProseMirror
+- Markdown support with live preview
+- Organize with colors and pinned notes
+- Full-text search across all notes
+- Persistent storage with auto-save
+
 ### 🤖 AI Features (Chrome Canary Only)
 - **On-device AI** powered by Gemini Nano
 - Summarize errors and logs

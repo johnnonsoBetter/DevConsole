@@ -40,12 +40,12 @@
 - `src/background/service-worker.ts`: Central state manager, `MessageReceiver` handlers, chrome storage persistence.
 - `src/content/`: `page-hook-logic.ts` (console/network interception in page context - injected into page), `index.ts` (message relay with batching + autofill bootstrap), `pageScriptInjector.ts` (creates script tag to inject page-hook-logic).
 - `src/devtools/`: DevTools entrypoints (`devtools.ts`, `DevToolsPanel.tsx`, `bridge.ts`, `backgroundBridge.ts`, `theme-init.ts`).
-- `src/components/DevConsole/`: Tab components (`DevConsolePanel`, `LogsPanel`, `NetworkPanel`, `GraphQLExplorer`, `AIPanel`, `CodeSandboxPanel`, `UnifiedSettingsPanel`, etc.) plus supporting UI (Chips, ThemeToggle, BetterTabs).
+- `src/components/DevConsole/`: Tab components (`DevConsolePanel`, `LogsPanel`, `NetworkPanel`, `GraphQLExplorer`, `AIPanel`, `CodeSandboxPanel`, `UnifiedSettingsPanel`, etc.) plus supporting UI (Chips, ThemeToggle, BetterTabs, `SuperWriteAI` - AI-powered issue enhancement FAB).
 - `src/lib/devConsole/`: AI services (`aiClient`, `logExplainer`), GitHub + GraphQL helpers, contextPacker utilities, prompt formatter, settings managers.
 - `src/lib/autofill/`: Dataset management, field detection, fill logic, UI manager, Unsplash service, `autofill.css`.
 - `src/hooks/`: Chrome AI hooks (`useChromeAI`, `usePromptModel`, etc.), GitHub settings hook, theme/media utilities.
 - `src/utils/`: Shared helpers, extension settings persistence, JSON sanitizer, browser support, Zustand stores (`src/utils/stores`).
-- Key docs: `README.md` (quick start), `ARCHITECTURE.md` (data flow, best practices), `TESTING.md`, `AI_LOG_EXPLAINER.md`, `AI_QUICK_START.md`, `SETTINGS_*.md`, `Input.md` (autofill deep dive).
+- Key docs: `README.md` (quick start), `ARCHITECTURE.md` (data flow, best practices), `TESTING.md`, `AI_LOG_EXPLAINER.md`, `AI_QUICK_START.md`, `SETTINGS_*.md`, `Input.md` (autofill deep dive), `SUPER_WRITE_AI.md` (AI-powered issue enhancement).
 
 ## Feature Workflows
 
@@ -55,6 +55,7 @@
 - **AI log explainer**: `src/lib/ai/services/{aiClient,logExplainer}.ts` plus `LogExplanation.tsx`. Keep provider-agnostic interfaces and streaming UI states intact.
 - **Chrome built-in AI panel**: `src/components/DevConsole/AIPanel.tsx` with hooks from `src/hooks/useChromeAI.ts`. Ensure availability checks run before enabling actions.
 - **GitHub integration**: Settings hook (`src/hooks/useGitHubSettings.ts`), API helpers (`src/lib/devConsole/githubApi.ts`), UI (`GitHubIssuePanel`, `GitHubIssueSlideout`). Personal Access Tokens stored locally; never log them.
+- **Super Write AI**: AI-powered GitHub issue enhancement via `SuperWriteAI.tsx` FAB button. Transforms sparse/non-technical issues into well-structured markdown following best practices. Integrated in `GitHubIssueSlideout`; requires AI settings configured. See `SUPER_WRITE_AI.md` for full documentation.
 - **GraphQL explorer**: GraphiQL UI under `src/components/DevConsole/GraphQLExplorer.tsx`. Endpoints managed through `src/lib/devConsole/graphqlSettings.ts` (validation/testing).
 - **Smart Autofill**: All logic under `src/lib/autofill`. `initializeAutofill()` runs from content script; maintain dataset schema documented in `Input.md`. Keyboard shortcuts: ``Alt+` `` (suggestion overlay) and `Ctrl+F` (Fill All).
 
@@ -79,6 +80,6 @@
 
 ## References & Next Actions
 
-- Primary references: `README.md`, `ARCHITECTURE.md`, `TESTING.md`, `AI_LOG_EXPLAINER.md`, `AI_QUICK_START.md`, `SETTINGS_GUIDE.md`, `SETTINGS_ARCHITECTURE.md`, `SETTINGS_IMPLEMENTATION.md`, `Input.md`.
+- Primary references: `README.md`, `ARCHITECTURE.md`, `TESTING.md`, `AI_LOG_EXPLAINER.md`, `AI_QUICK_START.md`, `SETTINGS_GUIDE.md`, `SETTINGS_ARCHITECTURE.md`, `SETTINGS_IMPLEMENTATION.md`, `Input.md`, `SUPER_WRITE_AI.md`.
 - Before sending PRs, document new commands or quirks here if they help future agents avoid trial-and-error.
 - Treat this file as the authoritative instruction set for Copilot; update it whenever workflows, commands, or architecture meaningfully change.

@@ -1,13 +1,287 @@
-import { LogEntry, useGitHubIssueSlideoutStore } from "@/utils/stores";
+import { useGitHubIssueSlideoutStore, useGitHubSettingsStore, type GitHubSettings } from "@/utils/stores";
 import { AnimatePresence, motion } from "framer-motion";
-import { AlertCircle, CheckCircle, Code, Eye, Loader, Send, Settings, X } from "lucide-react";
-import { useEffect } from "react";
+import { AlertCircle, CheckCircle, Code, Eye, EyeOff, Github, Info, Loader, Save, Send, Settings, TestTube, X, XCircle } from "lucide-react";
+import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { useGitHubSettings } from "../../hooks/useGitHubSettings";
-import { createContextPack, generateGitHubIssueMarkdown } from "../../lib/devConsole/contextPacker";
-import { createGitHubIssue, type GitHubConfig } from "../../lib/devConsole/githubApi";
+import { createGitHubIssue, testGitHubConnection, type GitHubConfig } from "../../lib/devConsole/githubApi";
 import { cn } from "../../utils";
+import { SuperWriteAI } from "./SuperWriteAI";
+
+// ============================================================================
+// EMBEDDED GITHUB SETTINGS FORM
+// ============================================================================
+
+type StatusType = 'success' | 'error' | null;
+
+interface StatusMessage {
+  type: StatusType;
+  message: string;
+}
+
+interface EmbeddedGitHubSettingsProps {
+  onSettingsSaved: () => void;
+}
+
+function EmbeddedGitHubSettings({ onSettingsSaved }: EmbeddedGitHubSettingsProps) {
+  const {
+    username: storedUsername,
+    repo: storedRepo,
+    token: storedToken,
+    saveSettings,
+    validateSettings,
+    normalizeRepoFormat,
+  } = useGitHubSettingsStore();
+
+  const [username, setUsername] = useState(storedUsername || "");
+  const [repo, setRepo] = useState(storedRepo || "");
+  const [token, setToken] = useState(storedToken || "");
+  const [showToken, setShowToken] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<StatusMessage>({ type: null, message: "" });
+  const [testStatus, setTestStatus] = useState<StatusMessage>({ type: null, message: "" });
+
+  useEffect(() => {
+    setUsername(storedUsername || "");
+    setRepo(storedRepo || "");
+    setToken(storedToken || "");
+  }, [storedUsername, storedRepo, storedToken]);
+
+  const handleSave = async () => {
+    setSaveStatus({ type: null, message: "" });
+    setTestStatus({ type: null, message: "" });
+
+    const normalizedRepo = normalizeRepoFormat(repo);
+    const validation = validateSettings({ username, repo: normalizedRepo, token });
+
+    if (!validation.valid) {
+      setSaveStatus({ type: "error", message: validation.errors.join(", ") });
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      const newSettings: GitHubSettings = {
+        username: username.trim(),
+        repo: normalizedRepo,
+        token: token.trim(),
+      };
+
+      await saveSettings(newSettings);
+      setRepo(normalizedRepo);
+
+      setSaveStatus({ type: "success", message: "Settings saved successfully!" });
+      
+      setTimeout(() => {
+        onSettingsSaved();
+      }, 1500);
+    } catch (error) {
+      setSaveStatus({
+        type: "error",
+        message: error instanceof Error ? error.message : "Failed to save settings",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleTest = async () => {
+    setTestStatus({ type: null, message: "" });
+
+    const normalizedRepo = normalizeRepoFormat(repo);
+    const validation = validateSettings({ username, repo: normalizedRepo, token });
+
+    if (!validation.valid) {
+      setTestStatus({ type: "error", message: validation.errors.join(", ") });
+      return;
+    }
+
+    setIsTesting(true);
+
+    try {
+      const testSettings: GitHubSettings = {
+        username: username.trim(),
+        repo: normalizedRepo,
+        token: token.trim(),
+      };
+
+      const result = await testGitHubConnection(testSettings);
+
+      if (result.valid) {
+        setTestStatus({ type: "success", message: "Connection successful! Repository is accessible." });
+      } else {
+        setTestStatus({ type: "error", message: result.error || "Connection failed" });
+      }
+    } catch (error) {
+      setTestStatus({
+        type: "error",
+        message: error instanceof Error ? error.message : "Connection test failed",
+      });
+    } finally {
+      setIsTesting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Username */}
+      <div>
+        <label htmlFor="gh-username" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          GitHub Username <span className="text-destructive">*</span>
+        </label>
+        <input
+          id="gh-username"
+          type="text"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          placeholder="octocat"
+          className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-primary/50 focus:border-primary"
+        />
+      </div>
+
+      {/* Repository */}
+      <div>
+        <label htmlFor="gh-repo" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Repository <span className="text-destructive">*</span>
+        </label>
+        <input
+          id="gh-repo"
+          type="text"
+          value={repo}
+          onChange={(e) => setRepo(e.target.value)}
+          onBlur={(e) => {
+            const normalized = normalizeRepoFormat(e.target.value);
+            if (normalized !== e.target.value) {
+              setRepo(normalized);
+            }
+          }}
+          placeholder="owner/repo-name"
+          className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-primary/50 focus:border-primary font-mono"
+        />
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          Format: <code className="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">owner/repo-name</code>
+        </p>
+      </div>
+
+      {/* Token */}
+      <div>
+        <label htmlFor="gh-token" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Personal Access Token <span className="text-destructive">*</span>
+        </label>
+        <div className="relative">
+          <input
+            id="gh-token"
+            type={showToken ? "text" : "password"}
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            className="w-full px-3 py-2 pr-10 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-primary/50 focus:border-primary font-mono"
+          />
+          <button
+            type="button"
+            onClick={() => setShowToken(!showToken)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+          >
+            {showToken ? (
+              <EyeOff className="w-4 h-4 text-gray-500" />
+            ) : (
+              <Eye className="w-4 h-4 text-gray-500" />
+            )}
+          </button>
+        </div>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          <a
+            href="https://github.com/settings/tokens/new?scopes=repo&description=DevConsole"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary hover:underline"
+          >
+            Create token
+          </a>{" "}
+          with <code className="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">repo</code> scope
+        </p>
+      </div>
+
+      {/* Status Messages */}
+      {saveStatus.type && (
+        <div
+          className={cn(
+            "p-3 rounded-lg flex items-start gap-2 text-sm",
+            saveStatus.type === "success"
+              ? "bg-success/10 text-success border border-success/20"
+              : "bg-destructive/10 text-destructive border border-destructive/20"
+          )}
+        >
+          {saveStatus.type === "success" ? (
+            <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          ) : (
+            <XCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          )}
+          <p>{saveStatus.message}</p>
+        </div>
+      )}
+
+      {testStatus.type && (
+        <div
+          className={cn(
+            "p-3 rounded-lg flex items-start gap-2 text-sm",
+            testStatus.type === "success"
+              ? "bg-success/10 text-success border border-success/20"
+              : "bg-destructive/10 text-destructive border border-destructive/20"
+          )}
+        >
+          {testStatus.type === "success" ? (
+            <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          ) : (
+            <XCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          )}
+          <p>{testStatus.message}</p>
+        </div>
+      )}
+
+      {/* Action Buttons */}
+      <div className="flex gap-2">
+        <button
+          onClick={handleSave}
+          disabled={isSaving}
+          className="flex-1 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        >
+          {isSaving ? (
+            <>
+              <Loader className="w-4 h-4 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              <Save className="w-4 h-4" />
+              Save
+            </>
+          )}
+        </button>
+
+        <button
+          onClick={handleTest}
+          disabled={isTesting}
+          className="flex-1 px-4 py-2 bg-secondary hover:bg-secondary/90 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        >
+          {isTesting ? (
+            <>
+              <Loader className="w-4 h-4 animate-spin" />
+              Testing...
+            </>
+          ) : (
+            <>
+              <TestTube className="w-4 h-4" />
+              Test
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 // ============================================================================
 // GITHUB ISSUE SLIDEOUT
@@ -16,17 +290,16 @@ import { cn } from "../../utils";
 interface GitHubIssueSlideoutProps {
   isOpen: boolean;
   onClose: () => void;
-  selectedLog?: LogEntry | null;
   githubConfig?: GitHubConfig;
   onOpenSettings?: () => void;
 }
 
-export function GitHubIssueSlideout({ isOpen, onClose, selectedLog, githubConfig, onOpenSettings }: GitHubIssueSlideoutProps) {
-  // GitHub Settings Hook
-  const { settings: githubSettings } = useGitHubSettings();
+export function GitHubIssueSlideout({ isOpen, onClose, githubConfig, onOpenSettings }: GitHubIssueSlideoutProps) {
+  // GitHub Settings Store
+  const githubSettings = useGitHubSettingsStore();
 
-  // Use prop githubConfig if provided, otherwise use settings from hook
-  const effectiveGithubConfig = githubConfig || (githubSettings ? {
+  // Use prop githubConfig if provided, otherwise use settings from store
+  const effectiveGithubConfig = githubConfig || (githubSettings.username && githubSettings.repo && githubSettings.token ? {
     username: githubSettings.username,
     repo: githubSettings.repo,
     token: githubSettings.token,
@@ -61,52 +334,6 @@ export function GitHubIssueSlideout({ isOpen, onClose, selectedLog, githubConfig
       setIsPublishing(false);
     }
   }, [isOpen, resetContent, setActiveView, setIsGenerating, setIsPublishing]);
-
-  // Auto-generate issue when slideout opens OR when selectedLog changes
-  useEffect(() => {
-    if (isOpen && !isGenerating) {
-      handleGenerateIssue();
-    }
-  }, [isOpen, selectedLog?.id]); // Regenerate when log changes
-
-  const handleGenerateIssue = async () => {
-    setIsGenerating(true);
-    setPublishStatus({ type: null, message: "" });
-
-    try {
-      // Don't include screenshot in auto-generation
-      const pack = await createContextPack({
-        includeScreenshot: false,
-        eventCount: 20,
-        networkCount: 10,
-      });
-
-      // Build description from selected log if available
-      let description = "";
-
-      if (selectedLog) {
-        description = selectedLog.message;
-      }
-
-      const generated = generateGitHubIssueMarkdown(pack, {
-        description: description || "An issue was detected in the application",
-      });
-
-      // Update content using Zustand action
-      updateContent({
-        title: generated.title,
-        body: generated.body,
-      });
-    } catch (error) {
-      console.error("Failed to generate issue:", error);
-      setPublishStatus({
-        type: "error",
-        message: "Failed to generate issue. Check console for details.",
-      });
-    } finally {
-      setIsGenerating(false);
-    }
-  };
 
   const handlePublish = async () => {
     if (!effectiveGithubConfig || !effectiveGithubConfig.token || !effectiveGithubConfig.repo || !effectiveGithubConfig.username) {
@@ -228,7 +455,46 @@ export function GitHubIssueSlideout({ isOpen, onClose, selectedLog, githubConfig
 
             {/* Content */}
             <div className="flex-1 overflow-auto p-4">
-              {isGenerating ? (
+              {!effectiveGithubConfig?.username || !effectiveGithubConfig?.repo || !effectiveGithubConfig?.token ? (
+                /* GitHub Not Configured - Show Settings Form */
+                <div className="max-w-lg mx-auto">
+                  <div className="mb-6 text-center">
+                    <div className="w-16 h-16 rounded-full bg-warning/10 flex items-center justify-center mb-4 mx-auto">
+                      <Settings className="w-8 h-8 text-warning" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                      Configure GitHub Integration
+                    </h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Set up your GitHub credentials to create issues directly from DevConsole
+                    </p>
+                  </div>
+
+                  <EmbeddedGitHubSettings
+                    onSettingsSaved={() => {
+                      // Force refresh the slideout to show the issue preview
+                      // The effectiveGithubConfig will be updated via the hook
+                      setPublishStatus({
+                        type: "success",
+                        message: "GitHub configured! Generating issue preview...",
+                      });
+                    }}
+                  />
+
+                  <div className="mt-6 p-4 bg-info/5 border border-info/20 rounded-lg">
+                    <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2 flex items-center gap-2">
+                      <Info className="w-4 h-4 text-info" />
+                      Quick Setup Guide
+                    </h4>
+                    <ol className="text-xs text-gray-600 dark:text-gray-400 space-y-1 list-decimal list-inside">
+                      <li>Enter your GitHub username</li>
+                      <li>Enter repository in <code className="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">owner/repo</code> format</li>
+                      <li>Create a <a href="https://github.com/settings/tokens/new?scopes=repo&description=DevConsole" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Personal Access Token</a> with <code className="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">repo</code> scope</li>
+                      <li>Test connection, then save</li>
+                    </ol>
+                  </div>
+                </div>
+              ) : isGenerating ? (
                 <div className="flex flex-col items-center justify-center h-full">
                   <Loader className="w-8 h-8 text-primary animate-spin mb-3" />
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
@@ -386,83 +652,114 @@ export function GitHubIssueSlideout({ isOpen, onClose, selectedLog, githubConfig
             </div>
 
             {/* Footer */}
-            <div className="border-t border-gray-200 dark:border-gray-800 p-4 bg-gray-50 dark:bg-gray-900">
+            <div className="border-t border-gray-200 dark:border-gray-800 px-6 py-4 bg-white dark:bg-gray-900">
               {/* Status Message */}
               {publishStatus.type && (
                 <div
                   className={cn(
-                    "mb-3 p-3 rounded-lg flex items-start gap-2 text-sm",
+                    "mb-4 p-4 rounded-xl flex items-start gap-3 text-sm shadow-sm",
                     publishStatus.type === "success"
                       ? "bg-success/10 text-success border border-success/20"
                       : "bg-destructive/10 text-destructive border border-destructive/20"
                   )}
                 >
                   {publishStatus.type === "success" ? (
-                    <CheckCircle className="w-5 h-5 flex-shrink-0" />
+                    <CheckCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
                   ) : (
-                    <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                    <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
                   )}
                   <div className="flex-1">
-                    <p>{publishStatus.message}</p>
+                    <p className="font-medium">{publishStatus.message}</p>
                     {publishStatus.issueUrl && (
                       <a
                         href={publishStatus.issueUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="underline hover:no-underline mt-1 inline-block"
+                        className="inline-flex items-center gap-1 text-sm font-medium hover:underline mt-2"
                       >
                         View Issue #{publishStatus.issueUrl.split("/").pop()}
+                        <Send className="w-3.5 h-3.5" />
                       </a>
                     )}
                   </div>
                 </div>
               )}
 
-              <div className="flex items-center justify-between">
-                <div className="text-xs text-gray-500 dark:text-gray-400">
-                  {effectiveGithubConfig?.repo ? (
-                    <span>
-                      Publishing to: <span className="font-mono">{effectiveGithubConfig.repo}</span>
-                    </span>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        onClose();
-                        onOpenSettings?.();
-                      }}
-                      className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg text-sm font-medium transition-colors border border-primary/20"
-                    >
-                      <Settings className="w-4 h-4" />
-                      Configure GitHub Settings
-                    </button>
-                  )}
-                </div>
-
-                <div className="flex gap-2">
-                  <button
-                    onClick={onClose}
-                    className="px-4 py-2 border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handlePublish}
-                    disabled={isPublishing || !title.trim() || !body.trim()}
-                    className="px-6 py-2 bg-success hover:bg-success/90 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                  >
-                    {isPublishing ? (
-                      <>
-                        <Loader className="w-4 h-4 animate-spin" />
-                        Publishing...
-                      </>
-                    ) : (
-                      <>
-                        <Send className="w-4 h-4" />
-                        Publish Issue
-                      </>
+              {/* Repository Info & AI Enhancement */}
+              <div className="mb-4">
+                {effectiveGithubConfig?.repo ? (
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                      <Github className="w-4 h-4" />
+                      <span>Publishing to:</span>
+                      <span className="font-mono font-medium text-gray-900 dark:text-gray-100">{effectiveGithubConfig.repo}</span>
+                    </div>
+                    
+                    {/* Super Write AI - Only show when GitHub is configured and not generating */}
+                    {effectiveGithubConfig?.username && effectiveGithubConfig?.repo && effectiveGithubConfig?.token && !isGenerating && (
+                      <SuperWriteAI
+                        currentTitle={title}
+                        currentBody={body}
+                        onEnhanced={(enhanced) => {
+                          updateContent({
+                            title: enhanced.title,
+                            body: enhanced.body,
+                          });
+                        }}
+                      />
                     )}
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => {
+                      onClose();
+                      onOpenSettings?.();
+                    }}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary/10 hover:bg-primary/15 text-primary rounded-xl text-sm font-semibold transition-all border border-primary/20 hover:border-primary/30 shadow-sm hover:shadow"
+                  >
+                    <Settings className="w-4 h-4" />
+                    Configure GitHub Settings
                   </button>
-                </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={onClose}
+                  className="flex-1 px-5 py-3 bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-750 text-gray-700 dark:text-gray-300 rounded-xl text-sm font-semibold transition-all shadow-sm hover:shadow active:scale-[0.98]"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handlePublish}
+                  disabled={
+                    isPublishing || 
+                    !title.trim() || 
+                    !body.trim() || 
+                    !effectiveGithubConfig?.username || 
+                    !effectiveGithubConfig?.repo || 
+                    !effectiveGithubConfig?.token
+                  }
+                  className="flex-[2] px-6 py-3 bg-success hover:bg-success/90 text-white rounded-xl text-sm font-semibold transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-sm flex items-center justify-center gap-2 active:scale-[0.98]"
+                  title={
+                    !effectiveGithubConfig?.username || !effectiveGithubConfig?.repo || !effectiveGithubConfig?.token
+                      ? "Configure GitHub settings first"
+                      : "Publish issue to GitHub"
+                  }
+                >
+                  {isPublishing ? (
+                    <>
+                      <Loader className="w-4 h-4 animate-spin" />
+                      Publishing...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4" />
+                      Publish Issue
+                    </>
+                  )}
+                </button>
               </div>
             </div>
           </motion.div>

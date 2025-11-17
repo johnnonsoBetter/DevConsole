@@ -99,118 +99,156 @@ const INITIAL_STATE = {
 // GITHUB ISSUE SLIDEOUT STORE
 // ============================================================================
 
-export const useGitHubIssueSlideoutStore = create<GitHubIssueSlideoutState>((set) => ({
-  ...INITIAL_STATE,
+export const useGitHubIssueSlideoutStore = create<GitHubIssueSlideoutState>(
+  (set) => ({
+    ...INITIAL_STATE,
 
-  // Visibility Actions
-  open: (log = null) =>
-    set(
-      produce((draft) => {
-        // If opening with a different log, reset content
-        if (draft.selectedLog?.id !== log?.id) {
+    // Visibility Actions
+    open: (log = null) =>
+      set(
+        produce((draft) => {
+          draft.isOpen = true;
+          draft.selectedLog = log;
+          draft.activeView = "preview";
+
+          // Update content from log if provided
+          if (log) {
+            // Set title from log message
+            draft.title = `[${log.level.toUpperCase()}] ${log.message.substring(0, 72)}`;
+
+            // Build body from log details
+            const bodyParts = ["## Description", log.message, ""];
+
+            if (log.stack) {
+              bodyParts.push("## Stack Trace", "```", log.stack, "```", "");
+            }
+
+            if (log.args && log.args.length > 0) {
+              bodyParts.push(
+                "## Additional Context",
+                "```json",
+                JSON.stringify(log.args, null, 2),
+                "```",
+                ""
+              );
+            }
+
+            bodyParts.push(
+              "## Environment",
+              `- Timestamp: ${new Date(log.timestamp).toISOString()}`,
+              `- Level: ${log.level}`
+            );
+
+            if (log.source) {
+              bodyParts.push(`- Source: ${log.source.file}:${log.source.line}`);
+            }
+
+            draft.body = bodyParts.join("\n");
+          } else {
+            // Opening without a log - reset content to empty
+            draft.title = "";
+            draft.body = "";
+          }
+
+          // Always reset these on open
+          draft.screenshot = "";
+          draft.publishStatus = { type: null, message: "" };
+        })
+      ),
+
+    close: () =>
+      set(
+        produce((draft) => {
+          draft.isOpen = false;
+          // Don't reset content immediately - let it fade out
+          // Content will be reset on next open
+        })
+      ),
+
+    // Content Actions
+    setTitle: (title) =>
+      set(
+        produce((draft) => {
+          draft.title = title;
+        })
+      ),
+
+    setBody: (body) =>
+      set(
+        produce((draft) => {
+          draft.body = body;
+        })
+      ),
+
+    setScreenshot: (screenshot) =>
+      set(
+        produce((draft) => {
+          draft.screenshot = screenshot;
+        })
+      ),
+
+    // UI Actions
+    setActiveView: (view) =>
+      set(
+        produce((draft) => {
+          draft.activeView = view;
+        })
+      ),
+
+    // Loading Actions
+    setIsGenerating: (isGenerating) =>
+      set(
+        produce((draft) => {
+          draft.isGenerating = isGenerating;
+        })
+      ),
+
+    setIsCapturingScreenshot: (isCapturingScreenshot) =>
+      set(
+        produce((draft) => {
+          draft.isCapturingScreenshot = isCapturingScreenshot;
+        })
+      ),
+
+    setIsPublishing: (isPublishing) =>
+      set(
+        produce((draft) => {
+          draft.isPublishing = isPublishing;
+        })
+      ),
+
+    // Status Actions
+    setPublishStatus: (status) =>
+      set(
+        produce((draft) => {
+          draft.publishStatus = status;
+        })
+      ),
+
+    // Bulk Update
+    updateContent: (content) =>
+      set(
+        produce((draft) => {
+          if (content.title !== undefined) {
+            draft.title = content.title;
+          }
+          if (content.body !== undefined) {
+            draft.body = content.body;
+          }
+        })
+      ),
+
+    // Reset Actions
+    reset: () => set(INITIAL_STATE),
+
+    resetContent: () =>
+      set(
+        produce((draft) => {
           draft.title = "";
           draft.body = "";
           draft.screenshot = "";
           draft.publishStatus = { type: null, message: "" };
-        }
-        draft.isOpen = true;
-        draft.selectedLog = log;
-        draft.activeView = "preview";
-      })
-    ),
-
-  close: () =>
-    set(
-      produce((draft) => {
-        draft.isOpen = false;
-        // Don't reset content immediately - let it fade out
-        // Content will be reset on next open
-      })
-    ),
-
-  // Content Actions
-  setTitle: (title) =>
-    set(
-      produce((draft) => {
-        draft.title = title;
-      })
-    ),
-
-  setBody: (body) =>
-    set(
-      produce((draft) => {
-        draft.body = body;
-      })
-    ),
-
-  setScreenshot: (screenshot) =>
-    set(
-      produce((draft) => {
-        draft.screenshot = screenshot;
-      })
-    ),
-
-  // UI Actions
-  setActiveView: (view) =>
-    set(
-      produce((draft) => {
-        draft.activeView = view;
-      })
-    ),
-
-  // Loading Actions
-  setIsGenerating: (isGenerating) =>
-    set(
-      produce((draft) => {
-        draft.isGenerating = isGenerating;
-      })
-    ),
-
-  setIsCapturingScreenshot: (isCapturingScreenshot) =>
-    set(
-      produce((draft) => {
-        draft.isCapturingScreenshot = isCapturingScreenshot;
-      })
-    ),
-
-  setIsPublishing: (isPublishing) =>
-    set(
-      produce((draft) => {
-        draft.isPublishing = isPublishing;
-      })
-    ),
-
-  // Status Actions
-  setPublishStatus: (status) =>
-    set(
-      produce((draft) => {
-        draft.publishStatus = status;
-      })
-    ),
-
-  // Bulk Update
-  updateContent: (content) =>
-    set(
-      produce((draft) => {
-        if (content.title !== undefined) {
-          draft.title = content.title;
-        }
-        if (content.body !== undefined) {
-          draft.body = content.body;
-        }
-      })
-    ),
-
-  // Reset Actions
-  reset: () => set(INITIAL_STATE),
-
-  resetContent: () =>
-    set(
-      produce((draft) => {
-        draft.title = "";
-        draft.body = "";
-        draft.screenshot = "";
-        draft.publishStatus = { type: null, message: "" };
-      })
-    ),
-}));
+        })
+      ),
+  })
+);

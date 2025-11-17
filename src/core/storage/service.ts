@@ -14,7 +14,8 @@ export type StorageKey =
   | "devConsole_captureSettings"
   | "devConsole_githubSettings"
   | "devConsole_graphqlSettings"
-  | "devConsole_theme";
+  | "devConsole_theme"
+  | "devtools.notes";
 
 export interface CaptureSettings {
   captureConsole: boolean;

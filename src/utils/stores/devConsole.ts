@@ -6,7 +6,27 @@ import { create } from "zustand";
 // TYPES & INTERFACES
 // ============================================================================
 
-export type LogLevel = "log" | "info" | "warn" | "error" | "debug" | "ui" | "db" | "api" | "group" | "groupEnd" | "groupCollapsed" | "table" | "time" | "timeEnd" | "timeLog" | "count" | "countReset" | "trace" | "assert" | "clear";
+export type LogLevel =
+  | "log"
+  | "info"
+  | "warn"
+  | "error"
+  | "debug"
+  | "ui"
+  | "db"
+  | "api"
+  | "group"
+  | "groupEnd"
+  | "groupCollapsed"
+  | "table"
+  | "time"
+  | "timeEnd"
+  | "timeLog"
+  | "count"
+  | "countReset"
+  | "trace"
+  | "assert"
+  | "clear";
 
 export interface LogEntry {
   id: string;
@@ -21,6 +41,7 @@ export interface LogEntry {
     column?: number;
   };
   metadata?: Record<string, any>;
+  context?: "page" | "extension"; // Track if log is from page or extension context
 }
 
 export interface NetworkRequest {
@@ -121,9 +142,13 @@ interface IStore {
 
   // Actions - Data Management
   addLog: (log: Omit<LogEntry, "id" | "timestamp">) => void;
-  addNetworkRequest: (request: Omit<NetworkRequest, "id" | "timestamp">) => void;
+  addNetworkRequest: (
+    request: Omit<NetworkRequest, "id" | "timestamp">
+  ) => void;
   addStateSnapshot: (snapshot: Omit<StateSnapshot, "id" | "timestamp">) => void;
-  addPerformanceMetric: (metric: Omit<PerformanceMetric, "id" | "timestamp">) => void;
+  addPerformanceMetric: (
+    metric: Omit<PerformanceMetric, "id" | "timestamp">
+  ) => void;
 
   clearLogs: () => void;
   clearNetwork: () => void;
@@ -136,25 +161,53 @@ interface IStore {
   resetFilter: () => void;
 
   // Actions - Settings
-  updateSettings: (settings: Partial<Pick<IStore, 
-    "maxLogs" | "maxNetworkRequests" | "persistLogs" |
-    "captureConsole" | "captureNetwork" | "captureState"
-  >>) => void;
+  updateSettings: (
+    settings: Partial<
+      Pick<
+        IStore,
+        | "maxLogs"
+        | "maxNetworkRequests"
+        | "persistLogs"
+        | "captureConsole"
+        | "captureNetwork"
+        | "captureState"
+      >
+    >
+  ) => void;
 
   // Actions - Notifications
   markErrorsRead: () => void;
 
   // Utility
-  exportLogs: () => void
+  exportLogs: () => void;
   exportAll: () => void;
 }
 
 const DEFAULT_FILTER: ConsoleFilter = {
-  levels: ["log", "info", "warn", "error", "debug", "ui", "db", "api", "group", "groupEnd", "groupCollapsed", "table", "time", "timeEnd", "timeLog", "count", "countReset", "trace", "assert", "clear"],
+  levels: [
+    "log",
+    "info",
+    "warn",
+    "error",
+    "debug",
+    "ui",
+    "db",
+    "api",
+    "group",
+    "groupEnd",
+    "groupCollapsed",
+    "table",
+    "time",
+    "timeEnd",
+    "timeLog",
+    "count",
+    "countReset",
+    "trace",
+    "assert",
+    "clear",
+  ],
   search: "",
 };
-
-
 
 export const useDevConsoleStore = create<IStore>((set) => ({
   isDragging: false,
@@ -310,7 +363,7 @@ export const useDevConsoleStore = create<IStore>((set) => ({
         draft.performanceMetrics = [];
       })
     ),
-    
+
   clearAll: () =>
     set(
       produce((draft) => {
@@ -319,24 +372,23 @@ export const useDevConsoleStore = create<IStore>((set) => ({
         draft.stateSnapshots = [];
         draft.performanceMetrics = [];
         draft.unreadErrorCount = 0;
-
       })
-    ),    
+    ),
   setFilter: (filter) =>
     set(
       produce((draft) => {
         draft.filter = { ...draft.filter, ...filter };
       })
     ),
-    
+
   resetFilter: () =>
     set(
       produce((draft) => {
         draft.filter = { ...DEFAULT_FILTER };
       })
     ),
-    
-  updateSettings: (settings) => 
+
+  updateSettings: (settings) =>
     set(
       produce((draft) => {
         draft.settings = Object.assign(draft.settings || {}, settings);
@@ -353,10 +405,9 @@ export const useDevConsoleStore = create<IStore>((set) => ({
   exportLogs: () => {
     set(
       produce((draft) => {
-
         draft.logsToBeExported = JSON.stringify(draft.logs, null, 2);
       })
-    );  
+    );
   },
 
   exportAll: () => {
@@ -370,11 +421,8 @@ export const useDevConsoleStore = create<IStore>((set) => ({
         };
       })
     );
-  }
+  },
 }));
-
-
-
 
 // ============================================================================
 // UTILITY HOOKS
@@ -388,12 +436,14 @@ const getLogSearchableText = (log: LogEntry): string => {
   if ((log as any)._searchCache) {
     return (log as any)._searchCache;
   }
-  
+
   const searchableText = [
     log.message,
-    ...log.args.map((arg: any) => String(arg))
-  ].join(' ').toLowerCase();
-  
+    ...log.args.map((arg: any) => String(arg)),
+  ]
+    .join(" ")
+    .toLowerCase();
+
   // Cache on the log object (mutation for perf, won't affect React since we filter to new array)
   (log as any)._searchCache = searchableText;
   return searchableText;
@@ -404,11 +454,11 @@ export const useDevConsoleLogs = () => {
     logs: state.logs,
     filter: state.filter,
   }));
-  
+
   // Memoize filtered results - recompute only when logs array or filter changes
   return useMemo(() => {
-    const searchLower = filter.search?.toLowerCase() || '';
-    
+    const searchLower = filter.search?.toLowerCase() || "";
+
     return logs.filter((log) => {
       // Level filter (fastest check first)
       if (!filter.levels.includes(log.level)) return false;
@@ -421,7 +471,10 @@ export const useDevConsoleLogs = () => {
 
       // Time range filter
       if (filter.timeRange) {
-        if (log.timestamp < filter.timeRange.start || log.timestamp > filter.timeRange.end) {
+        if (
+          log.timestamp < filter.timeRange.start ||
+          log.timestamp > filter.timeRange.end
+        ) {
           return false;
         }
       }
@@ -438,8 +491,8 @@ const getNetworkSearchableText = (req: NetworkRequest): string => {
   if ((req as any)._searchCache) {
     return (req as any)._searchCache;
   }
-  
-  const searchableText = [req.url, req.method].join(' ').toLowerCase();
+
+  const searchableText = [req.url, req.method].join(" ").toLowerCase();
   (req as any)._searchCache = searchableText;
   return searchableText;
 };
@@ -449,11 +502,11 @@ export const useDevConsoleNetwork = () => {
     networkRequests: state.networkRequests,
     filter: state.filter,
   }));
-  
+
   // Memoize filtered results
   return useMemo(() => {
-    const searchLower = filter.search?.toLowerCase() || '';
-    
+    const searchLower = filter.search?.toLowerCase() || "";
+
     return networkRequests.filter((req) => {
       // Search filter (use precomputed cache)
       if (searchLower) {
@@ -463,7 +516,10 @@ export const useDevConsoleNetwork = () => {
 
       // Time range filter
       if (filter.timeRange) {
-        if (req.timestamp < filter.timeRange.start || req.timestamp > filter.timeRange.end) {
+        if (
+          req.timestamp < filter.timeRange.start ||
+          req.timestamp > filter.timeRange.end
+        ) {
           return false;
         }
       }

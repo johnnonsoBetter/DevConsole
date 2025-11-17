@@ -4,7 +4,7 @@
  */
 
 import { AlertCircle, Bot, Brain, Check, CheckCircle2, ChevronDown, ChevronUp, ExternalLink, Eye, EyeOff, Github, Info, Key, MessageSquare, Sparkles, Zap } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { AI_PROVIDERS, getProviderModels } from '../../lib/ai/constants';
 import type { AIProvider } from '../../lib/ai/types';
 import { cn } from '../../utils';
@@ -27,17 +27,13 @@ export function AISettingsPanel() {
     updateSettings,
     setUseGateway,
     setGatewayApiKey,
-    loadSettings,
   } = useAISettingsStore();
 
   const [showApiKey, setShowApiKey] = useState(false);
   const [showGatewayKey, setShowGatewayKey] = useState(false);
   const [showFeatureDetails, setShowFeatureDetails] = useState(false);
 
-  // Load settings from chrome.storage on mount
-  useEffect(() => {
-    loadSettings();
-  }, [loadSettings]);
+  // Note: Settings are loaded globally in DevConsolePanel on mount
 
   const selectedProvider = AI_PROVIDERS.find(p => p.id === provider);
   const availableModels = getProviderModels(provider);

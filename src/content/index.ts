@@ -45,6 +45,63 @@ function shouldSkipInjection(): boolean {
 }
 
 // ---------------------------
+// Content Script Console Interceptor
+// ---------------------------
+function setupContentScriptLogging() {
+  const originalConsole = {
+    log: console.log.bind(console),
+    info: console.info.bind(console),
+    warn: console.warn.bind(console),
+    error: console.error.bind(console),
+    debug: console.debug.bind(console),
+  };
+
+  function captureContentScriptLog(level: string, args: any[]) {
+    try {
+      // Send to background
+      if (chrome?.runtime?.id) {
+        chrome.runtime
+          .sendMessage({
+            type: "CONSOLE_LOG",
+            payload: {
+              level,
+              args: args.map((arg) => {
+                try {
+                  if (typeof arg === "object" && arg !== null) {
+                    return JSON.parse(JSON.stringify(arg));
+                  }
+                  return arg;
+                } catch {
+                  return String(arg);
+                }
+              }),
+              timestamp: Date.now(),
+              source: {
+                file: "content-script",
+                line: 0,
+              },
+              context: "extension", // Mark as extension context
+            },
+          })
+          .catch(() => {
+            /* ignore */
+          });
+      }
+    } catch (e) {
+      // Ignore errors
+    }
+  }
+
+  // Intercept console methods in content script context
+  (["log", "info", "warn", "error", "debug"] as const).forEach((level) => {
+    (console as any)[level] = function (...args: any[]) {
+      captureContentScriptLog(level, args);
+      originalConsole[level].apply(console, args);
+    };
+  });
+}
+
+// ---------------------------
 // Message batching & relay
 // ---------------------------
 interface DevConsoleMessage {
@@ -438,6 +495,10 @@ function setupMessageRelay() {
 // ---------------------------
 if (!shouldSkipInjection()) {
   console.log("[DevConsole] 🚀 Initializing DevConsole content script...");
+
+  // Setup content script logging (captures extension logs)
+  setupContentScriptLogging();
+
   injectPageScript();
   setupMessageRelay();
 

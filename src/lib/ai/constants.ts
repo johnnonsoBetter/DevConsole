@@ -34,6 +34,22 @@ export const AI_PROVIDERS: ProviderInfo[] = [
         ],
       },
       {
+        id: "openai/gpt-5",
+        name: "GPT-5",
+        description:
+          "Next-generation model with advanced reasoning and creativity",
+        contextWindow: 256000,
+        inputPricing: "$5.00 / 1M tokens",
+        outputPricing: "$20.00 / 1M tokens",
+        capabilities: [
+          "text-generation",
+          "streaming",
+          "function-calling",
+          "vision",
+          "json-mode",
+        ],
+      },
+      {
         id: "openai/gpt-4o-mini",
         name: "GPT-4o Mini",
         description: "Fast and affordable, great for most tasks",

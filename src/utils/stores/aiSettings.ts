@@ -2,8 +2,10 @@
  * AI Settings Store
  * Zustand store for managing AI provider settings and configuration
  * Uses chrome.storage.local for persistent storage across extension contexts
+ * Combines Immer for clean updates with async persistence
  */
 
+import { produce } from "immer";
 import { create } from "zustand";
 import { DEFAULT_AI_SETTINGS } from "../../lib/ai/constants";
 import type { AISettings } from "../../lib/ai/types";
@@ -58,72 +60,121 @@ export const useAISettingsStore = create<AISettingsStore>((set, get) => ({
 
   // Load settings from storage
   loadSettings: async () => {
-    set({ isLoading: true });
+    set(
+      produce((draft) => {
+        draft.isLoading = true;
+      })
+    );
     const settings = await loadFromStorage();
-    set({ ...settings, isLoading: false });
+    set(
+      produce((draft) => {
+        Object.assign(draft, settings);
+        draft.isLoading = false;
+      })
+    );
   },
 
-  // Actions - all now async and persist to chrome.storage
+  // Actions - all use Immer for clean updates + async persistence
   updateSettings: async (updates) => {
+    // Optimistic update with Immer
+    set(
+      produce((draft) => {
+        Object.assign(draft, updates);
+      })
+    );
+
+    // Persist to storage (extract only AISettings fields)
     const currentState = get();
-    const newSettings: AISettings = {
-      enabled: updates.enabled ?? currentState.enabled,
-      provider: updates.provider ?? currentState.provider,
-      model: updates.model ?? currentState.model,
-      apiKey: updates.apiKey ?? currentState.apiKey,
-      temperature: updates.temperature ?? currentState.temperature,
-      maxTokens: updates.maxTokens ?? currentState.maxTokens,
-      useGateway: updates.useGateway ?? currentState.useGateway,
-      gatewayApiKey: updates.gatewayApiKey ?? currentState.gatewayApiKey,
+    const settingsToPersist: AISettings = {
+      enabled: currentState.enabled,
+      provider: currentState.provider,
+      model: currentState.model,
+      apiKey: currentState.apiKey,
+      temperature: currentState.temperature,
+      maxTokens: currentState.maxTokens,
+      useGateway: currentState.useGateway,
+      gatewayApiKey: currentState.gatewayApiKey,
     };
-    await saveToStorage(newSettings);
-    set(newSettings);
+
+    try {
+      await saveToStorage(settingsToPersist);
+    } catch (error) {
+      console.error("Failed to persist AI settings:", error);
+      // On error, reload from storage to ensure consistency
+      const settings = await loadFromStorage();
+      set(
+        produce((draft) => {
+          Object.assign(draft, settings);
+        })
+      );
+    }
   },
 
   setProvider: async (provider) => {
-    const currentState = get();
-    const newSettings: AISettings = { ...currentState, provider };
-    await saveToStorage(newSettings);
-    set({ provider });
+    set(
+      produce((draft) => {
+        draft.provider = provider;
+      })
+    );
+    await get().updateSettings({ provider });
   },
 
   setModel: async (model) => {
-    const currentState = get();
-    const newSettings: AISettings = { ...currentState, model };
-    await saveToStorage(newSettings);
-    set({ model });
+    set(
+      produce((draft) => {
+        draft.model = model;
+      })
+    );
+    await get().updateSettings({ model });
   },
 
   setApiKey: async (apiKey) => {
-    const currentState = get();
-    const newSettings: AISettings = { ...currentState, apiKey };
-    await saveToStorage(newSettings);
-    set({ apiKey });
+    set(
+      produce((draft) => {
+        draft.apiKey = apiKey;
+      })
+    );
+    await get().updateSettings({ apiKey });
   },
 
   setEnabled: async (enabled) => {
-    const currentState = get();
-    const newSettings: AISettings = { ...currentState, enabled };
-    await saveToStorage(newSettings);
-    set({ enabled });
+    set(
+      produce((draft) => {
+        draft.enabled = enabled;
+      })
+    );
+    await get().updateSettings({ enabled });
   },
 
   setUseGateway: async (useGateway) => {
-    const currentState = get();
-    const newSettings: AISettings = { ...currentState, useGateway };
-    await saveToStorage(newSettings);
-    set({ useGateway });
+    set(
+      produce((draft) => {
+        draft.useGateway = useGateway;
+      })
+    );
+    await get().updateSettings({ useGateway });
   },
 
   setGatewayApiKey: async (gatewayApiKey) => {
-    const currentState = get();
-    const newSettings: AISettings = { ...currentState, gatewayApiKey };
-    await saveToStorage(newSettings);
-    set({ gatewayApiKey });
+    set(
+      produce((draft) => {
+        draft.gatewayApiKey = gatewayApiKey;
+      })
+    );
+    await get().updateSettings({ gatewayApiKey });
   },
 
   resetSettings: async () => {
-    await saveToStorage(DEFAULT_AI_SETTINGS);
-    set(DEFAULT_AI_SETTINGS);
+    set(
+      produce((draft) => {
+        Object.assign(draft, DEFAULT_AI_SETTINGS);
+      })
+    );
+
+    try {
+      await saveToStorage(DEFAULT_AI_SETTINGS);
+    } catch (error) {
+      console.error("Failed to reset AI settings:", error);
+    }
   },
 }));
