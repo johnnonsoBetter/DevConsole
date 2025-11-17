@@ -6,6 +6,7 @@
 
 import { Camera, Code2, Github, Maximize2, Minimize2, Minus, Pin, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { webhookCopilot } from '../../../lib/webhookCopilot';
 import { cn } from '../../../utils';
 import { useGitHubIssueSlideoutStore } from '../../../utils/stores';
 import { NotesService } from '../services/notesService';
@@ -47,6 +48,7 @@ export function StickyNote({ note, onClose, initialPosition }: StickyNoteProps) 
   const [isSaving, setIsSaving] = useState(false);
   const [screenshot, setScreenshot] = useState<string | undefined>(note?.screenshot);
   const [isCapturing, setIsCapturing] = useState(false);
+  const [isExecutingCode, setIsExecutingCode] = useState(false);
 
   const noteRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLTextAreaElement>(null);
@@ -247,12 +249,90 @@ export function StickyNote({ note, onClose, initialPosition }: StickyNoteProps) 
     console.log('📝 Note converted to GitHub issue draft:', { title: noteTitle, hasScreenshot: !!screenshot });
   }, [content, screenshot, note, selectedColor, isPinned, githubSlideoutStore]);
 
-  // Code functionality
-  const handleCodeAction = useCallback(() => {
-    // TODO: Implement code execution/interaction functionality
-    console.log('💻 Code action triggered for note:', content);
-    
-    alert('💡 Code functionality coming soon!\n\nThis will help you perform coding actions directly from your note.');
+  // Code functionality - Send to Webhook Copilot
+  const handleCodeAction = useCallback(async () => {
+    if (!content.trim()) {
+      alert('⚠️ Note is empty. Add some content first!');
+      return;
+    }
+
+    setIsExecutingCode(true);
+
+    try {
+      // Check connection first
+      const isConnected = await webhookCopilot.checkConnection();
+      
+      if (!isConnected) {
+        const retry = confirm(
+          '❌ Cannot connect to Webhook Copilot\n\n' +
+          'Make sure:\n' +
+          '1. VS Code is running\n' +
+          '2. Webhook Copilot extension is installed and active\n' +
+          '3. Server is running on http://localhost:9090\n\n' +
+          'Click OK to retry, Cancel to abort.'
+        );
+        
+        if (retry) {
+          return handleCodeAction();
+        }
+        return;
+      }
+
+      // Determine the best action based on note content
+      const noteTitle = generateTitle(content);
+      
+      // Check if content looks like a coding task
+      const isCodeTask = /\b(create|build|implement|add|fix|update|refactor|write|generate)\b/i.test(content);
+      const isQuestion = /\?|how|what|why|when|where|explain/i.test(content);
+      
+      let response;
+      
+      if (isQuestion) {
+        // Use copilot_chat for questions
+        response = await webhookCopilot.copilotChat(content);
+      } else if (isCodeTask) {
+        // Use execute_task for coding tasks
+        const taskDescription = `${noteTitle}\n\n${content}`;
+        response = await webhookCopilot.executeTask(taskDescription, true);
+      } else {
+        // Default: Ask user which action to use
+        const action = confirm(
+          '🤖 How should Copilot handle this note?\n\n' +
+          'OK = Execute as Task (generates code)\n' +
+          'Cancel = Ask as Question (get explanation)'
+        );
+        
+        if (action) {
+          const taskDescription = `${noteTitle}\n\n${content}`;
+          response = await webhookCopilot.executeTask(taskDescription, true);
+        } else {
+          response = await webhookCopilot.copilotChat(content);
+        }
+      }
+
+      if (response.success) {
+        console.log('✅ Webhook Copilot request successful:', response);
+        
+        alert(
+          '✅ Task sent to VS Code!\n\n' +
+          '🤖 Copilot is now processing your request.\n' +
+          'Check VS Code for results.'
+        );
+      } else {
+        throw new Error(response.message);
+      }
+    } catch (error) {
+      console.error('Failed to send webhook:', error);
+      
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      alert(
+        '❌ Failed to send task to VS Code\n\n' +
+        `Error: ${errorMessage}\n\n` +
+        'Make sure Webhook Copilot is running and accessible.'
+      );
+    } finally {
+      setIsExecutingCode(false);
+    }
   }, [content]);
 
   // Get color classes
@@ -412,6 +492,7 @@ export function StickyNote({ note, onClose, initialPosition }: StickyNoteProps) 
             handleCodeAction();
           }}
           onMouseDown={(e) => e.stopPropagation()}
+          disabled={isExecutingCode}
           className={cn(
             'p-2.5 rounded-lg transition-all duration-200',
             'bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm',
@@ -419,11 +500,15 @@ export function StickyNote({ note, onClose, initialPosition }: StickyNoteProps) 
             'hover:border-primary hover:bg-primary/10 hover:scale-110',
             'active:scale-95',
             'shadow-lg hover:shadow-xl',
-            'group'
+            'group',
+            isExecutingCode && 'opacity-50 cursor-wait'
           )}
-          title="Code Actions"
+          title={isExecutingCode ? 'Sending to VS Code...' : 'Send to Copilot (Code Actions)'}
         >
-          <Code2 className="w-5 h-5 text-gray-700 dark:text-gray-300 group-hover:text-primary transition-colors" />
+          <Code2 className={cn(
+            'w-5 h-5 text-gray-700 dark:text-gray-300 group-hover:text-primary transition-colors',
+            isExecutingCode && 'animate-pulse'
+          )} />
         </button>
       </div>
 

@@ -21,6 +21,7 @@ import {
     Settings,
     Shield,
     TestTube,
+    Webhook,
     XCircle,
     Zap
 } from "lucide-react";
@@ -55,7 +56,7 @@ interface StatusMessage {
   message: string;
 }
 
-type SettingsSection = 'github' | 'graphql' | 'general' | 'unsplash' | 'ai';
+type SettingsSection = 'github' | 'graphql' | 'general' | 'unsplash' | 'ai' | 'webhook';
 
 // ============================================================================
 // MAIN UNIFIED SETTINGS PANEL
@@ -102,6 +103,13 @@ export function UnifiedSettingsPanel() {
               onClick={() => setActiveSection('unsplash')}
             />
             <SettingsNavItem
+              icon={Webhook}
+              label="Webhook Copilot"
+              description="VS Code automation endpoint"
+              active={activeSection === 'webhook'}
+              onClick={() => setActiveSection('webhook')}
+            />
+            <SettingsNavItem
               icon={Settings}
               label="General"
               description="Extension preferences"
@@ -118,6 +126,7 @@ export function UnifiedSettingsPanel() {
         {activeSection === 'github' && <GitHubSettingsSection />}
         {activeSection === 'graphql' && <GraphQLSettingsSection />}
         {activeSection === 'unsplash' && <UnsplashSettingsSection />}
+        {activeSection === 'webhook' && <WebhookSettingsSection />}
         {activeSection === 'general' && <GeneralSettingsSection />}
       </div>
     </div>
@@ -1121,6 +1130,241 @@ function StatusBanner({ type, message }: StatusBannerProps) {
         <XCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
       )}
       <p className="flex-1">{message}</p>
+    </div>
+  );
+}
+
+// ============================================================================
+// WEBHOOK COPILOT SETTINGS SECTION
+// ============================================================================
+
+function WebhookSettingsSection() {
+  const [webhookUrl, setWebhookUrl] = useState('http://localhost:9090/webhook');
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const [testStatus, setTestStatus] = useState<{ type: StatusType; message: string }>({ type: null, message: '' });
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<{ type: StatusType; message: string }>({ type: null, message: '' });
+
+  // Load saved webhook URL on mount
+  useEffect(() => {
+    chrome.storage.local.get(['webhookCopilotUrl'], (result) => {
+      if (result.webhookCopilotUrl) {
+        setWebhookUrl(result.webhookCopilotUrl);
+      }
+    });
+  }, []);
+
+  const handleTestConnection = async () => {
+    setIsTestingConnection(true);
+    setTestStatus({ type: null, message: '' });
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+      const response = await fetch(webhookUrl, {
+        method: 'GET',
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (response.ok || response.status === 405) {
+        setTestStatus({
+          type: 'success',
+          message: '✅ Webhook Copilot is running and reachable!',
+        });
+      } else {
+        setTestStatus({
+          type: 'error',
+          message: `❌ Server responded with status: ${response.status}`,
+        });
+      }
+    } catch (error) {
+      console.error('Connection test failed:', error);
+      setTestStatus({
+        type: 'error',
+        message: '❌ Cannot connect to Webhook Copilot. Make sure VS Code is running with the extension active.',
+      });
+    } finally {
+      setIsTestingConnection(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    setSaveStatus({ type: null, message: '' });
+
+    try {
+      await chrome.storage.local.set({ webhookCopilotUrl: webhookUrl });
+      
+      setSaveStatus({
+        type: 'success',
+        message: '✅ Webhook URL saved successfully!',
+      });
+
+      // Import and update the webhook service
+      const { webhookCopilot } = await import('../../lib/webhookCopilot');
+      webhookCopilot.setWebhookUrl(webhookUrl);
+    } catch (error) {
+      console.error('Failed to save webhook URL:', error);
+      setSaveStatus({
+        type: 'error',
+        message: '❌ Failed to save webhook URL',
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="p-6 max-w-3xl">
+      {/* Header */}
+      <div className="mb-6">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="p-2 bg-primary/10 rounded-lg">
+            <Webhook className="w-5 h-5 text-primary" />
+          </div>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+            Webhook Copilot Integration
+          </h2>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Connect to Webhook Copilot extension to automate VS Code and trigger Copilot actions from your notes.
+        </p>
+      </div>
+
+      {/* Status Banners */}
+      {testStatus.type && (
+        <div className="mb-4">
+          <StatusBanner type={testStatus.type} message={testStatus.message} />
+        </div>
+      )}
+
+      {saveStatus.type && (
+        <div className="mb-4">
+          <StatusBanner type={saveStatus.type} message={saveStatus.message} />
+        </div>
+      )}
+
+      {/* Webhook URL Configuration */}
+      <div className="card p-6 mb-6">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">
+          Webhook Endpoint
+        </h3>
+        
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Webhook URL
+            </label>
+            <input
+              type="text"
+              value={webhookUrl}
+              onChange={(e) => setWebhookUrl(e.target.value)}
+              placeholder="http://localhost:9090/webhook"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Default: http://localhost:9090/webhook
+            </p>
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              onClick={handleTestConnection}
+              disabled={isTestingConnection || !webhookUrl}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all",
+                isTestingConnection
+                  ? "bg-gray-300 dark:bg-gray-700 text-gray-500 cursor-not-allowed"
+                  : "bg-info hover:bg-info/90 text-white shadow-sm hover:shadow-md"
+              )}
+            >
+              {isTestingConnection ? (
+                <>
+                  <Loader className="w-4 h-4 animate-spin" />
+                  Testing...
+                </>
+              ) : (
+                <>
+                  <TestTube className="w-4 h-4" />
+                  Test Connection
+                </>
+              )}
+            </button>
+
+            <button
+              onClick={handleSave}
+              disabled={isSaving || !webhookUrl}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all",
+                isSaving
+                  ? "bg-gray-300 dark:bg-gray-700 text-gray-500 cursor-not-allowed"
+                  : "bg-success hover:bg-success/90 text-white shadow-sm hover:shadow-md"
+              )}
+            >
+              {isSaving ? (
+                <>
+                  <Loader className="w-4 h-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  Save
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Setup Instructions */}
+      <div className="card p-6 mb-6 bg-info/5 border-info/20">
+        <div className="flex items-start gap-3 mb-4">
+          <Info className="w-5 h-5 text-info flex-shrink-0 mt-0.5" />
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">
+              How to Set Up Webhook Copilot
+            </h3>
+            <ol className="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-decimal list-inside">
+              <li>Install the Webhook Copilot extension in VS Code</li>
+              <li>Ensure VS Code is running with the extension active</li>
+              <li>The extension runs a server on <code className="px-1 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-xs">http://localhost:9090</code></li>
+              <li>Click "Test Connection" to verify it's working</li>
+              <li>Use the Code button on sticky notes to send tasks to Copilot</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+
+      {/* Available Actions */}
+      <div className="card p-6">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">
+          Available Actions
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {[
+            { name: 'Execute Task', desc: 'Send coding tasks to Copilot' },
+            { name: 'Copilot Chat', desc: 'Ask questions and get explanations' },
+            { name: 'Create File', desc: 'Generate new files with content' },
+            { name: 'Modify File', desc: 'Edit existing files' },
+            { name: 'Run Command', desc: 'Execute VS Code commands' },
+            { name: 'Query Workspace', desc: 'Search for files and code' },
+          ].map((action) => (
+            <div
+              key={action.name}
+              className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700"
+            >
+              <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">
+                {action.name}
+              </h4>
+              <p className="text-xs text-muted-foreground">{action.desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
