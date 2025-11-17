@@ -28,6 +28,7 @@ import {
 } from '../../utils/stores/devConsole';
 const GraphQLExplorer = lazy(() => import('../DevConsole/GraphQLExplorer').then(module => ({default: module.GraphQLExplorer})));
 
+import { StickyNoteButton } from '../../features/notes';
 import { cn } from '../../utils';
 import { useGitHubIssueSlideoutStore } from '../../utils/stores';
 import { useAISettingsStore } from '../../utils/stores/aiSettings';
@@ -243,6 +244,9 @@ export function DevConsolePanel({ githubConfig }: DevConsolePanelProps = {}) {
               <Github className="w-4 h-4" />
               <span className="hidden sm:inline">Create Issue</span>
             </button>
+
+            {/* Sticky Note Button - Quick note-taking */}
+            <StickyNoteButton />
           </div>
         </div>
 
