@@ -4,8 +4,8 @@
  * Acts as the interface between UI components and storage
  */
 
-import { StorageService } from "../../core/storage";
-import { Note, useNotesStore } from "../../utils/stores/notes";
+import { StorageService } from "../../../core/storage";
+import { Note, useNotesStore } from "../stores/notes";
 
 const STORAGE_KEY = "devtools.notes";
 
@@ -19,9 +19,9 @@ export class NotesService {
    */
   static async loadNotes(): Promise<void> {
     const { setNotes, setLoading } = useNotesStore.getState();
-    
+
     setLoading(true);
-    
+
     try {
       const stored = await StorageService.get<Note[]>(STORAGE_KEY);
       setNotes(stored || []);
@@ -70,9 +70,7 @@ export class NotesService {
 
     // Find and update the note
     const updatedNotes = notes.map((note) =>
-      note.id === id
-        ? { ...note, ...updates, updatedAt: Date.now() }
-        : note
+      note.id === id ? { ...note, ...updates, updatedAt: Date.now() } : note
     );
 
     // Update state immediately
@@ -102,7 +100,7 @@ export class NotesService {
   static async togglePinNote(id: string): Promise<void> {
     const { notes } = useNotesStore.getState();
     const note = notes.find((n) => n.id === id);
-    
+
     if (note) {
       await this.updateNote(id, { pinned: !note.pinned });
     }
@@ -135,17 +133,17 @@ export class NotesService {
   static async importNotes(jsonData: string): Promise<void> {
     try {
       const importedNotes = JSON.parse(jsonData) as Note[];
-      
+
       // Validate notes structure
       if (!Array.isArray(importedNotes)) {
         throw new Error("Invalid notes format");
       }
 
       const { setNotes } = useNotesStore.getState();
-      
+
       // Update state
       setNotes(importedNotes);
-      
+
       // Persist to storage
       await StorageService.set(STORAGE_KEY, importedNotes);
     } catch (error) {
@@ -160,7 +158,7 @@ export class NotesService {
    */
   static getFilteredNotes(): Note[] {
     const { notes, filter } = useNotesStore.getState();
-    
+
     let filtered = notes;
 
     // Apply search filter

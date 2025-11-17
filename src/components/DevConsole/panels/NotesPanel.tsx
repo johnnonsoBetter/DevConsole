@@ -4,21 +4,21 @@
  */
 
 import {
-    BookOpen,
-    Calendar,
-    Check,
-    Clock,
-    Edit,
-    Pin,
-    Plus,
-    Search,
-    Sparkles,
-    Trash2,
-    X,
+  BookOpen,
+  Calendar,
+  Check,
+  Clock,
+  Edit,
+  Pin,
+  Plus,
+  Search,
+  Sparkles,
+  Trash2,
+  X,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { NotesService, useNotesStore } from '../../../features/notes';
 import { cn } from '../../../utils';
-import { useNotesStore } from '../../../utils/stores/notes';
 import { humanizeTime } from '../../../utils/timeUtils';
 import { RichTextEditor } from '../RichTextEditor';
 
