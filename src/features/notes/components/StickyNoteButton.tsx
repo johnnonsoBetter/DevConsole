@@ -7,8 +7,8 @@
 import { StickyNote as StickyNoteIcon } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '../../../utils';
-import { StickyNote } from './StickyNote';
 import { useNotesStore } from '../stores/notes';
+import { StickyNote } from './StickyNote';
 
 // ============================================================================
 // TYPES

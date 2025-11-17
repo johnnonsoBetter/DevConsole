@@ -4,9 +4,10 @@
  * Mimics physical sticky notes with drag, color options, and auto-save
  */
 
-import { Camera, Maximize2, Minimize2, Minus, Pin, Trash2, X } from 'lucide-react';
+import { Camera, Code2, Github, Maximize2, Minimize2, Minus, Pin, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { cn } from '../../../utils';
+import { useGitHubIssueSlideoutStore } from '../../../utils/stores';
 import { NotesService } from '../services/notesService';
 import { Note } from '../stores/notes';
 
@@ -33,6 +34,8 @@ const STICKY_COLORS = [
 // ============================================================================
 
 export function StickyNote({ note, onClose, initialPosition }: StickyNoteProps) {
+  const githubSlideoutStore = useGitHubIssueSlideoutStore();
+
   const [position, setPosition] = useState(initialPosition || { x: 100, y: 100 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -207,6 +210,51 @@ export function StickyNote({ note, onClose, initialPosition }: StickyNoteProps) 
     setIsPinned((prev) => !prev);
   };
 
+  // Convert to GitHub Issue
+  const handleConvertToIssue = useCallback(() => {
+    const noteTitle = generateTitle(content);
+    
+    // Build comprehensive issue body
+    const bodyParts = ['## Note Details', '', content, ''];
+    
+    // Add note metadata
+    bodyParts.push(
+      '---',
+      '## Note Information',
+      `- **Created**: ${note?.createdAt ? new Date(note.createdAt).toLocaleString() : new Date().toLocaleString()}`,
+      `- **Color**: ${selectedColor}`,
+      `- **Pinned**: ${isPinned ? 'Yes' : 'No'}`
+    );
+    
+    if (note?.tags && note.tags.length > 0) {
+      bodyParts.push(`- **Tags**: ${note.tags.join(', ')}`);
+    }
+    
+    const issueBody = bodyParts.join('\n');
+    
+    // Open GitHub issue slideout with pre-populated content
+    githubSlideoutStore.open(null);
+    githubSlideoutStore.updateContent({
+      title: noteTitle,
+      body: issueBody,
+    });
+    
+    // Set screenshot if available
+    if (screenshot) {
+      githubSlideoutStore.setScreenshot(screenshot);
+    }
+    
+    console.log('📝 Note converted to GitHub issue draft:', { title: noteTitle, hasScreenshot: !!screenshot });
+  }, [content, screenshot, note, selectedColor, isPinned, githubSlideoutStore]);
+
+  // Code functionality
+  const handleCodeAction = useCallback(() => {
+    // TODO: Implement code execution/interaction functionality
+    console.log('💻 Code action triggered for note:', content);
+    
+    alert('💡 Code functionality coming soon!\n\nThis will help you perform coding actions directly from your note.');
+  }, [content]);
+
   // Get color classes
   const colorConfig = STICKY_COLORS.find((c) => c.name === selectedColor) || STICKY_COLORS[0];
 
@@ -332,6 +380,51 @@ export function StickyNote({ note, onClose, initialPosition }: StickyNoteProps) 
             <X className="w-4 h-4" />
           </button>
         </div>
+      </div>
+
+      {/* Right-side Action Buttons - Absolutely positioned */}
+      <div className="absolute right-0 top-1/2 -translate-y-1/2 flex flex-col gap-2 pr-2 z-10">
+        {/* Convert to Issue Button */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleConvertToIssue();
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+          className={cn(
+            'p-2.5 rounded-lg transition-all duration-200',
+            'bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm',
+            'border-2 border-gray-300 dark:border-gray-600',
+            'hover:border-success hover:bg-success/10 hover:scale-110',
+            'active:scale-95',
+            'shadow-lg hover:shadow-xl',
+            'group'
+          )}
+          title="Convert to GitHub Issue"
+        >
+          <Github className="w-5 h-5 text-gray-700 dark:text-gray-300 group-hover:text-success transition-colors" />
+        </button>
+
+        {/* Code Action Button */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleCodeAction();
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+          className={cn(
+            'p-2.5 rounded-lg transition-all duration-200',
+            'bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm',
+            'border-2 border-gray-300 dark:border-gray-600',
+            'hover:border-primary hover:bg-primary/10 hover:scale-110',
+            'active:scale-95',
+            'shadow-lg hover:shadow-xl',
+            'group'
+          )}
+          title="Code Actions"
+        >
+          <Code2 className="w-5 h-5 text-gray-700 dark:text-gray-300 group-hover:text-primary transition-colors" />
+        </button>
       </div>
 
       {/* Content */}
