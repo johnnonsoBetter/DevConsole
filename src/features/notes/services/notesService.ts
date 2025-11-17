@@ -189,8 +189,8 @@ export class NotesService {
       filtered = filtered.filter((note) => note.color === filter.color);
     }
 
-    // Sort: pinned first, then by updated date
-    return filtered.sort((a, b) => {
+    // Sort: pinned first, then by updated date (create copy to avoid mutating)
+    return [...filtered].sort((a, b) => {
       if (a.pinned && !b.pinned) return -1;
       if (!a.pinned && b.pinned) return 1;
       return b.updatedAt - a.updatedAt;
