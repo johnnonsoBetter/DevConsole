@@ -181,31 +181,112 @@ export class WebhookCopilotService {
   }
 
   /**
-   * Check if webhook server is available
+   * Check if webhook server is available using health endpoint
    */
   async checkConnection(): Promise<boolean> {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
 
-      // Try a simple ping request with minimal payload
-      const response = await fetch(this.webhookUrl, {
-        method: 'POST',
+      // Use the health check endpoint
+      const baseUrl = this.webhookUrl.replace(/\/webhook$/, '');
+      const healthUrl = `${baseUrl}/health`;
+
+      const response = await fetch(healthUrl, {
+        method: "GET",
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        const data = await response.json();
+        return data.status === 'ok';
+      }
+
+      return false;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Get server health and info
+   */
+  async getServerHealth(): Promise<{
+    status: string;
+    timestamp: number;
+    version: string;
+    port?: number;
+  } | null> {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+      const baseUrl = this.webhookUrl.replace(/\/webhook$/, '');
+      const healthUrl = `${baseUrl}/health`;
+
+      const response = await fetch(healthUrl, {
+        method: "GET",
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        return await response.json();
+      }
+
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Test connection using test endpoint
+   */
+  async testConnection(): Promise<{
+    success: boolean;
+    testId?: string;
+    message?: string;
+    error?: string;
+  }> {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+      const baseUrl = this.webhookUrl.replace(/\/webhook$/, '');
+      const testUrl = `${baseUrl}/test`;
+
+      const response = await fetch(testUrl, {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          action: 'copilot_chat',
-          question: 'ping',
+          message: "Connection test from DevConsole",
+          client: "DevConsole Extension",
+          timestamp: Date.now(),
         }),
         signal: controller.signal,
       });
 
       clearTimeout(timeoutId);
-      // Accept 200 OK, 405 Method Not Allowed, or 404 as signs the server exists
-      return response.ok || response.status === 405 || response.status === 404;
-    } catch {
-      return false;
+
+      if (response.ok) {
+        return await response.json();
+      }
+
+      return {
+        success: false,
+        error: `Server responded with status ${response.status}`,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Connection failed",
+      };
     }
   }
 
