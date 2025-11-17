@@ -32,19 +32,12 @@ const NOTE_COLORS = [
 ];
 
 export function NotesPanel() {
-  const {
-    notes,
-    selectedNoteId,
-    searchQuery,
-    isLoading,
-    loadNotes,
-    createNote,
-    updateNote,
-    deleteNote,
-    selectNote,
-    setSearchQuery,
-    togglePinNote,
-  } = useNotesStore();
+  const notes = useNotesStore((s) => s.notes);
+  const selectedNoteId = useNotesStore((s) => s.selectedNoteId);
+  const isLoading = useNotesStore((s) => s.isLoading);
+  const filter = useNotesStore((s) => s.filter);
+  const selectNote = useNotesStore((s) => s.selectNote);
+  const setFilter = useNotesStore((s) => s.setFilter);
 
   const [isEditing, setIsEditing] = useState(false);
   const [editingTitle, setEditingTitle] = useState('');
@@ -52,36 +45,18 @@ export function NotesPanel() {
 
   // Load notes on mount
   useEffect(() => {
-    loadNotes();
-  }, [loadNotes]);
+    NotesService.loadNotes();
+  }, []);
 
-  // Filter and sort notes
+  // Filter and sort notes using service layer
   const filteredNotes = useMemo(() => {
-    let filtered = notes;
-
-    // Search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (note) =>
-          note.title.toLowerCase().includes(query) ||
-          note.content.toLowerCase().includes(query) ||
-          note.tags.some((tag) => tag.toLowerCase().includes(query))
-      );
-    }
-
-    // Sort: pinned first, then by updated date
-    return filtered.sort((a, b) => {
-      if (a.pinned && !b.pinned) return -1;
-      if (!a.pinned && b.pinned) return 1;
-      return b.updatedAt - a.updatedAt;
-    });
-  }, [notes, searchQuery]);
+    return NotesService.getFilteredNotes();
+  }, [notes, filter]);
 
   const selectedNote = notes.find((n) => n.id === selectedNoteId);
 
   const handleCreateNote = async () => {
-    const note = await createNote({
+    const note = await NotesService.createNote({
       title: 'Untitled Note',
       content: '',
       tags: [],
@@ -93,26 +68,26 @@ export function NotesPanel() {
 
   const handleSaveTitle = async () => {
     if (selectedNote && editingTitle.trim()) {
-      await updateNote(selectedNote.id, { title: editingTitle.trim() });
+      await NotesService.updateNote(selectedNote.id, { title: editingTitle.trim() });
     }
     setIsEditing(false);
   };
 
   const handleDeleteNote = async (id: string) => {
     if (confirm('Are you sure you want to delete this note?')) {
-      await deleteNote(id);
+      await NotesService.deleteNote(id);
     }
   };
 
   const handleContentChange = async (content: string) => {
     if (selectedNote) {
-      await updateNote(selectedNote.id, { content });
+      await NotesService.updateNote(selectedNote.id, { content });
     }
   };
 
   const handleColorChange = async (color: string | undefined) => {
     if (selectedNote) {
-      await updateNote(selectedNote.id, { color });
+      await NotesService.updateNote(selectedNote.id, { color });
       setShowColorPicker(false);
     }
   };
@@ -145,8 +120,8 @@ export function NotesPanel() {
             <input
               type="text"
               placeholder="Search notes..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+            value={filter.search || ''}
+            onChange={(e) => setFilter({ search: e.target.value })}
               className="w-full pl-9 pr-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg border-0 focus:ring-2 focus:ring-primary/20 text-sm placeholder:text-gray-500"
             />
           </div>
@@ -162,10 +137,10 @@ export function NotesPanel() {
             <div className="flex flex-col items-center justify-center h-full px-4 text-center">
               <Sparkles className="w-12 h-12 text-gray-300 dark:text-gray-600 mb-3" />
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-                {searchQuery ? 'No notes found' : 'No notes yet'}
+                {filter.search ? 'No notes found' : 'No notes yet'}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-500">
-                {searchQuery ? 'Try a different search term' : 'Click + to create your first note'}
+                {filter.search ? 'Try a different search term' : 'Click + to create your first note'}
               </p>
             </div>
           ) : (
@@ -311,7 +286,7 @@ export function NotesPanel() {
 
                 {/* Pin Button */}
                 <button
-                  onClick={() => togglePinNote(selectedNote.id)}
+                  onClick={() => NotesService.togglePinNote(selectedNote.id)}
                   className={cn(
                     'p-2 rounded-lg transition-colors',
                     selectedNote.pinned

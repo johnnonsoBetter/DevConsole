@@ -1,10 +1,15 @@
 /**
  * Notes Store
- * Manages note-taking state with persistence to chrome.storage
+ * Pure state management for notes (no async operations)
+ * Use NotesService for business logic and persistence
  */
 
+import { produce } from "immer";
 import { create } from "zustand";
-import { StorageService } from "../../core/storage";
+
+// ============================================================================
+// TYPES & INTERFACES
+// ============================================================================
 
 export interface Note {
   id: string;
@@ -17,85 +22,135 @@ export interface Note {
   color?: string; // Optional color for visual organization
 }
 
-interface NotesState {
-  notes: Note[];
-  selectedNoteId: string | null;
-  searchQuery: string;
-  isLoading: boolean;
-
-  // Actions
-  loadNotes: () => Promise<void>;
-  createNote: (
-    note: Omit<Note, "id" | "createdAt" | "updatedAt">
-  ) => Promise<Note>;
-  updateNote: (id: string, updates: Partial<Note>) => Promise<void>;
-  deleteNote: (id: string) => Promise<void>;
-  selectNote: (id: string | null) => void;
-  setSearchQuery: (query: string) => void;
-  togglePinNote: (id: string) => Promise<void>;
+export interface NotesFilter {
+  search: string;
+  tags?: string[];
+  pinned?: boolean;
+  color?: string;
 }
 
-const STORAGE_KEY = "devtools.notes";
+// ============================================================================
+// NOTES STORE
+// ============================================================================
 
-export const useNotesStore = create<NotesState>((set, get) => ({
+interface NotesState {
+  // Data Collections
+  notes: Note[];
+
+  // UI State
+  selectedNoteId: string | null;
+  isLoading: boolean;
+
+  // Filters & Search
+  filter: NotesFilter;
+
+  // Synchronous State Actions (Pure)
+  setNotes: (notes: Note[]) => void;
+  addNote: (note: Note) => void;
+  updateNote: (id: string, updates: Partial<Note>) => void;
+  deleteNote: (id: string) => void;
+  clearNotes: () => void;
+
+  // UI Control
+  selectNote: (id: string | null) => void;
+  setLoading: (loading: boolean) => void;
+
+  // Filtering
+  setFilter: (filter: Partial<NotesFilter>) => void;
+  resetFilter: () => void;
+}
+
+const DEFAULT_FILTER: NotesFilter = {
+  search: "",
+};
+
+export const useNotesStore = create<NotesState>((set) => ({
+  // Initial State
   notes: [],
   selectedNoteId: null,
-  searchQuery: "",
   isLoading: true,
+  filter: { ...DEFAULT_FILTER },
 
-  loadNotes: async () => {
-    try {
-      const stored = await StorageService.get<Note[]>(STORAGE_KEY);
-      set({ notes: stored || [], isLoading: false });
-    } catch (error) {
-      console.error("Failed to load notes:", error);
-      set({ isLoading: false });
-    }
-  },
-
-  createNote: async (noteData) => {
-    const newNote: Note = {
-      ...noteData,
-      id: `note-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
-
-    const notes = [...get().notes, newNote];
-    await StorageService.set(STORAGE_KEY, notes);
-    set({ notes, selectedNoteId: newNote.id });
-    return newNote;
-  },
-
-  updateNote: async (id, updates) => {
-    const notes = get().notes.map((note) =>
-      note.id === id ? { ...note, ...updates, updatedAt: Date.now() } : note
+  // Synchronous State Setters (Pure Functions)
+  setNotes: (notes) => {
+    set(
+      produce((draft) => {
+        draft.notes = notes;
+      })
     );
-    await StorageService.set(STORAGE_KEY, notes);
-    set({ notes });
   },
 
-  deleteNote: async (id) => {
-    const notes = get().notes.filter((note) => note.id !== id);
-    await StorageService.set(STORAGE_KEY, notes);
-    set({
-      notes,
-      selectedNoteId: get().selectedNoteId === id ? null : get().selectedNoteId,
-    });
+  addNote: (note) => {
+    set(
+      produce((draft) => {
+        draft.notes.push(note);
+      })
+    );
   },
 
+  updateNote: (id, updates) => {
+    set(
+      produce((draft) => {
+        const note = draft.notes.find((n) => n.id === id);
+        if (note) {
+          Object.assign(note, updates);
+        }
+      })
+    );
+  },
+
+  deleteNote: (id) => {
+    set(
+      produce((draft) => {
+        draft.notes = draft.notes.filter((note) => note.id !== id);
+        if (draft.selectedNoteId === id) {
+          draft.selectedNoteId = null;
+        }
+      })
+    );
+  },
+
+  clearNotes: () => {
+    set(
+      produce((draft) => {
+        draft.notes = [];
+        draft.selectedNoteId = null;
+        draft.filter = { ...DEFAULT_FILTER };
+      })
+    );
+  },
+
+  // UI Control
   selectNote: (id) => {
-    set({ selectedNoteId: id });
+    set(
+      produce((draft) => {
+        draft.selectedNoteId = id;
+      })
+    );
   },
 
-  setSearchQuery: (query) => {
-    set({ searchQuery: query });
+  setLoading: (loading) => {
+    set(
+      produce((draft) => {
+        draft.isLoading = loading;
+      })
+    );
   },
 
-  togglePinNote: async (id) => {
-    const note = get().notes.find((n) => n.id === id);
-    if (note) {
-      await get().updateNote(id, { pinned: !note.pinned });
-    }
+  // Filtering
+  setFilter: (filter) => {
+    set(
+      produce((draft) => {
+        draft.filter = { ...draft.filter, ...filter };
+      })
+    );
+  },
+
+  resetFilter: () => {
+    set(
+      produce((draft) => {
+        draft.filter = { ...DEFAULT_FILTER };
+      })
+    );
   },
 }));
