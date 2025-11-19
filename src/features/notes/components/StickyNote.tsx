@@ -4,6 +4,7 @@
  * Mimics physical sticky notes with drag, color options, and auto-save
  */
 
+import { useDraggable } from '@dnd-kit/core';
 import { Camera, Code2, Github, Maximize2, Minimize2, Minus, Pin, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { webhookCopilot } from '../../../lib/webhookCopilot';
@@ -20,7 +21,7 @@ interface StickyNoteProps {
   note?: Note;
   noteId: string; // ID used to track this sticky instance (can be temp)
   onClose: () => void;
-  initialPosition?: { x: number; y: number };
+  position: { x: number; y: number };
 }
 
 const STICKY_COLORS = [
@@ -35,14 +36,11 @@ const STICKY_COLORS = [
 // STICKY NOTE COMPONENT
 // ============================================================================
 
-export function StickyNote({ note, noteId, onClose, initialPosition }: StickyNoteProps) {
+export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps) {
   const githubSlideoutStore = useGitHubIssueSlideoutStore();
   const closeStickyNote = useNotesStore((s) => s.closeStickyNote);
 
-  const [position, setPosition] = useState(initialPosition || { x: 100, y: 100 });
   const [persistedId, setPersistedId] = useState<string | null>(note?.id || null); // Track if note is persisted
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [isExpanded, setIsExpanded] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [content, setContent] = useState(note?.content || '');
@@ -57,10 +55,18 @@ export function StickyNote({ note, noteId, onClose, initialPosition }: StickyNot
     message: string;
   } | null>(null);
 
-  const noteRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLTextAreaElement>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const tempNoteIdRef = useRef<string | null>(note ? null : noteId);
+
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: noteId,
+  });
+
+  const translatedPosition = {
+    x: position.x + (transform?.x ?? 0),
+    y: position.y + (transform?.y ?? 0),
+  };
 
   // Auto-hide notification after 4 seconds
   useEffect(() => {
@@ -117,46 +123,6 @@ export function StickyNote({ note, noteId, onClose, initialPosition }: StickyNot
       }
     };
   }, [content, selectedColor, isPinned, screenshot]);
-
-  // Handle mouse down for dragging
-  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if ((e.target as HTMLElement).closest('input, textarea, button')) {
-      return; // Don't drag when interacting with inputs or buttons
-    }
-
-    setIsDragging(true);
-    const rect = noteRef.current?.getBoundingClientRect();
-    if (rect) {
-      setDragOffset({
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top,
-      });
-    }
-  }, []);
-
-  // Handle mouse move for dragging
-  useEffect(() => {
-    if (!isDragging) return;
-
-    const handleMouseMove = (e: MouseEvent) => {
-      setPosition({
-        x: e.clientX - dragOffset.x,
-        y: e.clientY - dragOffset.y,
-      });
-    };
-
-    const handleMouseUp = () => {
-      setIsDragging(false);
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isDragging, dragOffset]);
 
   // Save note
   const handleSave = async () => {
@@ -386,7 +352,7 @@ export function StickyNote({ note, noteId, onClose, initialPosition }: StickyNot
   if (isMinimized) {
     return (
       <div
-        ref={noteRef}
+        ref={setNodeRef}
         className={cn(
           'fixed z-50 shadow-2xl rounded-full transition-all cursor-pointer hover:scale-110',
           colorConfig.bg,
@@ -395,11 +361,12 @@ export function StickyNote({ note, noteId, onClose, initialPosition }: StickyNot
           isDragging && 'scale-105'
         )}
         style={{
-          left: `${position.x}px`,
-          top: `${position.y}px`,
+          left: `${translatedPosition.x}px`,
+          top: `${translatedPosition.y}px`,
         }}
         onClick={() => setIsMinimized(false)}
-        onMouseDown={handleMouseDown}
+        {...listeners}
+        {...attributes}
         title={`${generateTitle(content)} - Click to restore`}
       >
         <div className="flex flex-col items-center justify-center">
@@ -414,7 +381,7 @@ export function StickyNote({ note, noteId, onClose, initialPosition }: StickyNot
 
   return (
     <div
-      ref={noteRef}
+      ref={setNodeRef}
       className={cn(
         'fixed z-50 shadow-2xl rounded-lg overflow-hidden transition-all',
         colorConfig.bg,
@@ -425,10 +392,11 @@ export function StickyNote({ note, noteId, onClose, initialPosition }: StickyNot
         isExpanded ? 'w-[500px] h-[600px]' : 'w-[320px] h-[380px]'
       )}
       style={{
-        left: `${position.x}px`,
-        top: `${position.y}px`,
+        left: `${translatedPosition.x}px`,
+        top: `${translatedPosition.y}px`,
       }}
-      onMouseDown={handleMouseDown}
+      {...listeners}
+      {...attributes}
     >
       {/* Notification Toast */}
       {notification && (
