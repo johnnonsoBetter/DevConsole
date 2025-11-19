@@ -35,6 +35,7 @@ import { useAISettingsStore } from '../../utils/stores/aiSettings';
 import { useGitHubSettingsStore } from '../../utils/stores/githubSettings';
 import { BetterTabs } from '../ui/better-tabs';
 import { GitHubIssueSlideout } from './GitHubIssueSlideout';
+import { GitHubIssuesTab } from './GitHubIssuesTab';
 import { LogsPanel } from './panels/LogsPanel';
 import { NetworkPanel } from './panels/NetworkPanel';
 import { NotesPanel } from './panels/NotesPanel';
@@ -62,6 +63,7 @@ const CONSOLE_TABS = [
   { id: 'notes', label: 'Notes', icon: BookOpen },
   { id: 'graphql', label: 'GraphQL', icon: Zap },
   { id: 'tools', label: 'Tools', icon: Activity },
+  { id: 'github', label: 'GitHub', icon: Github },
   { id: 'settings', label: 'Settings', icon: Settings },
 ] as const;
 
@@ -76,6 +78,7 @@ export interface DevConsolePanelProps {
 
 export function DevConsolePanel({ githubConfig }: DevConsolePanelProps = {}) {
   const { unreadErrorCount, logsToBeExported } = useDevConsoleStore();
+  const [activeTab, setActiveTab] = useState<string>(CONSOLE_TABS[0].id);
 
   const githubSettings = useGitHubSettingsStore();
   // Load AI and GitHub settings globally when DevConsole mounts
@@ -153,6 +156,12 @@ export function DevConsolePanel({ githubConfig }: DevConsolePanelProps = {}) {
               {tab.id === 'notes' && <NotesPanel />}
               {tab.id === 'graphql' && <GraphQLExplorer />}
               {tab.id === 'tools' && <ToolsPanel />}
+              {tab.id === 'github' && (
+                <GitHubIssuesTab
+                  githubConfig={effectiveGithubConfig || undefined}
+                  onOpenSettings={() => setActiveTab('settings')}
+                />
+              )}
               {tab.id === 'settings' && <UnifiedSettingsPanel />}
             </>
           ),
@@ -253,6 +262,8 @@ export function DevConsolePanel({ githubConfig }: DevConsolePanelProps = {}) {
         <BetterTabs
           tabs={betterTabs}
           defaultTab="logs"
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
           variant="default"
           className="flex-1"
         />
