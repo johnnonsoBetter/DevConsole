@@ -16,6 +16,8 @@ const debugBridgeLog = (...args: any[]) => {
   console.debug('[DevToolsBridge]', ...args);
 };
 
+let isBridgeInitialized = false;
+
 let applyLocalClearLogs: () => void = () => {
   useDevConsoleStore.setState((state) => state);
 };
@@ -71,6 +73,12 @@ function wrapStoreActions() {
  * Listens for messages from background and updates the Zustand store
  */
 export function initializeBackgroundBridge() {
+  if (isBridgeInitialized) {
+    debugBridgeLog('bridge already initialized, skipping re-init');
+    return;
+  }
+  isBridgeInitialized = true;
+
   // Listen for messages from background script
   chrome.runtime.onMessage.addListener((message) => {
     debugBridgeLog('message', message.type);

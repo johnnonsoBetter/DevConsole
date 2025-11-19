@@ -130,7 +130,10 @@ if (chrome.runtime.onSuspend) {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const tabId = sender.tab?.id || 0;
 
-  console.log('Background received message:', message.type, 'from tab:', tabId);
+  const DEBUG_MESSAGES = false;
+  if (DEBUG_MESSAGES) {
+    console.log('Background received message:', message.type, 'from tab:', tabId);
+  }
 
   let keepChannelOpen = false;
 
@@ -371,4 +374,3 @@ async function getAutofillStats(): Promise<{
 }
 
 export { };
-

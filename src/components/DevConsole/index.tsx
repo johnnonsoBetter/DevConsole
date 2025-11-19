@@ -14,7 +14,10 @@ export interface DevConsoleProps {
 }
 
 export function DevConsole({ githubConfig }: DevConsoleProps = {}) {
-  const { toggleConsole, toggleCommandPalette } = useDevConsoleStore();
+  const toggleConsole = useDevConsoleStore((state) => state.toggleConsole);
+  const toggleCommandPalette = useDevConsoleStore(
+    (state) => state.toggleCommandPalette
+  );
 
   // Display initialization message
   useEffect(() => {
@@ -69,4 +72,3 @@ export function DevConsole({ githubConfig }: DevConsoleProps = {}) {
 export { DevConsolePanel } from './DevConsolePanel';
 export type { GitHubConfig } from './DevConsolePanel';
 export { UnifiedSettingsPanel } from './UnifiedSettingsPanel';
-
