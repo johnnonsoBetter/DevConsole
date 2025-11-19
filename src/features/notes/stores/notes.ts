@@ -107,6 +107,8 @@ export const useNotesStore = create<NotesState>((set, get) => ({
             ...draft.notes[noteIndex],
             ...updates,
           };
+
+          draft.notes = [...draft.notes];
         }
       })
     );

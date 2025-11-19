@@ -79,6 +79,7 @@ export function StickyNoteButton({ className }: StickyNoteButtonProps) {
         return (
           <StickyNote
             key={noteId}
+            noteId={noteId}
             note={existingNote}
             onClose={() => handleCloseNote(noteId)}
             initialPosition={getInitialPosition(index)}

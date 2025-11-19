@@ -78,7 +78,6 @@ export function DevConsolePanel({ githubConfig }: DevConsolePanelProps = {}) {
   const { unreadErrorCount, logsToBeExported } = useDevConsoleStore();
 
   const githubSettings = useGitHubSettingsStore();
-  
   // Load AI and GitHub settings globally when DevConsole mounts
   const { loadSettings: loadAISettings } = useAISettingsStore();
   const { loadSettings: loadGitHubSettings } = useGitHubSettingsStore();

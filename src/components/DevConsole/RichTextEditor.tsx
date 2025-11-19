@@ -5,25 +5,27 @@
  */
 
 import {
-    Bold,
-    Code,
-    Edit3,
-    Eye,
-    Heading1,
-    Heading2,
-    Italic,
-    List,
-    ListOrdered,
-    Quote,
+  Bold,
+  Code,
+  Edit3,
+  Eye,
+  Heading1,
+  Heading2,
+  Italic,
+  List,
+  ListOrdered,
+  Quote,
 } from 'lucide-react';
 import { exampleSetup } from 'prosemirror-example-setup';
 import {
-    defaultMarkdownParser,
-    defaultMarkdownSerializer,
-    schema as markdownSchema,
+  defaultMarkdownParser,
+  defaultMarkdownSerializer,
+  schema as markdownSchema,
 } from 'prosemirror-markdown';
-import { EditorState } from 'prosemirror-state';
+import { Command, EditorState } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
+import { toggleMark, setBlockType, wrapIn } from 'prosemirror-commands';
+import { wrapInList } from 'prosemirror-schema-list';
 import { useEffect, useRef, useState } from 'react';
 import { cn } from '../../utils';
 
@@ -52,6 +54,15 @@ export function RichTextEditor({
   const [showMarkdown, setShowMarkdown] = useState(false);
   const [markdownText, setMarkdownText] = useState(content);
   const contentRef = useRef(content);
+
+  // Helper to run ProseMirror commands from toolbar buttons
+  const runCommand = (command: Command) => {
+    const view = viewRef.current;
+    if (!view) return;
+    const { state, dispatch } = view;
+    command(state, dispatch);
+    view.focus();
+  };
 
   // Initialize editor once on mount
   useEffect(() => {
@@ -138,6 +149,7 @@ export function RichTextEditor({
           </span>
           <button
             type="button"
+            onClick={() => runCommand(toggleMark(markdownSchema.marks.strong))}
             className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
             title="Bold (Ctrl+B)"
           >
@@ -145,6 +157,7 @@ export function RichTextEditor({
           </button>
           <button
             type="button"
+            onClick={() => runCommand(toggleMark(markdownSchema.marks.em))}
             className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
             title="Italic (Ctrl+I)"
           >
@@ -152,6 +165,7 @@ export function RichTextEditor({
           </button>
           <button
             type="button"
+            onClick={() => runCommand(toggleMark(markdownSchema.marks.code))}
             className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
             title="Code (Ctrl+`)"
           >
@@ -160,6 +174,9 @@ export function RichTextEditor({
           <div className="w-px h-4 bg-gray-300 dark:bg-gray-600 mx-1" />
           <button
             type="button"
+            onClick={() =>
+              runCommand(setBlockType(markdownSchema.nodes.heading, { level: 1 }))
+            }
             className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
             title="Heading 1"
           >
@@ -167,6 +184,9 @@ export function RichTextEditor({
           </button>
           <button
             type="button"
+            onClick={() =>
+              runCommand(setBlockType(markdownSchema.nodes.heading, { level: 2 }))
+            }
             className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
             title="Heading 2"
           >
@@ -174,6 +194,7 @@ export function RichTextEditor({
           </button>
           <button
             type="button"
+            onClick={() => runCommand(wrapIn(markdownSchema.nodes.blockquote))}
             className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
             title="Quote"
           >
@@ -182,6 +203,7 @@ export function RichTextEditor({
           <div className="w-px h-4 bg-gray-300 dark:bg-gray-600 mx-1" />
           <button
             type="button"
+            onClick={() => runCommand(wrapInList(markdownSchema.nodes.bullet_list))}
             className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
             title="Bullet List"
           >
@@ -189,6 +211,7 @@ export function RichTextEditor({
           </button>
           <button
             type="button"
+            onClick={() => runCommand(wrapInList(markdownSchema.nodes.ordered_list))}
             className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
             title="Numbered List"
           >

@@ -18,6 +18,7 @@ import { Note, useNotesStore } from '../stores/notes';
 
 interface StickyNoteProps {
   note?: Note;
+  noteId: string; // ID used to track this sticky instance (can be temp)
   onClose: () => void;
   initialPosition?: { x: number; y: number };
 }
@@ -34,12 +35,12 @@ const STICKY_COLORS = [
 // STICKY NOTE COMPONENT
 // ============================================================================
 
-export function StickyNote({ note, onClose, initialPosition }: StickyNoteProps) {
+export function StickyNote({ note, noteId, onClose, initialPosition }: StickyNoteProps) {
   const githubSlideoutStore = useGitHubIssueSlideoutStore();
   const closeStickyNote = useNotesStore((s) => s.closeStickyNote);
 
   const [position, setPosition] = useState(initialPosition || { x: 100, y: 100 });
-  const [noteId, setNoteId] = useState<string | null>(note?.id || null); // Track if note is persisted
+  const [persistedId, setPersistedId] = useState<string | null>(note?.id || null); // Track if note is persisted
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [isExpanded, setIsExpanded] = useState(false);
@@ -59,6 +60,7 @@ export function StickyNote({ note, onClose, initialPosition }: StickyNoteProps) 
   const noteRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLTextAreaElement>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const tempNoteIdRef = useRef<string | null>(note ? null : noteId);
 
   // Auto-hide notification after 4 seconds
   useEffect(() => {
@@ -90,7 +92,7 @@ export function StickyNote({ note, onClose, initialPosition }: StickyNoteProps) 
   useEffect(() => {
     return () => {
       // Force save on unmount if there's content
-      if (content.trim() && !noteId && !note) {
+      if (content.trim() && !persistedId && !note) {
         // This is a temp note with content that was never saved
         handleSave();
       }
@@ -165,9 +167,9 @@ export function StickyNote({ note, onClose, initialPosition }: StickyNoteProps) 
     try {
       const autoTitle = generateTitle(content);
       
-      if (note || noteId) {
+      if (note || persistedId) {
         // Update existing note
-        const idToUpdate = note?.id || noteId;
+        const idToUpdate = note?.id || persistedId;
         if (idToUpdate) {
           await NotesService.updateNote(idToUpdate, {
             title: autoTitle,
@@ -188,9 +190,12 @@ export function StickyNote({ note, onClose, initialPosition }: StickyNoteProps) 
           screenshot,
         });
         // Track the newly created note ID
-        setNoteId(newNote.id);
+        setPersistedId(newNote.id);
         // Update the store to track this persisted note instead of temp ID
-        closeStickyNote(`temp-${noteId}`);
+        if (tempNoteIdRef.current) {
+          closeStickyNote(tempNoteIdRef.current);
+          tempNoteIdRef.current = null;
+        }
         useNotesStore.getState().openStickyNote(newNote.id);
       }
     } catch (error) {
@@ -242,7 +247,7 @@ export function StickyNote({ note, onClose, initialPosition }: StickyNoteProps) 
 
   // Delete note
   const handleDelete = async () => {
-    const idToDelete = note?.id || noteId;
+    const idToDelete = note?.id || persistedId;
     
     if (idToDelete && confirm('Delete this note?')) {
       await NotesService.deleteNote(idToDelete);

@@ -55,7 +55,10 @@ export interface GitHubIssueSlideoutState {
   publishStatus: PublishStatus;
 
   // Actions - Visibility
-  open: (log?: LogEntry | null, content?: { title?: string; body?: string }) => void;
+  open: (
+    log?: LogEntry | null,
+    content?: { title?: string; body?: string }
+  ) => void;
   close: () => void;
 
   // Actions - Content

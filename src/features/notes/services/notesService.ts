@@ -54,7 +54,7 @@ export class NotesService {
 
     // Persist to storage with the updated notes array
     const updatedNotes = [...notes, newNote];
-    
+
     try {
       await StorageService.set(STORAGE_KEY, updatedNotes);
     } catch (error) {
@@ -125,7 +125,7 @@ export class NotesService {
 
     // Persist to storage
     const updatedNotes = notes.filter((note) => note.id !== id);
-    
+
     try {
       await StorageService.set(STORAGE_KEY, updatedNotes);
     } catch (error) {
@@ -153,13 +153,29 @@ export class NotesService {
    * Clear all notes
    */
   static async clearAllNotes(): Promise<void> {
-    const { clearNotes } = useNotesStore.getState();
+    const { clearNotes, notes, selectedNoteId, activeNoteIds, filter } =
+      useNotesStore.getState();
+
+    // Snapshot current state for rollback if persistence fails
+    const snapshot = {
+      notes: [...notes],
+      selectedNoteId,
+      activeNoteIds: [...activeNoteIds],
+      filter: { ...filter },
+    };
 
     // Update state immediately
     clearNotes();
 
     // Persist to storage
-    await StorageService.set(STORAGE_KEY, []);
+    try {
+      await StorageService.set(STORAGE_KEY, []);
+    } catch (error) {
+      console.error("Failed to clear notes:", error);
+      // Roll back optimistic clear so the UI stays consistent with storage
+      useNotesStore.setState(snapshot);
+      throw error;
+    }
   }
 
   /**

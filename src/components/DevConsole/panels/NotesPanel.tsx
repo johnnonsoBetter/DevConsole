@@ -85,9 +85,8 @@ export function NotesPanel() {
   };
 
   const handleContentChange = async (content: string) => {
-    if (selectedNote) {
-      await NotesService.updateNote(selectedNote.id, { content });
-    }
+    if (!selectedNoteId) return;
+    await NotesService.updateNote(selectedNoteId, { content });
   };
 
   const handleColorChange = async (color: string | undefined) => {
@@ -353,6 +352,7 @@ export function NotesPanel() {
             {/* Rich Text Editor */}
             <div className="flex-1 overflow-hidden">
               <RichTextEditor
+                key={selectedNote.id}
                 content={selectedNote.content}
                 onChange={handleContentChange}
                 placeholder="Start writing your ideas..."
