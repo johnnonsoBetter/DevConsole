@@ -17,6 +17,7 @@ export interface CreateIssueParams {
   labels?: string[];
   assignees?: string[];
   screenshot?: string; // base64 data URL
+  attachments?: IssueAttachment[];
 }
 
 export interface GitHubIssue {
@@ -50,6 +51,12 @@ export interface UpdateIssueParams {
   title?: string;
   body?: string;
   state?: 'open' | 'closed';
+}
+
+export interface IssueAttachment {
+  dataUrl: string;
+  filename?: string;
+  path?: string;
 }
 
 function parseRepo(config: GitHubConfig): { owner: string; repo: string } {
@@ -102,6 +109,64 @@ function handleGitHubApiError(error: unknown): never {
 }
 
 /**
+ * Upload an image/asset to the repository using the contents API
+ * Returns a public download URL that can be embedded in Markdown.
+ */
+export async function uploadIssueAttachment(
+  config: GitHubConfig,
+  attachment: IssueAttachment
+): Promise<string> {
+  const { owner, repo } = parseRepo(config);
+
+  const match = attachment.dataUrl.match(/^data:(.*?);base64,(.*)$/);
+  if (!match) {
+    throw new Error('Invalid data URL for attachment. Expected base64 data URL.');
+  }
+
+  const mimeType = match[1] || 'image/png';
+  const base64Data = match[2];
+
+  const extensionFromMime = (() => {
+    if (mimeType.includes('png')) return 'png';
+    if (mimeType.includes('jpeg') || mimeType.includes('jpg')) return 'jpg';
+    if (mimeType.includes('gif')) return 'gif';
+    return 'bin';
+  })();
+
+  const baseFilename =
+    attachment.filename?.replace(/[^a-zA-Z0-9._-]/g, '_') ||
+    `issue-asset.${extensionFromMime}`;
+  const uniqueFilename = `${Date.now()}-${Math.random().toString(16).slice(2)}-${baseFilename}`;
+
+  const path = attachment.path || `issue-assets/${uniqueFilename}`;
+
+  try {
+    const response = await axios.put(
+      `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
+      {
+        message: `Upload issue asset ${uniqueFilename}`,
+        content: base64Data,
+        encoding: 'base64',
+      },
+      {
+        headers: {
+          ...buildHeaders(config.token),
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    const downloadUrl: string | undefined = (response.data as any)?.content?.download_url;
+    if (!downloadUrl) {
+      throw new Error('Failed to retrieve uploaded image URL from GitHub.');
+    }
+    return downloadUrl;
+  } catch (error) {
+    handleGitHubApiError(error);
+  }
+}
+
+/**
  * Create a GitHub issue
  */
 export async function createGitHubIssue(
@@ -110,13 +175,30 @@ export async function createGitHubIssue(
 ): Promise<GitHubIssueResponse> {
   const { owner, repo } = parseRepo(config);
 
-  // Base64 screenshots are too large for GitHub API
-  // Instead, add a note about the screenshot
-  let bodyWithScreenshot = params.body;
+  // Upload attachments (including screenshot) first, then embed in body
+  const attachmentsToUpload: IssueAttachment[] = [];
   if (params.screenshot) {
-    // Note: We can't include the base64 screenshot directly due to size limits
-    // Users can download it separately or we could upload to an image hosting service
-    bodyWithScreenshot = `> **Note:** A screenshot was captured. Download it from the DevConsole before closing.\n\n${params.body}`;
+    attachmentsToUpload.push({
+      dataUrl: params.screenshot,
+      filename: 'screenshot.png',
+    });
+  }
+  if (params.attachments?.length) {
+    attachmentsToUpload.push(...params.attachments);
+  }
+
+  let bodyWithAssets = params.body;
+  if (attachmentsToUpload.length > 0) {
+    const uploadedMarkdown: string[] = [];
+    for (const attachment of attachmentsToUpload) {
+      const imageUrl = await uploadIssueAttachment(config, attachment);
+      const alt = attachment.filename || 'attachment';
+      uploadedMarkdown.push(`![${alt}](${imageUrl})`);
+    }
+
+    if (uploadedMarkdown.length > 0) {
+      bodyWithAssets = `${params.body}\n\n${uploadedMarkdown.join('\n')}`;
+    }
   }
 
   try {
@@ -124,7 +206,7 @@ export async function createGitHubIssue(
       `https://api.github.com/repos/${owner}/${repo}/issues`,
       {
         title: params.title,
-        body: bodyWithScreenshot,
+        body: bodyWithAssets,
         labels: params.labels || [],
         assignees: params.assignees || [],
       },

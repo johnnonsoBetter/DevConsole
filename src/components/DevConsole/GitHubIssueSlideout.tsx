@@ -1,6 +1,6 @@
 import { useGitHubIssueSlideoutStore, useGitHubSettingsStore, type GitHubSettings } from "@/utils/stores";
 import { AnimatePresence, motion } from "framer-motion";
-import { AlertCircle, CheckCircle, Code, Eye, EyeOff, Github, Info, Loader, Save, Send, Settings, TestTube, X, XCircle } from "lucide-react";
+import { AlertCircle, Camera, CheckCircle, Code, Eye, EyeOff, Github, Info, Loader, Save, Send, Settings, TestTube, X, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -316,6 +316,7 @@ export function GitHubIssueSlideout({ isOpen, onClose, githubConfig, onOpenSetti
     publishStatus,
     setTitle,
     setBody,
+    setScreenshot,
     setActiveView,
     setIsGenerating,
     setIsPublishing,
@@ -323,6 +324,7 @@ export function GitHubIssueSlideout({ isOpen, onClose, githubConfig, onOpenSetti
     updateContent,
     resetContent,
   } = useGitHubIssueSlideoutStore();
+  const [attachments, setAttachments] = useState<{ dataUrl: string; filename?: string }[]>([]);
 
   // Reset state when slideout closes
   useEffect(() => {
@@ -332,6 +334,7 @@ export function GitHubIssueSlideout({ isOpen, onClose, githubConfig, onOpenSetti
       setActiveView("preview");
       setIsGenerating(false);
       setIsPublishing(false);
+      setAttachments([]);
     }
   }, [isOpen, resetContent, setActiveView, setIsGenerating, setIsPublishing]);
 
@@ -360,7 +363,11 @@ export function GitHubIssueSlideout({ isOpen, onClose, githubConfig, onOpenSetti
         title: title.trim(),
         body: body.trim(),
         labels: ["bug", "auto-generated"],
-        screenshot: screenshot || undefined,
+        attachments: attachments.map((att, index) => ({
+          dataUrl: att.dataUrl,
+          filename: att.filename || `attachment-${index + 1}.png`,
+        })),
+        screenshot: undefined,
       });
 
       setPublishStatus({
@@ -368,6 +375,7 @@ export function GitHubIssueSlideout({ isOpen, onClose, githubConfig, onOpenSetti
         message: `Issue #${response.number} created successfully!`,
         issueUrl: response.html_url,
       });
+      setAttachments([]);
 
       // Auto-close after successful publish
       setTimeout(() => {
@@ -382,6 +390,27 @@ export function GitHubIssueSlideout({ isOpen, onClose, githubConfig, onOpenSetti
       });
     } finally {
       setIsPublishing(false);
+    }
+  };
+
+  const handleCaptureAndAttach = async () => {
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab?.windowId) {
+        throw new Error("No active tab to capture.");
+      }
+      const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" });
+      setAttachments((prev) => [...prev, { dataUrl, filename: "screenshot.png" }]);
+      setPublishStatus({
+        type: "success",
+        message: "Screenshot captured. It will upload when you publish.",
+        issueUrl: undefined,
+      });
+    } catch (error) {
+      setPublishStatus({
+        type: "error",
+        message: error instanceof Error ? error.message : "Failed to capture screenshot.",
+      });
     }
   };
 
@@ -414,11 +443,11 @@ export function GitHubIssueSlideout({ isOpen, onClose, githubConfig, onOpenSetti
                 </h3>
               </div>
 
-              <div className="flex items-center gap-2">
-                {/* View Toggle */}
-                <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
-                  <button
-                    onClick={() => setActiveView("preview")}
+            <div className="flex items-center gap-2">
+              {/* View Toggle */}
+              <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+                <button
+                  onClick={() => setActiveView("preview")}
                     className={cn(
                       "px-3 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5",
                       activeView === "preview"
@@ -443,6 +472,17 @@ export function GitHubIssueSlideout({ isOpen, onClose, githubConfig, onOpenSetti
                   </button>
                 </div>
 
+                {/* Inline upload button */}
+                {/* Capture & attach Screenshot */}
+                <button
+                  onClick={handleCaptureAndAttach}
+                  disabled={isPublishing}
+                  className="p-2 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-lg transition-colors disabled:opacity-50"
+                  title="Capture screenshot and attach to issue"
+                >
+                  <Camera className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                </button>
+
                 {/* Close Button */}
                 <button
                   onClick={onClose}
@@ -454,10 +494,10 @@ export function GitHubIssueSlideout({ isOpen, onClose, githubConfig, onOpenSetti
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-auto p-4">
-              {!effectiveGithubConfig?.username || !effectiveGithubConfig?.repo || !effectiveGithubConfig?.token ? (
-                /* GitHub Not Configured - Show Settings Form */
-                <div className="max-w-lg mx-auto">
+                <div className="flex-1 overflow-auto p-4">
+                  {!effectiveGithubConfig?.username || !effectiveGithubConfig?.repo || !effectiveGithubConfig?.token ? (
+                    /* GitHub Not Configured - Show Settings Form */
+                    <div className="max-w-lg mx-auto">
                   <div className="mb-6 text-center">
                     <div className="w-16 h-16 rounded-full bg-warning/10 flex items-center justify-center mb-4 mx-auto">
                       <Settings className="w-8 h-8 text-warning" />
@@ -531,42 +571,67 @@ export function GitHubIssueSlideout({ isOpen, onClose, githubConfig, onOpenSetti
                       rows={24}
                     />
                   </div>
+
+                  {/* Attachments */}
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Images (upload or capture)
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <label className="px-3 py-2 bg-white dark:bg-gray-800 border border-dashed border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-700 dark:text-gray-200 cursor-pointer hover:border-primary/60">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const reader = new FileReader();
+                            reader.onload = () => {
+                              if (typeof reader.result === "string") {
+                                setAttachments((prev) => [...prev, { dataUrl: reader.result as string, filename: file.name }]);
+                                setPublishStatus({
+                                  type: "success",
+                                  message: "Image added. It will upload when you publish.",
+                                  issueUrl: undefined,
+                                });
+                              }
+                            };
+                            reader.readAsDataURL(file);
+                          }}
+                        />
+                        Upload image
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleCaptureAndAttach}
+                        disabled={isPublishing}
+                        className="p-2 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-lg transition-colors disabled:opacity-50"
+                        title="Capture screenshot and attach"
+                      >
+                        <Camera className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                      </button>
+                    </div>
+                    {attachments.length > 0 && (
+                      <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-2 bg-white dark:bg-gray-800">
+                        <p className="text-xs text-muted-foreground mb-1">Images to attach on publish:</p>
+                        <div className="flex flex-wrap gap-2">
+                          {attachments.map((att, idx) => (
+                            <img
+                              key={idx}
+                              src={att.dataUrl}
+                              alt={att.filename || `attachment-${idx + 1}`}
+                              className="max-h-32 rounded-md object-contain border border-gray-200 dark:border-gray-700"
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               ) : (
                 // Preview Mode
                 <div className="space-y-4">
-                  {/* Screenshot Preview */}
-                  {screenshot && (
-                    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-                      <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center gap-2">
-                        <Eye className="w-4 h-4" />
-                        Screenshot Preview
-                      </h2>
-                      <div className="relative rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
-                        <img
-                          src={screenshot}
-                          alt="Page screenshot"
-                          className="w-full h-auto"
-                        />
-                        <div className="absolute top-2 right-2">
-                          <a
-                            href={screenshot}
-                            download={`linkvybe-issue-screenshot-${Date.now()}.png`}
-                            className="px-3 py-1.5 bg-black/60 hover:bg-black/80 text-white rounded-lg text-xs font-medium transition-colors backdrop-blur-sm"
-                          >
-                            Download
-                          </a>
-                        </div>
-                      </div>
-                      <div className="mt-3 p-2 bg-warning/10 border border-warning/20 rounded-lg">
-                        <p className="text-xs text-warning">
-                          ⚠️ <strong>Note:</strong> Screenshot cannot be automatically attached due to GitHub API size limits.
-                          Please download it using the button above and manually attach it to the issue after creation.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
                   {/* Markdown Preview */}
                   <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
                     <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 pb-3 border-b border-gray-200 dark:border-gray-700">
@@ -645,6 +710,21 @@ export function GitHubIssueSlideout({ isOpen, onClose, githubConfig, onOpenSetti
                       >
                         {body || "*No content*"}
                       </ReactMarkdown>
+                      {attachments.length > 0 && (
+                        <div className="mt-4 space-y-2">
+                          <p className="text-xs text-muted-foreground">Images to attach on publish:</p>
+                          <div className="flex flex-wrap gap-2">
+                            {attachments.map((att, idx) => (
+                              <img
+                                key={idx}
+                                src={att.dataUrl}
+                                alt={att.filename || `attachment-${idx + 1}`}
+                                className="max-h-32 rounded-md object-contain border border-gray-200 dark:border-gray-700"
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

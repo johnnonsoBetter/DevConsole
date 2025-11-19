@@ -1,7 +1,8 @@
 
 import { useGitHubIssueSlideoutStore } from "@/utils/stores";
 import DOMPurify from "dompurify";
-import { AlertCircle, CheckCircle, Code, Eye, Github, Loader, Send, Settings } from "lucide-react";
+import { useState } from "react";
+import { AlertCircle, CheckCircle, Code, Eye, Github, Image as ImageIcon, Loader, Send, Settings } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useGitHubSettings } from "../../hooks/useGitHubSettings";
@@ -16,6 +17,8 @@ import { cn } from "../../utils";
 export function GitHubIssuePanel({ onOpenSettings }: { onOpenSettings: () => void }) {
   // GitHub Settings Hook
   const { settings,  } = useGitHubSettings();
+  const [attachments, setAttachments] = useState<{ dataUrl: string; filename?: string }[]>([]);
+  const [isReadingImage, setIsReadingImage] = useState(false);
 
   // Zustand Store - Centralized state management (same as slideout)
   const {
@@ -24,8 +27,10 @@ export function GitHubIssuePanel({ onOpenSettings }: { onOpenSettings: () => voi
     activeView,
     isPublishing,
     publishStatus,
+    screenshot,
     setTitle,
     setBody,
+    setScreenshot,
     setActiveView,
     setIsPublishing,
     setPublishStatus,
@@ -61,6 +66,42 @@ export function GitHubIssuePanel({ onOpenSettings }: { onOpenSettings: () => voi
     }
   };
 
+  const handleImageUpload = (file?: File | null) => {
+    if (!file) return;
+    if (!settings) {
+      setPublishStatus({
+        type: "error",
+        message: "GitHub settings not configured. Configure before adding images.",
+      });
+      return;
+    }
+
+    setIsReadingImage(true);
+    setPublishStatus({ type: null, message: "" });
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result === "string") {
+        setAttachments((prev) => [...prev, { dataUrl: result, filename: file.name }]);
+        setPublishStatus({
+          type: "success",
+          message: "Image added. It will upload when you publish.",
+          issueUrl: undefined,
+        });
+      }
+      setIsReadingImage(false);
+    };
+    reader.onerror = () => {
+      setIsReadingImage(false);
+      setPublishStatus({
+        type: "error",
+        message: "Failed to read image. Please try again.",
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handlePublish = async () => {
     // Check if settings are configured
     if (!settings) {
@@ -94,6 +135,11 @@ export function GitHubIssuePanel({ onOpenSettings }: { onOpenSettings: () => voi
       const response = await createGitHubIssue(settings, {
         title: title.trim(),
         body: body.trim(),
+        screenshot: screenshot || undefined,
+        attachments: attachments.map((att, index) => ({
+          dataUrl: att.dataUrl,
+          filename: att.filename || `attachment-${index + 1}.png`,
+        })),
         labels: ["bug", "auto-generated"],
       });
 
@@ -102,6 +148,7 @@ export function GitHubIssuePanel({ onOpenSettings }: { onOpenSettings: () => voi
         message: `Issue #${response.number} created successfully!`,
         issueUrl: response.html_url,
       });
+      setAttachments([]);
 
       // Clear form after successful publish using Zustand action
       setTimeout(() => {
@@ -223,6 +270,54 @@ export function GitHubIssuePanel({ onOpenSettings }: { onOpenSettings: () => voi
                 Supports GitHub Flavored Markdown (tables, task lists, code blocks, etc.)
               </p>
             </div>
+
+            {/* Attachments */}
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Screenshot / Image
+              </label>
+              <div className="flex items-center gap-3">
+                <label className="px-3 py-2 bg-white dark:bg-gray-800 border border-dashed border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-700 dark:text-gray-200 cursor-pointer hover:border-primary/60">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => handleImageUpload(e.target.files?.[0])}
+                  />
+                  Upload image
+                </label>
+                {isReadingImage && (
+                  <span className="text-xs text-muted-foreground">Reading image...</span>
+                )}
+                {screenshot && (
+                  <button
+                    type="button"
+                    onClick={() => setScreenshot("")}
+                    className="text-xs text-destructive hover:underline"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+              {attachments.length > 0 && (
+                <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-2 bg-white dark:bg-gray-800">
+                  <p className="text-xs text-muted-foreground mb-1">Preview</p>
+                  <div className="flex flex-wrap gap-2">
+                    {attachments.map((att, idx) => (
+                      <img
+                        key={idx}
+                        src={att.dataUrl}
+                        alt={att.filename || `attachment-${idx + 1}`}
+                        className="max-h-40 rounded-md object-contain border border-gray-200 dark:border-gray-700"
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Images are uploaded to the repo (issue-assets/) and embedded in the issue body.
+              </p>
+            </div>
           </div>
         ) : (
           // Preview Mode
@@ -236,6 +331,28 @@ export function GitHubIssuePanel({ onOpenSettings }: { onOpenSettings: () => voi
                   {sanitizedMarkdown || "*No content*"}
                 </ReactMarkdown>
               </div>
+              {(attachments.length > 0 || screenshot) && (
+                <div className="mt-4 space-y-2">
+                  <p className="text-xs text-muted-foreground">Images to attach on publish:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {attachments.map((att, idx) => (
+                      <img
+                        key={idx}
+                        src={att.dataUrl}
+                        alt={att.filename || `attachment-${idx + 1}`}
+                        className="max-h-32 rounded-md object-contain border border-gray-200 dark:border-gray-700"
+                      />
+                    ))}
+                    {screenshot && (
+                      <img
+                        src={screenshot}
+                        alt="screenshot"
+                        className="max-h-32 rounded-md object-contain border border-gray-200 dark:border-gray-700"
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
