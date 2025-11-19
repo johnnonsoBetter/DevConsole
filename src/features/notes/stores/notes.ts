@@ -41,6 +41,7 @@ interface NotesState {
   // UI State
   selectedNoteId: string | null;
   isLoading: boolean;
+  activeNoteIds: string[]; // IDs of currently visible sticky notes
 
   // Filters & Search
   filter: NotesFilter;
@@ -59,17 +60,24 @@ interface NotesState {
   // Filtering
   setFilter: (filter: Partial<NotesFilter>) => void;
   resetFilter: () => void;
+
+  // Active Sticky Notes Management
+  openStickyNote: (id: string) => void;
+  closeStickyNote: (id: string) => void;
+  toggleStickyNote: (id: string) => void;
+  isStickyNoteOpen: (id: string) => boolean;
 }
 
 const DEFAULT_FILTER: NotesFilter = {
   search: "",
 };
 
-export const useNotesStore = create<NotesState>((set) => ({
+export const useNotesStore = create<NotesState>((set, get) => ({
   // Initial State
   notes: [],
   selectedNoteId: null,
   isLoading: true,
+  activeNoteIds: [],
   filter: { ...DEFAULT_FILTER },
 
   // Synchronous State Setters (Pure Functions)
@@ -84,7 +92,7 @@ export const useNotesStore = create<NotesState>((set) => ({
   addNote: (note) => {
     set(
       produce((draft) => {
-        draft.notes.push(note);
+        draft.notes = draft.notes.concat(note);
       })
     );
   },
@@ -92,9 +100,13 @@ export const useNotesStore = create<NotesState>((set) => ({
   updateNote: (id, updates) => {
     set(
       produce((draft) => {
-        const note = draft.notes.find((n) => n.id === id);
-        if (note) {
-          Object.assign(note, updates);
+        const noteIndex = draft.notes.findIndex((n: Note) => n.id === id);
+        if (noteIndex !== -1) {
+          // Update the note by replacing it in the array
+          draft.notes[noteIndex] = {
+            ...draft.notes[noteIndex],
+            ...updates,
+          };
         }
       })
     );
@@ -103,10 +115,15 @@ export const useNotesStore = create<NotesState>((set) => ({
   deleteNote: (id) => {
     set(
       produce((draft) => {
-        draft.notes = draft.notes.filter((note) => note.id !== id);
+        draft.notes = draft.notes.filter((note: Note) => note.id !== id);
+        // Clean up selection if this note was selected
         if (draft.selectedNoteId === id) {
           draft.selectedNoteId = null;
         }
+        // Clean up from active sticky notes
+        draft.activeNoteIds = draft.activeNoteIds.filter(
+          (noteId: string) => noteId !== id
+        );
       })
     );
   },
@@ -116,6 +133,7 @@ export const useNotesStore = create<NotesState>((set) => ({
       produce((draft) => {
         draft.notes = [];
         draft.selectedNoteId = null;
+        draft.activeNoteIds = [];
         draft.filter = { ...DEFAULT_FILTER };
       })
     );
@@ -153,5 +171,44 @@ export const useNotesStore = create<NotesState>((set) => ({
         draft.filter = { ...DEFAULT_FILTER };
       })
     );
+  },
+
+  // Active Sticky Notes Management
+  openStickyNote: (id) => {
+    set(
+      produce((draft) => {
+        if (!draft.activeNoteIds.includes(id)) {
+          draft.activeNoteIds.push(id);
+        }
+      })
+    );
+  },
+
+  closeStickyNote: (id) => {
+    set(
+      produce((draft) => {
+        draft.activeNoteIds = draft.activeNoteIds.filter(
+          (noteId: string) => noteId !== id
+        );
+      })
+    );
+  },
+
+  toggleStickyNote: (id) => {
+    set(
+      produce((draft) => {
+        if (draft.activeNoteIds.includes(id)) {
+          draft.activeNoteIds = draft.activeNoteIds.filter(
+            (noteId: string) => noteId !== id
+          );
+        } else {
+          draft.activeNoteIds.push(id);
+        }
+      })
+    );
+  },
+
+  isStickyNoteOpen: (id) => {
+    return get().activeNoteIds.includes(id);
   },
 }));

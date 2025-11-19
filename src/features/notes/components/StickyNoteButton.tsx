@@ -5,7 +5,6 @@
  */
 
 import { StickyNote as StickyNoteIcon } from 'lucide-react';
-import { useState } from 'react';
 import { cn } from '../../../utils';
 import { useNotesStore } from '../stores/notes';
 import { StickyNote } from './StickyNote';
@@ -23,19 +22,24 @@ interface StickyNoteButtonProps {
 // ============================================================================
 
 export function StickyNoteButton({ className }: StickyNoteButtonProps) {
-  const [activeNotes, setActiveNotes] = useState<string[]>([]);
+  // Use store state instead of local state for synchronization
   const notes = useNotesStore((s) => s.notes);
+  const activeNoteIds = useNotesStore((s) => s.activeNoteIds);
+  const openStickyNote = useNotesStore((s) => s.openStickyNote);
+  const closeStickyNote = useNotesStore((s) => s.closeStickyNote);
 
   // Create new sticky note
   const handleCreateNote = () => {
     // Generate a temporary ID for new note
     const tempId = `temp-${Date.now()}`;
-    setActiveNotes((prev) => [...prev, tempId]);
+    // Add to store's active notes list
+    openStickyNote(tempId);
   };
 
   // Close sticky note
   const handleCloseNote = (id: string) => {
-    setActiveNotes((prev) => prev.filter((noteId) => noteId !== id));
+    // Remove from store's active notes list
+    closeStickyNote(id);
   };
 
   // Calculate position for new notes (cascade effect)
@@ -60,11 +64,16 @@ export function StickyNoteButton({ className }: StickyNoteButtonProps) {
       >
         <StickyNoteIcon className="w-4 h-4" />
         <span className="hidden sm:inline">Sticky Note</span>
+        {activeNoteIds.length > 0 && (
+          <span className="ml-1 px-1.5 py-0.5 bg-yellow-600 text-white text-xs font-semibold rounded-full">
+            {activeNoteIds.length}
+          </span>
+        )}
       </button>
 
       {/* Render active sticky notes */}
-      {activeNotes.map((noteId, index) => {
-        // Find existing note or create new
+      {activeNoteIds.map((noteId, index) => {
+        // Find existing note or undefined for temp notes
         const existingNote = notes.find((n) => n.id === noteId);
 
         return (

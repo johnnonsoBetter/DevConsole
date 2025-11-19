@@ -52,9 +52,18 @@ export class NotesService {
     addNote(newNote);
     selectNote(newNote.id);
 
-    // Persist to storage
+    // Persist to storage with the updated notes array
     const updatedNotes = [...notes, newNote];
-    await StorageService.set(STORAGE_KEY, updatedNotes);
+    
+    try {
+      await StorageService.set(STORAGE_KEY, updatedNotes);
+    } catch (error) {
+      console.error("Failed to persist new note:", error);
+      // Rollback optimistic update on failure
+      const { notes: currentNotes, setNotes } = useNotesStore.getState();
+      setNotes(currentNotes.filter((n) => n.id !== newNote.id));
+      throw error;
+    }
 
     return newNote;
   }
@@ -68,16 +77,33 @@ export class NotesService {
   ): Promise<void> {
     const { notes, updateNote } = useNotesStore.getState();
 
-    // Find and update the note
-    const updatedNotes = notes.map((note) =>
-      note.id === id ? { ...note, ...updates, updatedAt: Date.now() } : note
-    );
+    // Check if note exists
+    const existingNote = notes.find((n) => n.id === id);
+    if (!existingNote) {
+      console.warn(`Note with id ${id} not found, skipping update`);
+      return;
+    }
 
-    // Update state immediately
-    updateNote(id, { ...updates, updatedAt: Date.now() });
+    // Prepare updated note with new timestamp
+    const updatedNoteData = { ...updates, updatedAt: Date.now() };
+
+    // Update state immediately (optimistic update)
+    updateNote(id, updatedNoteData);
 
     // Persist to storage
-    await StorageService.set(STORAGE_KEY, updatedNotes);
+    const updatedNotes = notes.map((note) =>
+      note.id === id ? { ...note, ...updatedNoteData } : note
+    );
+
+    try {
+      await StorageService.set(STORAGE_KEY, updatedNotes);
+    } catch (error) {
+      console.error("Failed to persist note update:", error);
+      // Rollback optimistic update on failure
+      const { setNotes } = useNotesStore.getState();
+      setNotes(notes); // Restore previous state
+      throw error;
+    }
   }
 
   /**
@@ -86,12 +112,29 @@ export class NotesService {
   static async deleteNote(id: string): Promise<void> {
     const { notes, deleteNote } = useNotesStore.getState();
 
-    // Update state immediately
+    // Check if note exists
+    const existingNote = notes.find((n) => n.id === id);
+    if (!existingNote) {
+      console.warn(`Note with id ${id} not found, skipping delete`);
+      return;
+    }
+
+    // Update state immediately (optimistic update)
+    // This also cleans up selectedNoteId and activeNoteIds
     deleteNote(id);
 
     // Persist to storage
     const updatedNotes = notes.filter((note) => note.id !== id);
-    await StorageService.set(STORAGE_KEY, updatedNotes);
+    
+    try {
+      await StorageService.set(STORAGE_KEY, updatedNotes);
+    } catch (error) {
+      console.error("Failed to persist note deletion:", error);
+      // Rollback optimistic update on failure
+      const { setNotes } = useNotesStore.getState();
+      setNotes(notes); // Restore previous state
+      throw error;
+    }
   }
 
   /**

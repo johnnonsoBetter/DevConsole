@@ -55,7 +55,7 @@ export interface GitHubIssueSlideoutState {
   publishStatus: PublishStatus;
 
   // Actions - Visibility
-  open: (log?: LogEntry | null) => void;
+  open: (log?: LogEntry | null, content?: { title?: string; body?: string }) => void;
   close: () => void;
 
   // Actions - Content
@@ -104,7 +104,7 @@ export const useGitHubIssueSlideoutStore = create<GitHubIssueSlideoutState>(
     ...INITIAL_STATE,
 
     // Visibility Actions
-    open: (log = null) =>
+    open: (log = null, content) =>
       set(
         produce((draft) => {
           draft.isOpen = true;
@@ -144,8 +144,16 @@ export const useGitHubIssueSlideoutStore = create<GitHubIssueSlideoutState>(
             }
 
             draft.body = bodyParts.join("\n");
+          } else if (content) {
+            // Opening with custom content (e.g., from notes)
+            if (content.title !== undefined) {
+              draft.title = content.title;
+            }
+            if (content.body !== undefined) {
+              draft.body = content.body;
+            }
           } else {
-            // Opening without a log - reset content to empty
+            // Opening without a log or content - reset to empty
             draft.title = "";
             draft.body = "";
           }

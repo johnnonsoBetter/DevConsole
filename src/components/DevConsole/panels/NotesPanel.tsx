@@ -9,6 +9,7 @@ import {
   Check,
   Clock,
   Edit,
+  Github,
   Pin,
   Plus,
   Search,
@@ -19,6 +20,7 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 import { NotesService, useNotesStore } from '../../../features/notes';
 import { cn } from '../../../utils';
+import { useGitHubIssueSlideoutStore } from '../../../utils/stores';
 import { humanizeTime } from '../../../utils/timeUtils';
 import { RichTextEditor } from '../RichTextEditor';
 
@@ -42,6 +44,9 @@ export function NotesPanel() {
   const [isEditing, setIsEditing] = useState(false);
   const [editingTitle, setEditingTitle] = useState('');
   const [showColorPicker, setShowColorPicker] = useState(false);
+
+  // GitHub Issue Slideout Store for converting notes to issues
+  const githubSlideoutStore = useGitHubIssueSlideoutStore();
 
   // Load notes on mount
   useEffect(() => {
@@ -90,6 +95,19 @@ export function NotesPanel() {
       await NotesService.updateNote(selectedNote.id, { color });
       setShowColorPicker(false);
     }
+  };
+
+  const handleConvertToIssue = () => {
+    if (!selectedNote) return;
+
+    // Format note content as markdown issue body
+    const issueBody = `## Note: ${selectedNote.title}\n\n${selectedNote.content}\n\n---\n\n*Converted from note created on ${new Date(selectedNote.createdAt).toLocaleString()}*`;
+
+    // Open the slideout with note content prefilled
+    githubSlideoutStore.open(null, {
+      title: selectedNote.title,
+      body: issueBody,
+    });
   };
 
   return (
@@ -283,6 +301,15 @@ export function NotesPanel() {
                     </div>
                   )}
                 </div>
+
+                {/* Convert to Issue Button */}
+                <button
+                  onClick={handleConvertToIssue}
+                  className="p-2 rounded-lg hover:bg-success/10 text-success transition-colors"
+                  title="Convert note to GitHub issue"
+                >
+                  <Github className="w-4 h-4" />
+                </button>
 
                 {/* Pin Button */}
                 <button

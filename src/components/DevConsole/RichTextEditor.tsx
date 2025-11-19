@@ -51,9 +51,11 @@ export function RichTextEditor({
   const viewRef = useRef<EditorView | null>(null);
   const [showMarkdown, setShowMarkdown] = useState(false);
   const [markdownText, setMarkdownText] = useState(content);
+  const contentRef = useRef(content);
 
+  // Initialize editor once on mount
   useEffect(() => {
-    if (!editorRef.current || viewRef.current) return;
+    if (!editorRef.current) return;
 
     // Parse markdown content into ProseMirror document
     const doc = defaultMarkdownParser.parse(content) || markdownSchema.node('doc', null, [
@@ -74,6 +76,7 @@ export function RichTextEditor({
         // Convert to markdown and call onChange
         if (transaction.docChanged) {
           const markdown = defaultMarkdownSerializer.serialize(newState.doc);
+          contentRef.current = markdown;
           onChange(markdown);
           setMarkdownText(markdown);
         }
@@ -87,17 +90,21 @@ export function RichTextEditor({
     }
 
     return () => {
-      view.destroy();
-      viewRef.current = null;
+      if (viewRef.current) {
+        viewRef.current.destroy();
+        viewRef.current = null;
+      }
     };
-  }, []);
+  }, []); // Only run once on mount
 
-  // Update editor when content changes externally
+  // Update editor content when external content changes (e.g., switching notes)
   useEffect(() => {
-    if (!viewRef.current || !content) return;
-
-    const currentMarkdown = defaultMarkdownSerializer.serialize(viewRef.current.state.doc);
-    if (currentMarkdown !== content) {
+    if (!viewRef.current) return;
+    
+    // Only update if content actually changed from external source (not from typing)
+    if (content !== contentRef.current) {
+      contentRef.current = content;
+      
       const doc = defaultMarkdownParser.parse(content) || markdownSchema.node('doc', null, [
         markdownSchema.node('paragraph'),
       ]);
@@ -110,6 +117,11 @@ export function RichTextEditor({
       viewRef.current.updateState(state);
       setMarkdownText(content);
     }
+  }, [content]);
+
+  // Keep markdown text in sync with content prop
+  useEffect(() => {
+    setMarkdownText(content);
   }, [content]);
 
   const toggleView = () => {

@@ -10,7 +10,7 @@ import { webhookCopilot } from '../../../lib/webhookCopilot';
 import { cn } from '../../../utils';
 import { useGitHubIssueSlideoutStore } from '../../../utils/stores';
 import { NotesService } from '../services/notesService';
-import { Note } from '../stores/notes';
+import { Note, useNotesStore } from '../stores/notes';
 
 // ============================================================================
 // TYPES
@@ -36,8 +36,10 @@ const STICKY_COLORS = [
 
 export function StickyNote({ note, onClose, initialPosition }: StickyNoteProps) {
   const githubSlideoutStore = useGitHubIssueSlideoutStore();
+  const closeStickyNote = useNotesStore((s) => s.closeStickyNote);
 
   const [position, setPosition] = useState(initialPosition || { x: 100, y: 100 });
+  const [noteId, setNoteId] = useState<string | null>(note?.id || null); // Track if note is persisted
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [isExpanded, setIsExpanded] = useState(false);
@@ -83,6 +85,17 @@ export function StickyNote({ note, onClose, initialPosition }: StickyNoteProps) 
       contentRef.current.focus();
     }
   }, [note]);
+
+  // Cleanup on unmount - save if there's unsaved content
+  useEffect(() => {
+    return () => {
+      // Force save on unmount if there's content
+      if (content.trim() && !noteId && !note) {
+        // This is a temp note with content that was never saved
+        handleSave();
+      }
+    };
+  }, []); // Empty deps - only run on unmount
 
   // Auto-save debounced
   useEffect(() => {
@@ -152,18 +165,21 @@ export function StickyNote({ note, onClose, initialPosition }: StickyNoteProps) 
     try {
       const autoTitle = generateTitle(content);
       
-      if (note) {
+      if (note || noteId) {
         // Update existing note
-        await NotesService.updateNote(note.id, {
-          title: autoTitle,
-          content: content.trim(),
-          color: selectedColor,
-          pinned: isPinned,
-          screenshot,
-        });
+        const idToUpdate = note?.id || noteId;
+        if (idToUpdate) {
+          await NotesService.updateNote(idToUpdate, {
+            title: autoTitle,
+            content: content.trim(),
+            color: selectedColor,
+            pinned: isPinned,
+            screenshot,
+          });
+        }
       } else {
         // Create new note
-        await NotesService.createNote({
+        const newNote = await NotesService.createNote({
           title: autoTitle,
           content: content.trim(),
           tags: [],
@@ -171,6 +187,11 @@ export function StickyNote({ note, onClose, initialPosition }: StickyNoteProps) 
           color: selectedColor,
           screenshot,
         });
+        // Track the newly created note ID
+        setNoteId(newNote.id);
+        // Update the store to track this persisted note instead of temp ID
+        closeStickyNote(`temp-${noteId}`);
+        useNotesStore.getState().openStickyNote(newNote.id);
       }
     } catch (error) {
       console.error('Failed to save note:', error);
@@ -221,10 +242,14 @@ export function StickyNote({ note, onClose, initialPosition }: StickyNoteProps) 
 
   // Delete note
   const handleDelete = async () => {
-    if (note && confirm('Delete this note?')) {
-      await NotesService.deleteNote(note.id);
+    const idToDelete = note?.id || noteId;
+    
+    if (idToDelete && confirm('Delete this note?')) {
+      await NotesService.deleteNote(idToDelete);
+      // Store cleanup happens automatically in deleteNote action
       onClose();
-    } else if (!note) {
+    } else if (!idToDelete) {
+      // Just close temp note without saving
       onClose();
     }
   };
@@ -256,9 +281,8 @@ export function StickyNote({ note, onClose, initialPosition }: StickyNoteProps) 
     
     const issueBody = bodyParts.join('\n');
     
-    // Open GitHub issue slideout with pre-populated content
-    githubSlideoutStore.open(null);
-    githubSlideoutStore.updateContent({
+    // Open GitHub issue slideout with pre-populated content using new API
+    githubSlideoutStore.open(null, {
       title: noteTitle,
       body: issueBody,
     });
