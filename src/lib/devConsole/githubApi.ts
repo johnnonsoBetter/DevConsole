@@ -41,6 +41,15 @@ export interface GitHubIssueResponse {
   state: string;
 }
 
+export interface GitHubIssueComment {
+  id: number;
+  body: string;
+  user: { login: string; avatar_url: string; html_url: string };
+  html_url: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ListIssuesParams {
   state?: 'open' | 'closed' | 'all';
   page?: number;
@@ -310,6 +319,59 @@ export async function updateGitHubIssue(
       {
         ...updates,
       },
+      {
+        headers: {
+          ...buildHeaders(config.token),
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    return response.data;
+  } catch (error) {
+    handleGitHubApiError(error);
+  }
+}
+
+/**
+ * List comments for a GitHub issue
+ */
+export async function listGitHubIssueComments(
+  config: GitHubConfig,
+  issueNumber: number,
+  options: { perPage?: number } = {}
+): Promise<GitHubIssueComment[]> {
+  const { owner, repo } = parseRepo(config);
+  const { perPage = 30 } = options;
+
+  try {
+    const response = await axios.get<GitHubIssueComment[]>(
+      `https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}/comments`,
+      {
+        params: { per_page: perPage },
+        headers: buildHeaders(config.token),
+      }
+    );
+    return response.data;
+  } catch (error) {
+    handleGitHubApiError(error);
+  }
+}
+
+/**
+ * Create a new comment on a GitHub issue
+ */
+export async function createGitHubIssueComment(
+  config: GitHubConfig,
+  issueNumber: number,
+  body: string
+): Promise<GitHubIssueComment> {
+  const { owner, repo } = parseRepo(config);
+
+  try {
+    const response = await axios.post<GitHubIssueComment>(
+      `https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}/comments`,
+      { body },
       {
         headers: {
           ...buildHeaders(config.token),

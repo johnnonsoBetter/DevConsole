@@ -89,6 +89,11 @@ export function getSuggestionsForField(fieldType: FieldType): string[] {
     }
   });
 
+  // Fallback to static suggestions if no dataset data found
+  if (suggestions.length === 0) {
+    return getStaticSuggestions(fieldType);
+  }
+
   // Limit to 6 suggestions for UI
   return suggestions.slice(0, 6);
 }
@@ -125,7 +130,7 @@ export function getAllFillableInputs(): Array<
   const inputs = document.querySelectorAll<
     HTMLInputElement | HTMLTextAreaElement
   >(
-    'input[type="text"], input[type="number"], input[type="email"], input[type="tel"], input[type="file"], input:not([type]), textarea'
+    'input[type="text"], input[type="number"], input[type="email"], input[type="tel"], input[type="url"], input[type="date"], input[type="file"], input:not([type]), textarea'
   );
 
   const fillableInputs: Array<HTMLInputElement | HTMLTextAreaElement> = [];
@@ -217,7 +222,14 @@ export async function fillAllInputs(): Promise<void> {
       }
     } else {
       // Get value from selected dataset
-      const value = dataStore.getFieldData(currentDataset, inputType);
+      let value = dataStore.getFieldData(currentDataset, inputType);
+      
+      // Fallback for generic types if missing in dataset
+      if (!value && (inputType === 'number' || inputType === 'text')) {
+         const staticVals = getStaticSuggestions(inputType);
+         if (staticVals.length > 0) value = staticVals[0];
+      }
+
       if (value) {
         fillInput(input, value, false); // false = don't show individual confirmations
         filledCount++;

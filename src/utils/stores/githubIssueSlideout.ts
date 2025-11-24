@@ -26,6 +26,7 @@ import type { LogEntry } from "./devConsole";
 // ============================================================================
 
 export type ActiveView = "edit" | "preview";
+export type GitHubIssueSlideoutMode = "create" | "edit";
 
 export interface PublishStatus {
   type: "success" | "error" | null;
@@ -45,6 +46,8 @@ export interface GitHubIssueSlideoutState {
 
   // UI State
   activeView: ActiveView;
+  mode: GitHubIssueSlideoutMode;
+  editingIssueNumber: number | null;
 
   // Loading States
   isGenerating: boolean;
@@ -57,7 +60,8 @@ export interface GitHubIssueSlideoutState {
   // Actions - Visibility
   open: (
     log?: LogEntry | null,
-    content?: { title?: string; body?: string }
+    content?: { title?: string; body?: string },
+    options?: { mode?: GitHubIssueSlideoutMode; editingIssueNumber?: number | null }
   ) => void;
   close: () => void;
 
@@ -68,6 +72,8 @@ export interface GitHubIssueSlideoutState {
 
   // Actions - UI
   setActiveView: (view: ActiveView) => void;
+  setMode: (mode: GitHubIssueSlideoutMode) => void;
+  setEditingIssueNumber: (issueNumber: number | null) => void;
 
   // Actions - Loading
   setIsGenerating: (isGenerating: boolean) => void;
@@ -92,6 +98,8 @@ const INITIAL_STATE = {
   body: "",
   screenshot: "",
   activeView: "preview" as ActiveView,
+  mode: "create" as GitHubIssueSlideoutMode,
+  editingIssueNumber: null as number | null,
   isGenerating: false,
   isCapturingScreenshot: false,
   isPublishing: false,
@@ -107,12 +115,15 @@ export const useGitHubIssueSlideoutStore = create<GitHubIssueSlideoutState>(
     ...INITIAL_STATE,
 
     // Visibility Actions
-    open: (log = null, content) =>
+    open: (log = null, content, options) =>
       set(
         produce((draft) => {
           draft.isOpen = true;
           draft.selectedLog = log;
           draft.activeView = "preview";
+          draft.mode = options?.mode ?? "create";
+          draft.editingIssueNumber =
+            options?.editingIssueNumber !== undefined ? options.editingIssueNumber : null;
 
           // Update content from log if provided
           if (log) {
@@ -205,6 +216,18 @@ export const useGitHubIssueSlideoutStore = create<GitHubIssueSlideoutState>(
           draft.activeView = view;
         })
       ),
+    setMode: (mode) =>
+      set(
+        produce((draft) => {
+          draft.mode = mode;
+        })
+      ),
+    setEditingIssueNumber: (issueNumber) =>
+      set(
+        produce((draft) => {
+          draft.editingIssueNumber = issueNumber;
+        })
+      ),
 
     // Loading Actions
     setIsGenerating: (isGenerating) =>
@@ -259,6 +282,8 @@ export const useGitHubIssueSlideoutStore = create<GitHubIssueSlideoutState>(
           draft.body = "";
           draft.screenshot = "";
           draft.publishStatus = { type: null, message: "" };
+          draft.mode = "create";
+          draft.editingIssueNumber = null;
         })
       ),
   })

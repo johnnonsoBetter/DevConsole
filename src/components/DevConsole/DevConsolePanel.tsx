@@ -7,7 +7,6 @@
 import {
   Activity,
   BookOpen,
-  Camera,
   Download,
   Github,
   Info,
@@ -29,7 +28,6 @@ import {
 const GraphQLExplorer = lazy(() => import('../DevConsole/GraphQLExplorer').then(module => ({default: module.GraphQLExplorer})));
 
 import { StickyNoteButton } from '../../features/notes';
-import { cn } from '../../utils';
 import { useGitHubIssueSlideoutStore } from '../../utils/stores';
 import { useAISettingsStore } from '../../utils/stores/aiSettings';
 import { useGitHubSettingsStore } from '../../utils/stores/githubSettings';
@@ -205,53 +203,7 @@ export function DevConsolePanel({ githubConfig }: DevConsolePanelProps = {}) {
           <div className="flex  items-center gap-2">
             <ThemeToggle size="sm" className="sm:h-9 sm:w-9" />
 
-            {/* Screenshot Button */}
-            <button
-              onClick={handleCaptureScreenshot}
-              className="relative p-2 flex items-center justify-center hover:bg-white/60 dark:hover:bg-gray-800/60 rounded-lg transition-all hover:shadow-apple-sm active:scale-95"
-              title="Capture Screenshot"
-              aria-label="Capture screenshot of current page"
-            >
-              <Camera className="w-4 h-4 text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary transition-colors" />
-            </button>
-
-            <button
-              onClick={() => {
-                const data = logsToBeExported || "";
-                const blob = new Blob([data], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `devconsole-${Date.now()}.json`;
-                a.click();
-                // Clean up blob URL to prevent memory leak
-                setTimeout(() => URL.revokeObjectURL(url), 100);
-              }}
-              className="relative p-2 flex items-center justify-center hover:bg-white/60 dark:hover:bg-gray-800/60 rounded-lg transition-all hover:shadow-apple-sm active:scale-95"
-              title="Export All Data"
-              aria-label="Export all console data as JSON"
-            >
-              <Download className="w-4 h-4 text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary transition-colors" />
-            </button>
-
-            {/* Global Create Issue Button - Always visible */}
-            <button
-              onClick={() => githubSlideoutStore.open()}
-              className={cn(
-                "flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors shadow-apple-sm shrink-0",
-                effectiveGithubConfig?.username && effectiveGithubConfig?.repo && effectiveGithubConfig?.token
-                  ? "bg-success hover:bg-success/90 text-white"
-                  : "bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300"
-              )}
-              title={
-                effectiveGithubConfig?.username && effectiveGithubConfig?.repo && effectiveGithubConfig?.token
-                  ? "Create GitHub Issue"
-                  : "Create GitHub Issue (Configure in Settings first)"
-              }
-            >
-              <Github className="w-4 h-4" />
-              <span className="hidden sm:inline">Create Issue</span>
-            </button>
+          
 
             {/* Sticky Note Button - Quick note-taking */}
             <StickyNoteButton />

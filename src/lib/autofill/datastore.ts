@@ -37,6 +37,9 @@ export class DataStore {
         await this.saveToStorage();
       }
 
+      // Prune old usage history on startup
+      this.pruneUsageHistory();
+
       this.initialized = true;
       console.log('✅ DataStore initialized with', this.datasets.length, 'datasets');
     } catch (error) {
@@ -71,7 +74,8 @@ export class DataStore {
           company: 'Tech Corp',
           title: 'Software Engineer',
           website: 'https://johndoe.com',
-          message: "I'm interested in learning more about this opportunity. Thank you for reaching out. I'd love to connect."
+          message: "I'm interested in learning more about this opportunity. Thank you for reaching out. I'd love to connect.",
+          number: '10'
         }
       },
       {
@@ -92,7 +96,8 @@ export class DataStore {
           company: 'Innovation Labs',
           title: 'Product Manager',
           website: 'https://janesmith.io',
-          message: "Could we schedule a time to discuss this further? I'm looking forward to hearing more details about this opportunity."
+          message: "Could we schedule a time to discuss this further? I'm looking forward to hearing more details about this opportunity.",
+          number: '5'
         }
       },
       {
@@ -113,7 +118,8 @@ export class DataStore {
           company: 'Digital Solutions Inc.',
           title: 'UX Designer',
           website: 'https://alexjohnson.dev',
-          message: "Thank you for the information. I'd appreciate any additional details you can share about next steps."
+          message: "Thank you for the information. I'd appreciate any additional details you can share about next steps.",
+          number: '99'
         }
       },
       {
@@ -134,7 +140,8 @@ export class DataStore {
           company: 'Creative Studios',
           title: 'Art Director',
           website: 'https://mariagarcia.design',
-          message: "I'm excited about this opportunity and would love to contribute my creative expertise to your team."
+          message: "I'm excited about this opportunity and would love to contribute my creative expertise to your team.",
+          number: '1'
         }
       },
       {
@@ -155,7 +162,8 @@ export class DataStore {
           company: 'DevWorks',
           title: 'Senior Developer',
           website: 'https://robertchen.tech',
-          message: "I have extensive experience in this area and would be happy to discuss how I can add value to your project."
+          message: "I have extensive experience in this area and would be happy to discuss how I can add value to your project.",
+          number: '100'
         }
       }
     ];
@@ -369,6 +377,30 @@ export class DataStore {
     this.usageMap = {};
     await this.saveToStorage();
     console.log('✅ Cleared all usage history');
+  }
+
+  /**
+   * Prune usage history older than 30 days to save space
+   */
+  private async pruneUsageHistory(): Promise<void> {
+    const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    let prunedCount = 0;
+
+    const initialSize = Object.keys(this.usageMap).length;
+
+    Object.keys(this.usageMap).forEach(key => {
+      const usage = this.usageMap[key];
+      if (now - usage.lastFillTimestamp > THIRTY_DAYS_MS) {
+        delete this.usageMap[key];
+        prunedCount++;
+      }
+    });
+
+    if (prunedCount > 0) {
+      console.log(`🧹 Pruned ${prunedCount} old usage records (from ${initialSize})`);
+      await this.saveToStorage();
+    }
   }
 
   /**

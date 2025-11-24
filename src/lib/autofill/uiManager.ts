@@ -16,7 +16,25 @@ import { fetchUnsplashImages, fillImageInput, getImageSearchQuery } from './unsp
 let currentInput: HTMLInputElement | HTMLTextAreaElement | null = null;
 let suggestionBox: HTMLElement | null = null;
 let fillAllButton: HTMLElement | null = null;
-const iconElements = new WeakMap<HTMLElement, HTMLElement | null>();
+// Map input -> { icon: HTMLElement, updatePos: () => void }
+const iconRegistry = new Map<HTMLElement, { icon: HTMLElement, updatePos: () => void }>();
+
+// Global event listeners for performance (Single listener instead of N listeners)
+let globalListenersAttached = false;
+
+function ensureGlobalListeners() {
+  if (globalListenersAttached) return;
+  
+  const updateAllIcons = () => {
+    requestAnimationFrame(() => {
+      iconRegistry.forEach(({ updatePos }) => updatePos());
+    });
+  };
+
+  window.addEventListener('scroll', updateAllIcons, true);
+  window.addEventListener('resize', updateAllIcons);
+  globalListenersAttached = true;
+}
 
 /**
  * Escape HTML to prevent XSS
@@ -355,14 +373,14 @@ function handleHiddenFileInput(input: HTMLInputElement): void {
   
   // If no visible target found, still track the input for "Fill All"
   console.log('⚠️ Hidden file input with no visible trigger found, adding to fill-all only');
-  iconElements.set(input, null);
+  // No icon to register
 }
 
 /**
  * Add icon to a target element (for hidden file inputs)
  */
 function addIconToElement(input: HTMLInputElement, targetElement: HTMLElement): void {
-  if (iconElements.has(input)) return;
+  if (iconRegistry.has(input)) return;
   
   const icon = document.createElement('div');
   icon.className = 'autofill-trigger-icon';
@@ -382,15 +400,20 @@ function addIconToElement(input: HTMLInputElement, targetElement: HTMLElement): 
   });
   
   document.body.appendChild(icon);
-  iconElements.set(input, icon);
   
   const updateIconPosition = () => {
     if (!document.contains(targetElement)) {
       icon.remove();
-      iconElements.delete(input);
+      iconRegistry.delete(input);
       return;
     }
     const rect = targetElement.getBoundingClientRect();
+    // Only show if visible in viewport (simple check)
+    if (rect.bottom < 0 || rect.top > window.innerHeight) {
+       icon.style.display = 'none';
+       return;
+    }
+
     icon.style.position = 'absolute';
     icon.style.top = `${rect.top + window.scrollY + (rect.height - 20) / 2}px`;
     icon.style.left = `${rect.right + window.scrollX - 35}px`;
@@ -398,16 +421,19 @@ function addIconToElement(input: HTMLInputElement, targetElement: HTMLElement): 
     icon.style.display = 'flex';
   };
   
+  // Register icon
+  iconRegistry.set(input, { icon, updatePos: updateIconPosition });
+  ensureGlobalListeners();
+  
+  // Initial update
   updateIconPosition();
-  window.addEventListener('scroll', updateIconPosition, true);
-  window.addEventListener('resize', updateIconPosition);
 }
 
 /**
  * Add icon to input
  */
 export function addIconToInput(input: HTMLInputElement | HTMLTextAreaElement): void {
-  if (iconElements.has(input)) return;
+  if (iconRegistry.has(input)) return;
   
   const isFileInput = input instanceof HTMLInputElement && input.type === 'file';
   
@@ -440,15 +466,21 @@ export function addIconToInput(input: HTMLInputElement | HTMLTextAreaElement): v
   });
   
   document.body.appendChild(icon);
-  iconElements.set(input, icon);
   
   const updateIconPosition = () => {
     if (!document.contains(input)) {
       icon.remove();
-      iconElements.delete(input);
+      iconRegistry.delete(input);
       return;
     }
     const rect = input.getBoundingClientRect();
+    
+    // Optimization: Hide if off-screen
+    if (rect.bottom < 0 || rect.top > window.innerHeight) {
+       icon.style.display = 'none';
+       return;
+    }
+
     icon.style.position = 'absolute';
     icon.style.top = `${rect.top + window.scrollY + (rect.height - 20) / 2}px`;
     
@@ -464,9 +496,12 @@ export function addIconToInput(input: HTMLInputElement | HTMLTextAreaElement): v
     icon.style.display = 'flex';
   };
   
+  // Register icon
+  iconRegistry.set(input, { icon, updatePos: updateIconPosition });
+  ensureGlobalListeners();
+  
+  // Initial update
   updateIconPosition();
-  window.addEventListener('scroll', updateIconPosition, true);
-  window.addEventListener('resize', updateIconPosition);
 }
 
 /**
@@ -474,14 +509,14 @@ export function addIconToInput(input: HTMLInputElement | HTMLTextAreaElement): v
  */
 export function enhanceInputs(): void {
   const inputs = document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
-    'input[type="text"], input[type="email"], input[type="tel"], input[type="file"], input:not([type]), textarea'
+    'input[type="text"], input[type="email"], input[type="tel"], input[type="number"], input[type="url"], input[type="date"], input[type="file"], input:not([type]), textarea'
   );
   
   let fileInputCount = 0;
   inputs.forEach(input => {
     if (input instanceof HTMLInputElement) {
       if (input.type === 'password' || input.type === 'hidden') return;
-      if (iconElements.has(input)) return;
+      if (iconRegistry.has(input)) return;
       
       const rect = input.getBoundingClientRect();
       
@@ -504,7 +539,7 @@ export function enhanceInputs(): void {
     } else if (input instanceof HTMLTextAreaElement) {
       const rect = input.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) return;
-      if (!iconElements.has(input)) {
+      if (!iconRegistry.has(input)) {
         addIconToInput(input);
       }
     }

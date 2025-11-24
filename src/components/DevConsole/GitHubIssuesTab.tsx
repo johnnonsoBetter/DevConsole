@@ -2,9 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   CheckCircle2,
+  CircleSlash,
   ExternalLink,
   Github,
   Loader2,
+  MessageCircle,
+  MoreVertical,
+  Pencil,
   Plus,
   RefreshCw,
   Search,
@@ -13,14 +17,21 @@ import {
 } from "lucide-react";
 import { cn } from "@/utils";
 import {
+  createGitHubIssueComment,
+  listGitHubIssueComments,
   listGitHubIssues,
   updateGitHubIssue,
   type GitHubConfig,
+  type GitHubIssueComment,
   type GitHubIssue,
 } from "@/lib/devConsole/githubApi";
 import { useGitHubIssueSlideoutStore, useGitHubSettingsStore } from "@/utils/stores";
+import DOMPurify from "dompurify";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 type IssueState = "open" | "closed" | "all";
+type DetailView = "preview" | "comments";
 
 interface GitHubIssuesTabProps {
   githubConfig?: GitHubConfig | null;
@@ -78,17 +89,23 @@ export function GitHubIssuesTab({ githubConfig, onOpenSettings }: GitHubIssuesTa
   const [stateFilter, setStateFilter] = useState<IssueState>("open");
   const [issues, setIssues] = useState<GitHubIssue[]>([]);
   const [selectedIssue, setSelectedIssue] = useState<GitHubIssue | null>(null);
-  const [editTitle, setEditTitle] = useState("");
-  const [editBody, setEditBody] = useState("");
-  const [editState, setEditState] = useState<"open" | "closed">("open");
   const [searchTerm, setSearchTerm] = useState("");
+  const [detailView, setDetailView] = useState<DetailView>("preview");
 
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
+  const [detailError, setDetailError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string>("");
+  const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
+  const [commentsByIssue, setCommentsByIssue] = useState<Record<number, GitHubIssueComment[]>>({});
+  const [isLoadingComments, setIsLoadingComments] = useState(false);
+  const [commentError, setCommentError] = useState<string | null>(null);
+  const [commentDraft, setCommentDraft] = useState("");
+  const [isPostingComment, setIsPostingComment] = useState(false);
   const selectedIssueNumberRef = useRef<number | null>(null);
   const repoInputRef = useRef(repoInput);
+  const actionMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setRepoInput(resolvedConfig?.repo || "");
@@ -100,30 +117,75 @@ export function GitHubIssuesTab({ githubConfig, onOpenSettings }: GitHubIssuesTa
 
   useEffect(() => {
     if (selectedIssue) {
-      setEditTitle(selectedIssue.title);
-      setEditBody(selectedIssue.body || "");
-      setEditState(selectedIssue.state === "closed" ? "closed" : "open");
       selectedIssueNumberRef.current = selectedIssue.number;
     } else {
       selectedIssueNumberRef.current = null;
     }
   }, [selectedIssue]);
 
+  useEffect(() => {
+    setDetailView("preview");
+    setCommentDraft("");
+    setCommentError(null);
+    setIsActionMenuOpen(false);
+    setDetailError(null);
+    setStatusMessage("");
+  }, [selectedIssue]);
+
+  useEffect(() => {
+    if (!isActionMenuOpen) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (actionMenuRef.current && !actionMenuRef.current.contains(event.target as Node)) {
+        setIsActionMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isActionMenuOpen]);
+
+  useEffect(() => {
+    const handleIssueUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{ issue?: GitHubIssue }>).detail;
+      if (!detail?.issue) return;
+
+      setIssues((prev) => {
+        const exists = prev.some((issue) => issue.number === detail.issue.number);
+        if (!exists) return prev;
+        return prev.map((issue) => (issue.number === detail.issue.number ? detail.issue : issue));
+      });
+
+      setSelectedIssue((prev) =>
+        prev && prev.number === detail.issue.number ? detail.issue : prev
+      );
+      setStatusMessage("Issue updated");
+      setDetailError(null);
+      setDetailView("preview");
+      setIsActionMenuOpen(false);
+    };
+
+    window.addEventListener("github-issue-updated", handleIssueUpdated as EventListener);
+    return () => {
+      window.removeEventListener("github-issue-updated", handleIssueUpdated as EventListener);
+    };
+  }, []);
+
   const fetchIssues = useCallback(
     async (repoOverride?: string) => {
       if (!resolvedConfig) {
-        setError("GitHub not configured. Add settings to load issues.");
+        setListError("GitHub not configured. Add settings to load issues.");
         return;
       }
 
       const repoToUse = (repoOverride ?? repoInputRef.current).trim() || resolvedConfig.repo;
       if (!repoToUse) {
-        setError("Repository is required to load issues.");
+        setListError("Repository is required to load issues.");
         return;
       }
 
       setIsLoading(true);
-      setError(null);
+      setListError(null);
       setStatusMessage("");
 
       try {
@@ -139,7 +201,7 @@ export function GitHubIssuesTab({ githubConfig, onOpenSettings }: GitHubIssuesTa
           setSelectedIssue(refreshed);
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load issues");
+        setListError(err instanceof Error ? err.message : "Failed to load issues");
       } finally {
         setIsLoading(false);
       }
@@ -153,6 +215,126 @@ export function GitHubIssuesTab({ githubConfig, onOpenSettings }: GitHubIssuesTa
     }
   }, [fetchIssues, resolvedConfig]);
 
+  const loadComments = useCallback(
+    async (issue: GitHubIssue, force = false) => {
+      if (!resolvedConfig) {
+        setCommentError("GitHub not configured. Add settings to load comments.");
+        return;
+      }
+      if (!force && commentsByIssue[issue.number]) return;
+
+      const repoForRequests = repoInputRef.current?.trim() || resolvedConfig.repo;
+      setIsLoadingComments(true);
+      setCommentError(null);
+
+      try {
+        const results = await listGitHubIssueComments(
+          { ...resolvedConfig, repo: repoForRequests },
+          issue.number
+        );
+        setCommentsByIssue((prev) => ({
+          ...prev,
+          [issue.number]: results,
+        }));
+      } catch (err) {
+        setCommentError(err instanceof Error ? err.message : "Failed to load comments");
+      } finally {
+        setIsLoadingComments(false);
+      }
+    },
+    [commentsByIssue, resolvedConfig]
+  );
+
+  useEffect(() => {
+    if (detailView === "comments" && selectedIssue) {
+      loadComments(selectedIssue);
+    }
+  }, [detailView, loadComments, selectedIssue]);
+
+  const handleRefreshComments = useCallback(() => {
+    if (selectedIssue) {
+      loadComments(selectedIssue, true);
+    }
+  }, [loadComments, selectedIssue]);
+
+  const handlePostComment = useCallback(async () => {
+    if (!selectedIssue) return;
+    if (!resolvedConfig) {
+      setCommentError("GitHub not configured. Add settings before commenting.");
+      return;
+    }
+    if (!commentDraft.trim()) return;
+
+    setIsPostingComment(true);
+    setCommentError(null);
+    const repoForRequests = repoInputRef.current?.trim() || resolvedConfig.repo;
+
+    try {
+      const comment = await createGitHubIssueComment(
+        { ...resolvedConfig, repo: repoForRequests },
+        selectedIssue.number,
+        commentDraft.trim()
+      );
+      setCommentsByIssue((prev) => {
+        const existing = prev[selectedIssue.number] || [];
+        return {
+          ...prev,
+          [selectedIssue.number]: [...existing, comment],
+        };
+      });
+      setCommentDraft("");
+    } catch (err) {
+      setCommentError(err instanceof Error ? err.message : "Failed to post comment");
+    } finally {
+      setIsPostingComment(false);
+    }
+  }, [commentDraft, resolvedConfig, selectedIssue]);
+
+  const handleToggleIssueState = useCallback(async () => {
+    if (!resolvedConfig || !selectedIssue) return;
+
+    const repoForRequests = repoInputRef.current?.trim() || resolvedConfig.repo;
+    const nextState = selectedIssue.state === "closed" ? "open" : "closed";
+    setIsUpdating(true);
+    setDetailError(null);
+    setStatusMessage("");
+
+    try {
+      const updated = await updateGitHubIssue(
+        { ...resolvedConfig, repo: repoForRequests },
+        selectedIssue.number,
+        { state: nextState }
+      );
+
+      setSelectedIssue(updated);
+      setIssues((prev) => prev.map((issue) => (issue.number === updated.number ? updated : issue)));
+      setStatusMessage(nextState === "closed" ? "Issue closed" : "Issue reopened");
+    } catch (err) {
+      setDetailError(err instanceof Error ? err.message : "Failed to update issue");
+    } finally {
+      setIsUpdating(false);
+      setIsActionMenuOpen(false);
+    }
+  }, [resolvedConfig, selectedIssue]);
+
+  const handleEditIssue = useCallback(() => {
+    if (!selectedIssue) return;
+
+    slideoutStore.open(
+      null,
+      {
+        title: selectedIssue.title,
+        body: selectedIssue.body || "",
+      },
+      {
+        mode: "edit",
+        editingIssueNumber: selectedIssue.number,
+      }
+    );
+    slideoutStore.setActiveView("edit");
+    setIsActionMenuOpen(false);
+  }, [selectedIssue, slideoutStore]);
+
   const filteredIssues = useMemo(() => {
     if (!searchTerm.trim()) return issues;
     return issues.filter((issue) =>
@@ -160,33 +342,9 @@ export function GitHubIssuesTab({ githubConfig, onOpenSettings }: GitHubIssuesTa
     );
   }, [issues, searchTerm]);
 
-  const handleUpdateIssue = async () => {
-    if (!resolvedConfig || !selectedIssue) return;
+  const currentComments = selectedIssue ? commentsByIssue[selectedIssue.number] || [] : [];
+  const sanitizedIssueBody = selectedIssue ? DOMPurify.sanitize(selectedIssue.body || "") : "";
 
-    setIsUpdating(true);
-    setError(null);
-    setStatusMessage("");
-
-    try {
-      const updated = await updateGitHubIssue(
-        { ...resolvedConfig, repo: (repoInput.trim() || resolvedConfig.repo) },
-        selectedIssue.number,
-        {
-          title: editTitle.trim() || selectedIssue.title,
-          body: editBody,
-          state: editState,
-        }
-      );
-
-      setSelectedIssue(updated);
-      setIssues((prev) => prev.map((issue) => (issue.number === updated.number ? updated : issue)));
-      setStatusMessage("Issue updated");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update issue");
-    } finally {
-      setIsUpdating(false);
-    }
-  };
 
   if (!resolvedConfig) {
     return (
@@ -297,10 +455,10 @@ export function GitHubIssuesTab({ githubConfig, onOpenSettings }: GitHubIssuesTa
             </div>
           </div>
 
-          {error && (
+          {listError && (
             <div className="px-4 py-3 flex items-start gap-2 text-sm text-destructive bg-destructive/10">
               <AlertCircle className="w-4 h-4 mt-0.5" />
-              <span>{error}</span>
+              <span>{listError}</span>
             </div>
           )}
 
@@ -363,85 +521,145 @@ export function GitHubIssuesTab({ githubConfig, onOpenSettings }: GitHubIssuesTa
         {/* Details side panel */}
         <div
           className={cn(
-            "flex w-full lg:w-[42%] min-w-[320px] lg:min-w-[380px] max-w-[520px] flex-col border border-gray-200 dark:border-gray-800 rounded-xl bg-white dark:bg-gray-900 shadow-sm overflow-hidden",
+            "flex w-full lg:w-[42%] min-w-[320px] lg:min-w-[380px] max-w-[540px] flex-col border border-gray-200 dark:border-gray-800 rounded-xl bg-white dark:bg-gray-900 shadow-sm overflow-hidden",
             !selectedIssue && "hidden lg:flex"
           )}
         >
-          <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between bg-gray-50/70 dark:bg-gray-900/40">
-            <div className="flex items-center gap-2 min-w-0">
-              <Github className="w-4 h-4 text-muted-foreground" />
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
-                {selectedIssue ? `Issue #${selectedIssue.number}` : "Select an issue"}
-              </h3>
-            </div>
-            {selectedIssue ? (
-              <div className="flex items-center gap-2">
-                <a
-                  href={selectedIssue.html_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-primary hover:underline inline-flex items-center gap-1"
-                >
-                  View on GitHub
-                  <ExternalLink className="w-4 h-4" />
-                </a>
-                <button
-                  onClick={() => setSelectedIssue(null)}
-                  className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                  title="Close details"
-                >
-                  ×
-                </button>
+          <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800 flex flex-col gap-2 bg-gray-50/70 dark:bg-gray-900/40">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <Github className="w-4 h-4 text-muted-foreground" />
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
+                  {selectedIssue ? `Issue #${selectedIssue.number}` : "Select an issue"}
+                </h3>
               </div>
-            ) : null}
+              {selectedIssue ? (
+                <div className="flex items-center gap-2">
+                  <a
+                    href={selectedIssue.html_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-primary hover:underline inline-flex items-center gap-1"
+                  >
+                    View on GitHub
+                    <ExternalLink className="w-4 h-4" />
+                  </a>
+                  <div className="relative" ref={actionMenuRef}>
+                    <button
+                      onClick={() => setIsActionMenuOpen((prev) => !prev)}
+                      className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                    >
+                      <MoreVertical className="w-4 h-4 text-muted-foreground" />
+                    </button>
+                    {isActionMenuOpen && (
+                      <div className="absolute right-0 top-full mt-2 w-48 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-xl z-10 py-1">
+                        <button
+                          onClick={handleEditIssue}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800/70 transition-colors text-left"
+                        >
+                          <Pencil className="w-4 h-4" />
+                          Edit issue
+                        </button>
+                        <button
+                          onClick={handleToggleIssueState}
+                          disabled={isUpdating}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800/70 transition-colors text-left disabled:opacity-60"
+                        >
+                          <CircleSlash className="w-4 h-4" />
+                          {selectedIssue.state === "open" ? "Close issue" : "Reopen issue"}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setDetailView("comments");
+                            setIsActionMenuOpen(false);
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800/70 transition-colors text-left"
+                        >
+                          <MessageCircle className="w-4 h-4" />
+                          View comments
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setSelectedIssue(null)}
+                    className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                    title="Close details"
+                  >
+                    ×
+                  </button>
+                </div>
+              ) : null}
+            </div>
+            {selectedIssue && (
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+                  <button
+                    onClick={() => setDetailView("preview")}
+                    className={cn(
+                      "px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
+                      detailView === "preview"
+                        ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm"
+                        : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+                    )}
+                  >
+                    Preview
+                  </button>
+                  <button
+                    onClick={() => setDetailView("comments")}
+                    className={cn(
+                      "px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
+                      detailView === "comments"
+                        ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm"
+                        : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+                    )}
+                  >
+                    Comments
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {selectedIssue ? (
             <>
               <div className="flex-1 overflow-auto p-4 space-y-4">
-                <div className="rounded-lg border border-gray-200 dark:border-gray-800 p-3 bg-gray-50/60 dark:bg-gray-900/60">
-                  <p className="text-xs text-muted-foreground mb-1">State</p>
-                  <div className="flex items-center gap-2">
-                    {(["open", "closed"] as const).map((state) => (
-                      <button
-                        key={state}
-                        onClick={() => setEditState(state)}
-                        className={cn(
-                          "flex-1 px-3 py-2 rounded-lg text-sm font-medium border transition-colors",
-                          editState === state
-                            ? "bg-primary text-white border-primary"
-                            : "bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300"
-                        )}
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <IssueStateBadge state={selectedIssue.state === "closed" ? "closed" : "open"} />
+                        <span className="font-semibold">#{selectedIssue.number}</span>
+                      </div>
+                      <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 leading-tight">
+                        {selectedIssue.title}
+                      </h2>
+                      <p className="text-xs text-muted-foreground">
+                        Opened {formatRelative(selectedIssue.created_at)} by {selectedIssue.user.login}
+                      </p>
+                    </div>
+                    <img
+                      src={selectedIssue.user.avatar_url}
+                      alt={selectedIssue.user.login}
+                      className="w-10 h-10 rounded-full border border-gray-200 dark:border-gray-800"
+                    />
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {selectedIssue.labels.map((label) => (
+                      <span
+                        key={label.id}
+                        className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium"
+                        style={{
+                          backgroundColor: `#${label.color}22`,
+                          color: `#${label.color}`,
+                        }}
                       >
-                        {state === "open" ? "Open" : "Closed"}
-                      </button>
+                        <Tag className="w-3 h-3" />
+                        {label.name}
+                      </span>
                     ))}
                   </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Title</label>
-                  <input
-                    value={editTitle}
-                    onChange={(e) => setEditTitle(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Description (Markdown)</label>
-                  <textarea
-                    value={editBody}
-                    onChange={(e) => setEditBody(e.target.value)}
-                    rows={10}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 font-mono"
-                  />
-                </div>
-
-                <div className="text-xs text-muted-foreground flex items-center gap-2">
-                  <IssueStateBadge state={selectedIssue.state === "closed" ? "closed" : "open"} />
-                  <span>Updated {formatRelative(selectedIssue.updated_at)}</span>
-                  <span className="truncate">by {selectedIssue.user.login}</span>
                 </div>
 
                 {statusMessage && (
@@ -450,23 +668,114 @@ export function GitHubIssuesTab({ githubConfig, onOpenSettings }: GitHubIssuesTa
                     {statusMessage}
                   </div>
                 )}
-                {error && (
+                {detailError && (
                   <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 border border-destructive/20 px-3 py-2 rounded-lg">
                     <AlertCircle className="w-4 h-4" />
-                    {error}
+                    {detailError}
                   </div>
                 )}
+
+                <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 min-h-[320px] flex flex-col">
+                  {detailView === "preview" ? (
+                    <div className="prose prose-sm dark:prose-invert max-w-none flex-1 overflow-auto prose-pre:bg-gray-900 prose-pre:text-gray-100">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {sanitizedIssueBody || "*No description provided.*"}
+                      </ReactMarkdown>
+                    </div>
+                  ) : (
+                    <div className="flex-1 flex flex-col gap-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Comments</h4>
+                        <button
+                          onClick={handleRefreshComments}
+                          className="text-xs text-primary hover:underline flex items-center gap-1"
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                          Refresh
+                        </button>
+                      </div>
+                      <div className="flex-1 overflow-auto space-y-3 pr-1">
+                        {isLoadingComments ? (
+                          <div className="flex items-center justify-center h-full text-sm text-muted-foreground gap-2">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Loading comments...
+                          </div>
+                        ) : currentComments.length === 0 ? (
+                          <div className="flex flex-col items-center justify-center text-center text-sm text-muted-foreground gap-2 py-6">
+                            <MessageCircle className="w-5 h-5" />
+                            <p>No comments yet. Start the discussion below.</p>
+                          </div>
+                        ) : (
+                          currentComments.map((comment) => (
+                            <div key={comment.id} className="flex gap-3">
+                              <img
+                                src={comment.user.avatar_url}
+                                alt={comment.user.login}
+                                className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-800"
+                              />
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                  <span className="font-semibold text-gray-900 dark:text-gray-100">
+                                    {comment.user.login}
+                                  </span>
+                                  <span>·</span>
+                                  <span>{formatRelative(comment.updated_at)}</span>
+                                </div>
+                                <div className="mt-2 rounded-2xl bg-gray-50 dark:bg-gray-800/80 border border-gray-100 dark:border-gray-800/80 px-3 py-2 text-sm">
+                                  <div className="prose prose-sm dark:prose-invert max-w-none">
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                      {DOMPurify.sanitize(comment.body || "") || "*No content*"}
+                                    </ReactMarkdown>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                      {commentError && (
+                        <div className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
+                          {commentError}
+                        </div>
+                      )}
+                      <div className="space-y-2">
+                        <textarea
+                          value={commentDraft}
+                          onChange={(e) => setCommentDraft(e.target.value)}
+                          placeholder="Share a quick update or ask a question..."
+                          rows={3}
+                          className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm p-3 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                        />
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          <span>Markdown supported.</span>
+                          <button
+                            onClick={handlePostComment}
+                            disabled={isPostingComment || !commentDraft.trim()}
+                            className="px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-medium flex items-center gap-2 disabled:opacity-60"
+                          >
+                            {isPostingComment ? (
+                              <>
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                                Posting...
+                              </>
+                            ) : (
+                              <>
+                                <MessageCircle className="w-3 h-3" />
+                                Add comment
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div className="p-4 border-t border-gray-200 dark:border-gray-800 flex items-center justify-end bg-gray-50/70 dark:bg-gray-900/40">
-                <button
-                  onClick={handleUpdateIssue}
-                  disabled={isUpdating}
-                  className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-primary/90 disabled:opacity-60 transition-colors"
-                >
-                  {isUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                  Save Changes
-                </button>
+              <div className="p-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-900/40 text-xs text-muted-foreground flex flex-wrap gap-3">
+                <span>Updated {formatRelative(selectedIssue.updated_at)}</span>
+                <span>Created {new Date(selectedIssue.created_at).toLocaleDateString()}</span>
+                <span className="truncate">Author: {selectedIssue.user.login}</span>
               </div>
             </>
           ) : (

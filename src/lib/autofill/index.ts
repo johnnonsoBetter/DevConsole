@@ -51,8 +51,37 @@ function setupMutationObserver(): void {
     observer.disconnect();
   }
   
-  observer = new MutationObserver(() => {
-    enhanceInputs();
+  observer = new MutationObserver((mutations) => {
+    let shouldEnhance = false;
+    
+    for (const mutation of mutations) {
+      if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+        // Check if any added node is an input or contains inputs
+        for (const node of Array.from(mutation.addedNodes)) {
+          if (node instanceof HTMLElement) {
+            if (node.tagName === 'INPUT' || node.tagName === 'TEXTAREA') {
+              shouldEnhance = true;
+              break;
+            }
+            if (node.querySelector('input, textarea')) {
+              shouldEnhance = true;
+              break;
+            }
+          }
+        }
+      }
+      if (shouldEnhance) break;
+    }
+
+    if (shouldEnhance) {
+      // Debounce the enhancement
+      if ((window as any)._autofillEnhanceTimeout) {
+        clearTimeout((window as any)._autofillEnhanceTimeout);
+      }
+      (window as any)._autofillEnhanceTimeout = setTimeout(() => {
+        enhanceInputs();
+      }, 200);
+    }
   });
   
   observer.observe(document.body, {

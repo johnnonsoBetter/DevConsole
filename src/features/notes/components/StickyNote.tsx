@@ -470,7 +470,7 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
             onClick={handleCaptureScreenshot}
             disabled={isCapturing}
             className={cn(
-              'p-1.5 rounded hover:bg-white/50 transition-colors flex items-center justify-center',
+              'p-1.5 rounded  dark:bg-muted hover:bg-white/50 transition-colors flex items-center justify-center',
               isCapturing && 'opacity-50 cursor-wait'
             )}
             title="Capture Screenshot"

@@ -4,7 +4,13 @@ import { AlertCircle, Camera, CheckCircle, Code, Eye, EyeOff, Github, Info, Load
 import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { createGitHubIssue, testGitHubConnection, type GitHubConfig } from "../../lib/devConsole/githubApi";
+import {
+  createGitHubIssue,
+  testGitHubConnection,
+  updateGitHubIssue,
+  type GitHubConfig,
+  type GitHubIssue,
+} from "../../lib/devConsole/githubApi";
 import { cn } from "../../utils";
 import { SuperWriteAI } from "./SuperWriteAI";
 
@@ -311,6 +317,8 @@ export function GitHubIssueSlideout({ isOpen, onClose, githubConfig, onOpenSetti
     body,
     screenshot,
     activeView,
+    mode,
+    editingIssueNumber,
     isGenerating,
     isPublishing,
     publishStatus,
@@ -325,6 +333,7 @@ export function GitHubIssueSlideout({ isOpen, onClose, githubConfig, onOpenSetti
     resetContent,
   } = useGitHubIssueSlideoutStore();
   const [attachments, setAttachments] = useState<{ dataUrl: string; filename?: string }[]>([]);
+  const isEditingExistingIssue = mode === "edit" && typeof editingIssueNumber === "number";
 
   // Reset state when slideout closes
   useEffect(() => {
@@ -359,34 +368,58 @@ export function GitHubIssueSlideout({ isOpen, onClose, githubConfig, onOpenSetti
     setPublishStatus({ type: null, message: "" });
 
     try {
-      const response = await createGitHubIssue(effectiveGithubConfig, {
-        title: title.trim(),
-        body: body.trim(),
-        labels: ["bug", "auto-generated"],
-        attachments: attachments.map((att, index) => ({
-          dataUrl: att.dataUrl,
-          filename: att.filename || `attachment-${index + 1}.png`,
-        })),
-        screenshot: undefined,
-      });
+      if (isEditingExistingIssue && typeof editingIssueNumber === "number") {
+        const updatedIssue = await updateGitHubIssue(effectiveGithubConfig, editingIssueNumber, {
+          title: title.trim(),
+          body: body.trim(),
+        });
 
-      setPublishStatus({
-        type: "success",
-        message: `Issue #${response.number} created successfully!`,
-        issueUrl: response.html_url,
-      });
-      setAttachments([]);
+        setPublishStatus({
+          type: "success",
+          message: `Issue #${updatedIssue.number} updated successfully!`,
+          issueUrl: updatedIssue.html_url,
+        });
+        window.dispatchEvent(
+          new CustomEvent<{ issue: GitHubIssue }>("github-issue-updated", {
+            detail: { issue: updatedIssue },
+          })
+        );
+        setAttachments([]);
 
-      // Auto-close after successful publish
-      setTimeout(() => {
-        onClose();
-        // Reset state using Zustand action
-        resetContent();
-      }, 3000);
+        setTimeout(() => {
+          onClose();
+          resetContent();
+        }, 1800);
+      } else {
+        const response = await createGitHubIssue(effectiveGithubConfig, {
+          title: title.trim(),
+          body: body.trim(),
+          labels: ["bug", "auto-generated"],
+          attachments: attachments.map((att, index) => ({
+            dataUrl: att.dataUrl,
+            filename: att.filename || `attachment-${index + 1}.png`,
+          })),
+          screenshot: undefined,
+        });
+
+        setPublishStatus({
+          type: "success",
+          message: `Issue #${response.number} created successfully!`,
+          issueUrl: response.html_url,
+        });
+        setAttachments([]);
+
+        // Auto-close after successful publish
+        setTimeout(() => {
+          onClose();
+          // Reset state using Zustand action
+          resetContent();
+        }, 3000);
+      }
     } catch (error) {
       setPublishStatus({
         type: "error",
-        message: error instanceof Error ? error.message : "Failed to create issue",
+        message: error instanceof Error ? error.message : "Failed to save issue",
       });
     } finally {
       setIsPublishing(false);
@@ -439,7 +472,11 @@ export function GitHubIssueSlideout({ isOpen, onClose, githubConfig, onOpenSetti
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-gradient-to-r from-success/10 to-info/10">
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                  {isGenerating ? "Generating GitHub Issue..." : "GitHub Issue Preview"}
+                  {isGenerating
+                    ? "Generating GitHub Issue..."
+                    : isEditingExistingIssue
+                    ? `Edit Issue${editingIssueNumber ? ` #${editingIssueNumber}` : ""}`
+                    : "GitHub Issue Preview"}
                 </h3>
               </div>
 
@@ -476,9 +513,13 @@ export function GitHubIssueSlideout({ isOpen, onClose, githubConfig, onOpenSetti
                 {/* Capture & attach Screenshot */}
                 <button
                   onClick={handleCaptureAndAttach}
-                  disabled={isPublishing}
+                  disabled={isPublishing || isEditingExistingIssue}
                   className="p-2 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-lg transition-colors disabled:opacity-50"
-                  title="Capture screenshot and attach to issue"
+                  title={
+                    isEditingExistingIssue
+                      ? "Attachments are disabled when editing existing issues"
+                      : "Capture screenshot and attach to issue"
+                  }
                 >
                   <Camera className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                 </button>
@@ -573,61 +614,66 @@ export function GitHubIssueSlideout({ isOpen, onClose, githubConfig, onOpenSetti
                   </div>
 
                   {/* Attachments */}
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Images (upload or capture)
-                    </label>
-                    <div className="flex items-center gap-3">
-                      <label className="px-3 py-2 bg-white dark:bg-gray-800 border border-dashed border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-700 dark:text-gray-200 cursor-pointer hover:border-primary/60">
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (!file) return;
-                            const reader = new FileReader();
-                            reader.onload = () => {
-                              if (typeof reader.result === "string") {
-                                setAttachments((prev) => [...prev, { dataUrl: reader.result as string, filename: file.name }]);
-                                setPublishStatus({
-                                  type: "success",
-                                  message: "Image added. It will upload when you publish.",
-                                  issueUrl: undefined,
-                                });
-                              }
-                            };
-                            reader.readAsDataURL(file);
-                          }}
-                        />
-                        Upload image
+                  {!isEditingExistingIssue && (
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Images (upload or capture)
                       </label>
-                      <button
-                        type="button"
-                        onClick={handleCaptureAndAttach}
-                        disabled={isPublishing}
-                        className="p-2 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-lg transition-colors disabled:opacity-50"
-                        title="Capture screenshot and attach"
-                      >
-                        <Camera className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-                      </button>
-                    </div>
-                    {attachments.length > 0 && (
-                      <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-2 bg-white dark:bg-gray-800">
-                        <p className="text-xs text-muted-foreground mb-1">Images to attach on publish:</p>
-                        <div className="flex flex-wrap gap-2">
-                          {attachments.map((att, idx) => (
-                            <img
-                              key={idx}
-                              src={att.dataUrl}
-                              alt={att.filename || `attachment-${idx + 1}`}
-                              className="max-h-32 rounded-md object-contain border border-gray-200 dark:border-gray-700"
-                            />
-                          ))}
-                        </div>
+                      <div className="flex items-center gap-3">
+                        <label className="px-3 py-2 bg-white dark:bg-gray-800 border border-dashed border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-700 dark:text-gray-200 cursor-pointer hover:border-primary/60">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              const reader = new FileReader();
+                              reader.onload = () => {
+                                if (typeof reader.result === "string") {
+                                  setAttachments((prev) => [
+                                    ...prev,
+                                    { dataUrl: reader.result as string, filename: file.name },
+                                  ]);
+                                  setPublishStatus({
+                                    type: "success",
+                                    message: "Image added. It will upload when you publish.",
+                                    issueUrl: undefined,
+                                  });
+                                }
+                              };
+                              reader.readAsDataURL(file);
+                            }}
+                          />
+                          Upload image
+                        </label>
+                        <button
+                          type="button"
+                          onClick={handleCaptureAndAttach}
+                          disabled={isPublishing}
+                          className="p-2 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-lg transition-colors disabled:opacity-50"
+                          title="Capture screenshot and attach"
+                        >
+                          <Camera className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                        </button>
                       </div>
-                    )}
-                  </div>
+                      {attachments.length > 0 && (
+                        <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-2 bg-white dark:bg-gray-800">
+                          <p className="text-xs text-muted-foreground mb-1">Images to attach on publish:</p>
+                          <div className="flex flex-wrap gap-2">
+                            {attachments.map((att, idx) => (
+                              <img
+                                key={idx}
+                                src={att.dataUrl}
+                                alt={att.filename || `attachment-${idx + 1}`}
+                                className="max-h-32 rounded-md object-contain border border-gray-200 dark:border-gray-700"
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ) : (
                 // Preview Mode
@@ -814,29 +860,31 @@ export function GitHubIssueSlideout({ isOpen, onClose, githubConfig, onOpenSetti
                 <button
                   onClick={handlePublish}
                   disabled={
-                    isPublishing || 
-                    !title.trim() || 
-                    !body.trim() || 
-                    !effectiveGithubConfig?.username || 
-                    !effectiveGithubConfig?.repo || 
+                    isPublishing ||
+                    !title.trim() ||
+                    !body.trim() ||
+                    !effectiveGithubConfig?.username ||
+                    !effectiveGithubConfig?.repo ||
                     !effectiveGithubConfig?.token
                   }
                   className="flex-[2] px-6 py-3 bg-success hover:bg-success/90 text-white rounded-xl text-sm font-semibold transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-sm flex items-center justify-center gap-2 active:scale-[0.98]"
                   title={
                     !effectiveGithubConfig?.username || !effectiveGithubConfig?.repo || !effectiveGithubConfig?.token
                       ? "Configure GitHub settings first"
+                      : isEditingExistingIssue
+                      ? "Save changes to this GitHub issue"
                       : "Publish issue to GitHub"
                   }
                 >
                   {isPublishing ? (
                     <>
                       <Loader className="w-4 h-4 animate-spin" />
-                      Publishing...
+                      {isEditingExistingIssue ? "Saving..." : "Publishing..."}
                     </>
                   ) : (
                     <>
-                      <Send className="w-4 h-4" />
-                      Publish Issue
+                      {isEditingExistingIssue ? <Save className="w-4 h-4" /> : <Send className="w-4 h-4" />}
+                      {isEditingExistingIssue ? "Save Changes" : "Publish Issue"}
                     </>
                   )}
                 </button>
