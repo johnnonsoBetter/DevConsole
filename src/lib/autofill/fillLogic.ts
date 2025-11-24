@@ -102,20 +102,77 @@ export function getSuggestionsForField(fieldType: FieldType): string[] {
  * Fill input with value and trigger events
  */
 export function fillInput(
-  input: HTMLInputElement | HTMLTextAreaElement,
+  input: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
   value: string,
   showConfirmation: boolean = true
 ): void {
-  input.value = value;
-  input.dispatchEvent(new Event("input", { bubbles: true }));
-  input.dispatchEvent(new Event("change", { bubbles: true }));
-  input.dispatchEvent(new Event("blur", { bubbles: true }));
+  let filled = false;
+
+  if (input instanceof HTMLSelectElement) {
+    // Handle Select
+    const options = Array.from(input.options);
+    const lowerValue = value.toLowerCase();
+
+    // Try exact match on value
+    let match = options.find((opt) => opt.value.toLowerCase() === lowerValue);
+
+    // Try exact match on text
+    if (!match) {
+      match = options.find((opt) => opt.text.toLowerCase() === lowerValue);
+    }
+
+    // Try fuzzy match
+    if (!match) {
+      match = options.find(
+        (opt) =>
+          opt.text.toLowerCase().includes(lowerValue) ||
+          lowerValue.includes(opt.text.toLowerCase())
+      );
+    }
+
+    if (match) {
+      input.value = match.value;
+      filled = true;
+    }
+  } else if (input instanceof HTMLInputElement && input.type === "radio") {
+    // Handle Radio
+    // For radio, 'value' passed here is the desired value (e.g. "Male")
+    // We check if THIS radio button matches that value
+    const lowerValue = value.toLowerCase();
+    const radioValue = input.value.toLowerCase();
+
+    // Check value attribute
+    if (radioValue === lowerValue) {
+      input.checked = true;
+      filled = true;
+    } else {
+      // Check associated label
+      const id = input.id;
+      if (id) {
+        const label = document.querySelector(`label[for="${id}"]`);
+        if (label && label.textContent?.toLowerCase().includes(lowerValue)) {
+          input.checked = true;
+          filled = true;
+        }
+      }
+    }
+  } else {
+    // Handle Text/Textarea
+    input.value = value;
+    filled = true;
+  }
+
+  if (filled) {
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    input.dispatchEvent(new Event("blur", { bubbles: true }));
+
+    if (showConfirmation) {
+      showConfirmationMessage(input);
+    }
+  }
 
   closeSuggestionBox();
-
-  if (showConfirmation) {
-    showConfirmationMessage(input);
-  }
 
   // Re-check if we should show/hide Fill All button
   setTimeout(checkAndShowFillAllButton, 100);
@@ -125,15 +182,17 @@ export function fillInput(
  * Get all fillable inputs on the page
  */
 export function getAllFillableInputs(): Array<
-  HTMLInputElement | HTMLTextAreaElement
+  HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
 > {
   const inputs = document.querySelectorAll<
-    HTMLInputElement | HTMLTextAreaElement
+    HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
   >(
-    'input[type="text"], input[type="number"], input[type="email"], input[type="tel"], input[type="url"], input[type="date"], input[type="file"], input:not([type]), textarea'
+    'input[type="text"], input[type="number"], input[type="email"], input[type="tel"], input[type="url"], input[type="date"], input[type="file"], input[type="radio"], input:not([type]), textarea, select'
   );
 
-  const fillableInputs: Array<HTMLInputElement | HTMLTextAreaElement> = [];
+  const fillableInputs: Array<
+    HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+  > = [];
 
   inputs.forEach((input) => {
     if (input instanceof HTMLInputElement) {
@@ -148,13 +207,22 @@ export function getAllFillableInputs(): Array<
       }
 
       const rect = input.getBoundingClientRect();
-      if (rect.width === 0 || rect.height === 0) return;
+      if (rect.width === 0 || rect.height === 0) {
+        // Allow radio buttons to be invisible if they are part of a custom UI (often hidden input + styled label)
+        if (input.type !== "radio") return;
+      }
 
       // Check if input is visible and not disabled
       if (input.offsetParent !== null && !input.disabled && !input.readOnly) {
         fillableInputs.push(input);
       }
 
+      // Special handling for radio buttons that might be visually hidden but functional
+      if (input.type === "radio" && !input.disabled) {
+        fillableInputs.push(input);
+        return;
+      }
+
       if (
         input.offsetParent !== null &&
         !input.disabled &&
@@ -163,20 +231,21 @@ export function getAllFillableInputs(): Array<
       ) {
         fillableInputs.push(input);
       }
-    } else if (input instanceof HTMLTextAreaElement) {
+    } else if (
+      input instanceof HTMLTextAreaElement ||
+      input instanceof HTMLSelectElement
+    ) {
       const rect = input.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) return;
 
       if (input.offsetParent !== null && !input.disabled && !input.readOnly) {
-        fillableInputs.push(input);
-      }
-
-      if (
-        input.offsetParent !== null &&
-        !input.disabled &&
-        !input.readOnly &&
-        input.getAttribute("aria-hidden") !== "true"
-      ) {
+        // Selects don't have readOnly but checking property doesn't hurt or we can cast
+        if (input instanceof HTMLSelectElement && input.disabled) return;
+        if (
+          input instanceof HTMLTextAreaElement &&
+          (input.disabled || input.readOnly)
+        )
+          return;
         fillableInputs.push(input);
       }
     }
@@ -223,11 +292,11 @@ export async function fillAllInputs(): Promise<void> {
     } else {
       // Get value from selected dataset
       let value = dataStore.getFieldData(currentDataset, inputType);
-      
+
       // Fallback for generic types if missing in dataset
-      if (!value && (inputType === 'number' || inputType === 'text')) {
-         const staticVals = getStaticSuggestions(inputType);
-         if (staticVals.length > 0) value = staticVals[0];
+      if (!value && (inputType === "number" || inputType === "text")) {
+        const staticVals = getStaticSuggestions(inputType);
+        if (staticVals.length > 0) value = staticVals[0];
       }
 
       if (value) {

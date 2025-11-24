@@ -3,10 +3,14 @@
  * Orchestrates all autofill modules and initializes the feature
  */
 
-import './autofill.css';
-import { DataStore } from './datastore';
-import { initializeDataStore } from './fillLogic';
-import { checkAndShowFillAllButton, enhanceInputs, setupKeyboardShortcuts } from './uiManager';
+import "./autofill.css";
+import { DataStore } from "./datastore";
+import { initializeDataStore } from "./fillLogic";
+import {
+  checkAndShowFillAllButton,
+  enhanceInputs,
+  setupKeyboardShortcuts,
+} from "./uiManager";
 
 // Singleton DataStore instance
 let dataStore: DataStore | null = null;
@@ -20,26 +24,25 @@ export async function initializeAutofill(): Promise<void> {
     // Create and initialize DataStore
     dataStore = new DataStore();
     await dataStore.initialize();
-    
+
     // Initialize fillLogic with dataStore reference
     initializeDataStore(dataStore);
-    
-    console.log('✅ Smart Autofill initialized');
-    
+
+    console.log("✅ Smart Autofill initialized");
+
     // Enhance existing inputs
     enhanceInputs();
-    
+
     // Setup keyboard shortcuts
     setupKeyboardShortcuts();
-    
+
     // Setup mutation observer for dynamic content
     setupMutationObserver();
-    
+
     // Monitor input changes to update Fill All button
     setupInputMonitor();
-    
   } catch (error) {
-    console.error('❌ Failed to initialize autofill:', error);
+    console.error("❌ Failed to initialize autofill:", error);
   }
 }
 
@@ -50,20 +53,20 @@ function setupMutationObserver(): void {
   if (observer) {
     observer.disconnect();
   }
-  
+
   observer = new MutationObserver((mutations) => {
     let shouldEnhance = false;
-    
+
     for (const mutation of mutations) {
-      if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+      if (mutation.type === "childList" && mutation.addedNodes.length > 0) {
         // Check if any added node is an input or contains inputs
         for (const node of Array.from(mutation.addedNodes)) {
           if (node instanceof HTMLElement) {
-            if (node.tagName === 'INPUT' || node.tagName === 'TEXTAREA') {
+            if (node.tagName === "INPUT" || node.tagName === "TEXTAREA") {
               shouldEnhance = true;
               break;
             }
-            if (node.querySelector('input, textarea')) {
+            if (node.querySelector("input, textarea")) {
               shouldEnhance = true;
               break;
             }
@@ -83,10 +86,10 @@ function setupMutationObserver(): void {
       }, 200);
     }
   });
-  
+
   observer.observe(document.body, {
     childList: true,
-    subtree: true
+    subtree: true,
   });
 }
 
@@ -94,9 +97,13 @@ function setupMutationObserver(): void {
  * Monitor input changes to update Fill All button visibility
  */
 function setupInputMonitor(): void {
-  document.addEventListener('input', () => {
-    setTimeout(checkAndShowFillAllButton, 100);
-  }, true);
+  document.addEventListener(
+    "input",
+    () => {
+      setTimeout(checkAndShowFillAllButton, 100);
+    },
+    true
+  );
 }
 
 /**

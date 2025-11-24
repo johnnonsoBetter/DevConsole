@@ -10,11 +10,19 @@ import type { FieldType } from "./types";
  */
 
 export function detectInputType(
-  input: HTMLInputElement | HTMLTextAreaElement
+  input: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
 ): FieldType {
   // Handle textarea
   if (input instanceof HTMLTextAreaElement) {
     return "message";
+  }
+
+  // Handle select
+  if (input instanceof HTMLSelectElement) {
+    // Use patterns for select
+    const patterns = extractPatterns(input);
+    const bestMatch = classifyByPatterns(patterns);
+    return bestMatch || "text"; // Default to text-like behavior (matching option text)
   }
 
   const type = (input.type || "").toLowerCase();
@@ -26,6 +34,12 @@ export function detectInputType(
   if (type === "url") return "website";
   if (type === "number") return "number";
   if (type === "date") return "date";
+
+  // Radio buttons
+  if (type === "radio") {
+    const patterns = extractPatterns(input);
+    return classifyByPatterns(patterns) || "text";
+  }
 
   const accept = (input.accept || "").toLowerCase();
 
@@ -41,7 +55,7 @@ export function detectInputType(
     return "image";
   }
 
-  // 2. Trust autocomplete attribute (standard)
+    // 2. Trust autocomplete attribute (standard)
   if (autocomplete) {
     const acMap: Record<string, FieldType> = {
       email: "email",
@@ -58,20 +72,43 @@ export function detectInputType(
     if (acMap[autocomplete]) return acMap[autocomplete];
   }
 
-  // 3. For text inputs, use pattern matching with confidence scores
+  // 3. Check inputMode (modern mobile-friendly attribute)
+  const inputMode = input.getAttribute('inputmode')?.toLowerCase();
+  if (inputMode) {
+    if (inputMode === 'email') return 'email';
+    if (inputMode === 'tel') return 'phone';
+    if (inputMode === 'url') return 'website';
+  }
+
+  // 4. For text inputs, use pattern matching with confidence scores
   const patterns = extractPatterns(input);
   const bestMatch = classifyByPatterns(patterns);
 
-  return bestMatch || "text";
+  if (bestMatch) return bestMatch;
+
+  // Fallback: inputMode=numeric/decimal implies a number field if no other pattern matched
+  if (inputMode === 'numeric' || inputMode === 'decimal') {
+    return 'number';
+  }
+
+  return "text";
 }
 
-function extractPatterns(input: HTMLInputElement): string[] {
+function extractPatterns(input: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement): string[] {
   const attrs = [
     input.name,
     input.id,
-    input.placeholder,
+    // Select elements don't have placeholder
+    (input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement) ? input.placeholder : '',
     input.getAttribute("aria-label"),
     input.className,
+    // Check common data attributes used in testing/frameworks
+    input.getAttribute("data-testid"),
+    input.getAttribute("data-test-id"),
+    input.getAttribute("data-cy"),
+    input.getAttribute("data-field"),
+    input.getAttribute("data-type"),
+    input.getAttribute("inputmode"),
   ]
     .filter(Boolean)
     .join(" ")
@@ -79,6 +116,8 @@ function extractPatterns(input: HTMLInputElement): string[] {
 
   return attrs.split(/[\s\-_]+/); // Split by common separators
 }
+
+
 
 function classifyByPatterns(tokens: string[]): FieldType | null {
   // Look for semantic indicators, not exact matches
