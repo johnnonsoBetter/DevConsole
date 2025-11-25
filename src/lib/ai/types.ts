@@ -102,3 +102,33 @@ export interface TextGenerationResult {
 export interface StreamTextOptions extends TextGenerationOptions {
   onChunk?: (text: string) => void;
 }
+
+// ============================================================================
+// RAINDROP / LIQUIDMETAL TYPES
+// ============================================================================
+
+export interface RaindropSettings {
+  enabled: boolean;
+  apiKey: string;
+  baseUrl?: string;
+  smartMemoryName?: string;
+  applicationName?: string;
+  version?: string;
+}
+
+export interface SmartMemoryLocation {
+  smartMemory: {
+    name: string;
+    application_name: string;
+    version: string;
+  };
+}
+
+export const DEFAULT_RAINDROP_SETTINGS: RaindropSettings = {
+  enabled: false,
+  apiKey: "",
+  baseUrl: "https://api.raindrop.run",
+  smartMemoryName: "log-memory",
+  applicationName: "devconsole-memory",
+  version: "01kaxzpzmywe63792g5rfjvhyz",
+};

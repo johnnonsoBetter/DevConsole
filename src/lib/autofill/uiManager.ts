@@ -335,15 +335,14 @@ function showFillAllButton(): void {
   fillAllButton.className = "autofill-fill-all-button";
   fillAllButton.setAttribute("type", "button");
   fillAllButton.setAttribute("aria-label", "Fill All Fields");
-  fillAllButton.setAttribute("title", "Fill All Fields");
+  fillAllButton.setAttribute("title", "Fill All Fields (Ctrl+F)");
   fillAllButton.setAttribute("role", "button");
   fillAllButton.setAttribute("id", "autofill-fill-all-button" + Date.now());
   fillAllButton.innerHTML = `
-    <svg class="fill-all-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <svg class="fill-all-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
       <path d="M9 11l3 3L22 4"/>
       <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
     </svg>
-    <span class="fill-all-text">Fill All Fields</span>
     <span class="fill-all-count"></span>
   `;
 
@@ -359,7 +358,7 @@ function showFillAllButton(): void {
   });
   const countSpan = fillAllButton.querySelector(".fill-all-count");
   if (countSpan && emptyInputs.length > 0) {
-    countSpan.textContent = `(${emptyInputs.length})`;
+    countSpan.textContent = `${emptyInputs.length}`;
   }
 
   // Add click handler
@@ -603,6 +602,7 @@ export function enhanceInputs(): void {
         // For non-file inputs, skip if not visible
         if (rect.width === 0 || rect.height === 0) return;
         addIconToInput(input);
+        fileInputCount++;
       }
     } else if (
       input instanceof HTMLTextAreaElement ||

@@ -183,7 +183,12 @@ export class DataStore {
    * Based on: domain + sorted field types + field count
    */
   generateFormFingerprint(
-    inputs: Array<HTMLInputElement | HTMLTextAreaElement>
+    inputs: Array<
+      | HTMLInputElement
+      | HTMLTextAreaElement
+      | HTMLSelectElement
+      | HTMLInputElement
+    >
   ): string {
     const domain = window.location.hostname;
 

@@ -75,7 +75,7 @@ export interface DevConsolePanelProps {
 }
 
 export function DevConsolePanel({ githubConfig }: DevConsolePanelProps = {}) {
-  const { unreadErrorCount, logsToBeExported } = useDevConsoleStore();
+  const { unreadErrorCount } = useDevConsoleStore();
   const [activeTab, setActiveTab] = useState<string>(CONSOLE_TABS[0].id);
 
   const githubSettings = useGitHubSettingsStore();
@@ -102,36 +102,6 @@ export function DevConsolePanel({ githubConfig }: DevConsolePanelProps = {}) {
         }
       : null);
 
-  /**
-   * Capture screenshot of current tab
-   * Downloads as PNG file with timestamp
-   */
-  const handleCaptureScreenshot = useCallback(async () => {
-    try {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-
-      if (!tab.id) {
-        alert('❌ Unable to capture screenshot: No active tab found');
-        return;
-      }
-
-      const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
-        format: 'png',
-      });
-
-      const link = document.createElement('a');
-      link.href = dataUrl;
-      link.download = `screenshot-${Date.now()}.png`;
-      link.click();
-
-      console.log('📸 Screenshot captured successfully!');
-    } catch (error) {
-      console.error('Failed to capture screenshot:', error);
-      alert(
-        '❌ Failed to capture screenshot. Make sure the extension has the necessary permissions.'
-      );
-    }
-  }, []);
 
   // Transform CONSOLE_TABS into BetterTabs format
   const betterTabs = useMemo(

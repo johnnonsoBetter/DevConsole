@@ -401,6 +401,6 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 // Initialize on startup
-initialize();
+await initialize();
 
 export {};

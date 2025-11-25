@@ -8,6 +8,7 @@
 
 import {
     Bot,
+    Brain,
     CheckCircle,
     ChevronRight,
     ExternalLink,
@@ -44,6 +45,7 @@ import {
     type UnsplashConfig,
 } from "../../utils/extensionSettings";
 import { AISettingsPanel } from "./AISettingsPanel";
+import { RaindropSettingsPanel } from "./RaindropSettingsPanel";
 
 // ============================================================================
 // TYPES
@@ -56,7 +58,7 @@ interface StatusMessage {
   message: string;
 }
 
-type SettingsSection = 'github' | 'graphql' | 'general' | 'unsplash' | 'ai' | 'webhook';
+type SettingsSection = 'github' | 'graphql' | 'general' | 'unsplash' | 'ai' | 'webhook' | 'raindrop';
 
 // ============================================================================
 // MAIN UNIFIED SETTINGS PANEL
@@ -80,6 +82,13 @@ export function UnifiedSettingsPanel() {
               description="Configure AI models & keys"
               active={activeSection === 'ai'}
               onClick={() => setActiveSection('ai')}
+            />
+            <SettingsNavItem
+              icon={Brain}
+              label="Raindrop Memory"
+              description="SmartMemory for AI context"
+              active={activeSection === 'raindrop'}
+              onClick={() => setActiveSection('raindrop')}
             />
             <SettingsNavItem
               icon={Github}
@@ -123,6 +132,7 @@ export function UnifiedSettingsPanel() {
       {/* Settings Content */}
       <div className="flex-1 overflow-auto">
         {activeSection === 'ai' && <AISettingsSection />}
+        {activeSection === 'raindrop' && <RaindropSettingsSection />}
         {activeSection === 'github' && <GitHubSettingsSection />}
         {activeSection === 'graphql' && <GraphQLSettingsSection />}
         {activeSection === 'unsplash' && <UnsplashSettingsSection />}
@@ -1410,4 +1420,12 @@ function WebhookSettingsSection() {
 
 function AISettingsSection() {
   return <AISettingsPanel />;
+}
+
+// ============================================================================
+// RAINDROP SETTINGS SECTION
+// ============================================================================
+
+function RaindropSettingsSection() {
+  return <RaindropSettingsPanel />;
 }

@@ -4,11 +4,13 @@
  */
 
 import ReactJson from '@microlink/react-json-view';
-import { Github, Search, Sparkles, Trash2, X } from 'lucide-react';
+import { Brain, Github, Search, Sparkles, Trash2, X } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useIsMobile } from '../../../hooks/useMediaQuery';
+import { useRaindropSettings } from '../../../hooks/useRaindropSettings';
 import { useUnifiedTheme } from '../../../hooks/useTheme';
 import { createLogExplainer } from '../../../lib/ai/services/logExplainer';
+import { createMemoryEnhancedLogExplainer } from '../../../lib/ai/services/memoryEnhancedLogExplainer';
 import { cn } from '../../../utils';
 import { ensureJsonObject } from '../../../utils/jsonSanitizer';
 import { useGitHubIssueSlideoutStore } from '../../../utils/stores';
@@ -365,6 +367,7 @@ interface LogsPanelProps {
 export function LogsPanel({ githubConfig }: LogsPanelProps) {
   const { filter, setFilter, logs, clearLogs } = useDevConsoleStore();
   const aiSettings = useAISettingsStore();
+  const { settings: raindropSettings, isConfigured: isRaindropConfigured } = useRaindropSettings();
   const githubSlideoutStore = useGitHubIssueSlideoutStore();
   const [search, setSearch] = useState(filter.search);
   const [selectedLog, setSelectedLog] = useState<any>(null);
@@ -392,7 +395,7 @@ export function LogsPanel({ githubConfig }: LogsPanelProps) {
     );
   }, [aiSettings]);
 
-  // Handle explain log
+  // Handle explain log - uses memory-enhanced explainer when Raindrop is configured
   const handleExplainLog = useCallback(async () => {
     if (!selectedLog) return;
 
@@ -410,20 +413,34 @@ export function LogsPanel({ githubConfig }: LogsPanelProps) {
     setExplanation(undefined);
 
     try {
-      const explainer = createLogExplainer(aiSettings);
-      
-      // Stream the explanation
-      let fullText = '';
-      for await (const chunk of explainer.streamExplanation({
+      const logEntry = {
         level: selectedLog.level,
         message: selectedLog.message,
         args: selectedLog.args || [],
         stack: selectedLog.stack,
         source: selectedLog.source,
         timestamp: selectedLog.timestamp,
-      })) {
-        fullText += chunk;
-        setStreamingText(fullText);
+      };
+
+      let fullText = '';
+
+      // Use memory-enhanced explainer if Raindrop is configured
+      if (isRaindropConfigured) {
+        const memoryExplainer = createMemoryEnhancedLogExplainer(aiSettings, raindropSettings);
+        
+        // Stream with memory context
+        for await (const chunk of memoryExplainer.streamExplanation(logEntry)) {
+          fullText += chunk;
+          setStreamingText(fullText);
+        }
+      } else {
+        // Use standard explainer
+        const explainer = createLogExplainer(aiSettings);
+        
+        for await (const chunk of explainer.streamExplanation(logEntry)) {
+          fullText += chunk;
+          setStreamingText(fullText);
+        }
       }
 
       // Parse the complete explanation
@@ -440,7 +457,7 @@ export function LogsPanel({ githubConfig }: LogsPanelProps) {
     } finally {
       setIsExplaining(false);
     }
-  }, [isAIReady, aiSettings, selectedLog]);
+  }, [isAIReady, aiSettings, selectedLog, isRaindropConfigured, raindropSettings]);
 
   // Clear explanation when log changes
   useEffect(() => {
@@ -650,10 +667,19 @@ export function LogsPanel({ githubConfig }: LogsPanelProps) {
                     <button
                       onClick={handleExplainLog}
                       disabled={isExplaining}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all border bg-gradient-to-r from-purple-500/10 to-blue-500/10 hover:from-purple-500/20 hover:to-blue-500/20 text-purple-600 dark:text-purple-400 border-purple-300 dark:border-purple-700 hover:shadow-apple-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                      title="Explain this log with AI"
+                      className={cn(
+                        "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all border hover:shadow-apple-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed",
+                        isRaindropConfigured 
+                          ? "bg-gradient-to-r from-cyan-500/10 to-blue-500/10 hover:from-cyan-500/20 hover:to-blue-500/20 text-cyan-600 dark:text-cyan-400 border-cyan-300 dark:border-cyan-700"
+                          : "bg-gradient-to-r from-purple-500/10 to-blue-500/10 hover:from-purple-500/20 hover:to-blue-500/20 text-purple-600 dark:text-purple-400 border-purple-300 dark:border-purple-700"
+                      )}
+                      title={isRaindropConfigured ? "Explain with AI + SmartMemory" : "Explain this log with AI"}
                     >
-                      <Sparkles className="w-3.5 h-3.5" />
+                      {isRaindropConfigured ? (
+                        <Brain className="w-3.5 h-3.5" />
+                      ) : (
+                        <Sparkles className="w-3.5 h-3.5" />
+                      )}
                     </button>
                   )}
                   {/* GitHub Issue Button */}
@@ -723,11 +749,22 @@ export function LogsPanel({ githubConfig }: LogsPanelProps) {
                       <button
                         onClick={handleExplainLog}
                         disabled={isExplaining}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border bg-gradient-to-r from-purple-500/10 to-blue-500/10 hover:from-purple-500/20 hover:to-blue-500/20 text-purple-600 dark:text-purple-400 border-purple-300 dark:border-purple-700 hover:shadow-apple-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Explain this log with AI"
+                        className={cn(
+                          "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border hover:shadow-apple-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed",
+                          isRaindropConfigured 
+                            ? "bg-gradient-to-r from-cyan-500/10 to-blue-500/10 hover:from-cyan-500/20 hover:to-blue-500/20 text-cyan-600 dark:text-cyan-400 border-cyan-300 dark:border-cyan-700"
+                            : "bg-gradient-to-r from-purple-500/10 to-blue-500/10 hover:from-purple-500/20 hover:to-blue-500/20 text-purple-600 dark:text-purple-400 border-purple-300 dark:border-purple-700"
+                        )}
+                        title={isRaindropConfigured ? "Explain with AI + SmartMemory" : "Explain this log with AI"}
                       >
-                        <Sparkles className="w-3.5 h-3.5" />
-                        <span className="hidden sm:inline">Explain with AI</span>
+                        {isRaindropConfigured ? (
+                          <Brain className="w-3.5 h-3.5" />
+                        ) : (
+                          <Sparkles className="w-3.5 h-3.5" />
+                        )}
+                        <span className="hidden sm:inline">
+                          {isRaindropConfigured ? 'Explain with Memory' : 'Explain with AI'}
+                        </span>
                         <span className="sm:hidden">AI</span>
                       </button>
                     )}

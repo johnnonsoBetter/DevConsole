@@ -11,7 +11,7 @@ interface DevConsoleState {
 interface LogEntry {
   id: string;
   timestamp: number;
-  level: 'log' | 'info' | 'warn' | 'error' | 'debug' | 'ui' | 'db' | 'api';
+  level: "log" | "info" | "warn" | "error" | "debug" | "ui" | "db" | "api";
   message: string;
   args?: any[];
   source?: {
@@ -54,8 +54,8 @@ let devConsoleState: DevConsoleState = {
     autoScroll: true,
     maxLogs: 1000,
     networkMonitoring: true,
-    darkMode: true
-  }
+    darkMode: true,
+  },
 };
 
 const SAVE_STATE_DEBOUNCE_MS = 1500;
@@ -63,12 +63,12 @@ let saveStateTimer: number | null = null;
 let saveStateInFlight: Promise<void> | null = null;
 
 // Initialize extension
-chrome.runtime.onInstalled.addListener(() => {
-  console.log('DevConsole Extension installed');
-  loadState();
-  
+chrome.runtime.onInstalled.addListener(async () => {
+  console.log("DevConsole Extension installed");
+  await loadState();
+
   // Initialize autofill counters
-  chrome.storage.local.get(['autofillFillCount'], (result) => {
+  chrome.storage.local.get(["autofillFillCount"], (result) => {
     if (result.autofillFillCount === undefined) {
       chrome.storage.local.set({ autofillFillCount: 0 });
     }
@@ -78,12 +78,12 @@ chrome.runtime.onInstalled.addListener(() => {
 // Load state from Chrome storage
 async function loadState() {
   try {
-    const result = await chrome.storage.local.get(['devConsoleState']);
+    const result = await chrome.storage.local.get(["devConsoleState"]);
     if (result.devConsoleState) {
       devConsoleState = { ...devConsoleState, ...result.devConsoleState };
     }
   } catch (error) {
-    console.error('Failed to load state:', error);
+    console.error("Failed to load state:", error);
   }
 }
 
@@ -92,7 +92,7 @@ async function persistState() {
   try {
     await chrome.storage.local.set({ devConsoleState });
   } catch (error) {
-    console.error('Failed to save state:', error);
+    console.error("Failed to save state:", error);
   } finally {
     saveStateInFlight = null;
   }
@@ -132,80 +132,89 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   const DEBUG_MESSAGES = false;
   if (DEBUG_MESSAGES) {
-    console.log('Background received message:', message.type, 'from tab:', tabId);
+    console.log(
+      "Background received message:",
+      message.type,
+      "from tab:",
+      tabId
+    );
   }
 
   let keepChannelOpen = false;
 
   switch (message.type) {
-    case 'DEVCONSOLE_BATCH':
+    case "DEVCONSOLE_BATCH":
       // Handle batched messages from content script
       if (Array.isArray(message.payload)) {
         message.payload.forEach((msg: any) => {
-          if (msg.type === 'CONSOLE_LOG') {
+          if (msg.type === "CONSOLE_LOG") {
             handleConsoleLog(msg.payload, tabId);
-          } else if (msg.type === 'NETWORK_REQUEST') {
+          } else if (msg.type === "NETWORK_REQUEST") {
             handleNetworkRequest(msg.payload, tabId);
           }
         });
       }
       break;
 
-    case 'CONSOLE_LOG':
+    case "CONSOLE_LOG":
       handleConsoleLog(message.payload, tabId);
       break;
-    
-    case 'NETWORK_REQUEST':
-      console.log('Network request payload:', message.payload);
+
+    case "NETWORK_REQUEST":
+      console.log("Network request payload:", message.payload);
       handleNetworkRequest(message.payload, tabId);
       break;
-    
-    case 'DEVCONSOLE_UNLOAD':
+
+    case "DEVCONSOLE_UNLOAD":
       // Handle page unload - could be used for cleanup if needed
       break;
-    
-    case 'GET_STATE':
-      if (typeof message.tabId === 'number') {
+
+    case "GET_STATE":
+      if (typeof message.tabId === "number") {
         sendResponse({
           ...devConsoleState,
-          logs: devConsoleState.logs.filter(log => log.tabId === message.tabId),
-          networkRequests: devConsoleState.networkRequests.filter(req => req.tabId === message.tabId),
+          logs: devConsoleState.logs.filter(
+            (log) => log.tabId === message.tabId
+          ),
+          networkRequests: devConsoleState.networkRequests.filter(
+            (req) => req.tabId === message.tabId
+          ),
         });
       } else {
         sendResponse(devConsoleState);
       }
       break;
-    
-    case 'UPDATE_SETTINGS':
+
+    case "UPDATE_SETTINGS":
       updateSettings(message.payload);
       break;
-    
-    case 'CLEAR_LOGS':
+
+    case "CLEAR_LOGS":
       clearLogs(message.tabId);
       break;
-    
-    case 'CLEAR_NETWORK':
+
+    case "CLEAR_NETWORK":
       clearNetworkRequests(message.tabId);
       break;
-    
-    case 'TOGGLE_RECORDING':
+
+    case "TOGGLE_RECORDING":
       toggleRecording();
       break;
-    
+
     // Autofill feature messages
-    case 'AUTOFILL_INCREMENT_COUNT':
+    case "AUTOFILL_INCREMENT_COUNT":
       incrementAutofillCount();
       sendResponse({ success: true });
       keepChannelOpen = false;
       break;
-    
-    case 'AUTOFILL_GET_STATS':
-      getAutofillStats().then(stats => sendResponse(stats));
+
+    case "AUTOFILL_GET_STATS":
+      getAutofillStats().then((stats) => sendResponse(stats));
       keepChannelOpen = true;
       break;
-    
+
     default:
-      console.warn('Unknown message type:', message.type);
+      console.warn("Unknown message type:", message.type);
   }
 
   return keepChannelOpen;
@@ -217,106 +226,126 @@ function handleConsoleLog(logData: any, tabId: number) {
 
   // Transform payload to LogEntry format
   // The payload comes from page-hook-logic with: { level, args, timestamp, source }
-  const message = logData.args && logData.args.length > 0 
-    ? JSON.stringify(logData.args[0]) 
-    : '';
+  const message =
+    logData.args && logData.args.length > 0
+      ? JSON.stringify(logData.args[0])
+      : "";
 
   const logEntry: LogEntry = {
     id: generateId(),
     timestamp: logData.timestamp || Date.now(),
-    level: logData.level || 'log',
+    level: logData.level || "log",
     message,
     args: logData.args || [],
     source: logData.source,
-    tabId
+    tabId,
   };
 
   devConsoleState.logs.push(logEntry);
 
   // Limit log entries
   if (devConsoleState.logs.length > devConsoleState.settings.maxLogs) {
-    devConsoleState.logs = devConsoleState.logs.slice(-devConsoleState.settings.maxLogs);
+    devConsoleState.logs = devConsoleState.logs.slice(
+      -devConsoleState.settings.maxLogs
+    );
   }
 
   scheduleSaveState();
-  notifyDevTools('LOG_ADDED', logEntry);
+  notifyDevTools("LOG_ADDED", logEntry);
 }
 
 // Handle network request from content script
 function handleNetworkRequest(requestData: any, tabId: number) {
-  if (!devConsoleState.isRecording || !devConsoleState.settings.networkMonitoring) return;
+  if (
+    !devConsoleState.isRecording ||
+    !devConsoleState.settings.networkMonitoring
+  )
+    return;
 
   const networkRequest: NetworkRequest = {
     id: generateId(),
     timestamp: requestData.timestamp || Date.now(),
-    url: requestData.url || '',
-    method: requestData.method || 'GET',
+    url: requestData.url || "",
+    method: requestData.method || "GET",
     status: requestData.status,
     requestHeaders: requestData.requestHeaders,
     responseHeaders: requestData.responseHeaders,
     requestBody: requestData.requestBody,
     responseBody: requestData.responseBody,
     duration: requestData.duration,
-    tabId
+    tabId,
   };
 
   devConsoleState.networkRequests.push(networkRequest);
 
   // Limit network entries
-  if (devConsoleState.networkRequests.length > devConsoleState.settings.maxLogs) {
-    devConsoleState.networkRequests = devConsoleState.networkRequests.slice(-devConsoleState.settings.maxLogs);
+  if (
+    devConsoleState.networkRequests.length > devConsoleState.settings.maxLogs
+  ) {
+    devConsoleState.networkRequests = devConsoleState.networkRequests.slice(
+      -devConsoleState.settings.maxLogs
+    );
   }
 
   scheduleSaveState();
-  notifyDevTools('NETWORK_ADDED', networkRequest);
+  notifyDevTools("NETWORK_ADDED", networkRequest);
 }
 
 // Update settings
 function updateSettings(newSettings: Partial<ExtensionSettings>) {
   devConsoleState.settings = { ...devConsoleState.settings, ...newSettings };
   scheduleSaveState();
-  notifyDevTools('SETTINGS_UPDATED', devConsoleState.settings);
+  notifyDevTools("SETTINGS_UPDATED", devConsoleState.settings);
 }
 
 // Clear logs
 function clearLogs(tabId?: number) {
-  if (typeof tabId === 'number') {
-    devConsoleState.logs = devConsoleState.logs.filter(log => log.tabId !== tabId);
+  if (typeof tabId === "number") {
+    devConsoleState.logs = devConsoleState.logs.filter(
+      (log) => log.tabId !== tabId
+    );
   } else {
     devConsoleState.logs = [];
   }
   scheduleSaveState();
-  notifyDevTools('LOGS_CLEARED', typeof tabId === 'number' ? { tabId } : null);
+  notifyDevTools("LOGS_CLEARED", typeof tabId === "number" ? { tabId } : null);
 }
 
 // Clear network requests
 function clearNetworkRequests(tabId?: number) {
-  if (typeof tabId === 'number') {
-    devConsoleState.networkRequests = devConsoleState.networkRequests.filter(req => req.tabId !== tabId);
+  if (typeof tabId === "number") {
+    devConsoleState.networkRequests = devConsoleState.networkRequests.filter(
+      (req) => req.tabId !== tabId
+    );
   } else {
     devConsoleState.networkRequests = [];
   }
   scheduleSaveState();
-  notifyDevTools('NETWORK_CLEARED', typeof tabId === 'number' ? { tabId } : null);
+  notifyDevTools(
+    "NETWORK_CLEARED",
+    typeof tabId === "number" ? { tabId } : null
+  );
 }
 
 // Toggle recording
 function toggleRecording() {
   devConsoleState.isRecording = !devConsoleState.isRecording;
   scheduleSaveState();
-  notifyDevTools('RECORDING_TOGGLED', devConsoleState.isRecording);
+  notifyDevTools("RECORDING_TOGGLED", devConsoleState.isRecording);
 }
 
 // Notify DevTools of changes
 function notifyDevTools(type: string, payload: any) {
   // Send message to all devtools panels
-  chrome.runtime.sendMessage({
-    type: 'DEVTOOLS_UPDATE',
-    updateType: type,
-    payload
-  }).catch(() => {
-    // DevTools might not be open, ignore error
-  });
+  chrome.runtime
+    .sendMessage({
+      type: "DEVTOOLS_UPDATE",
+      updateType: type,
+      payload,
+    })
+    .catch(() => {
+      // DevTools might not be open, ignore error
+    });
 }
 
 // Generate unique ID
@@ -326,7 +355,7 @@ function generateId(): string {
 
 // Handle tab updates
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-  if (changeInfo.status === 'loading') {
+  if (changeInfo.status === "loading") {
     // Clear logs for this tab when navigating
     clearLogs(tabId);
     clearNetworkRequests(tabId);
@@ -348,7 +377,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
  * Increment autofill usage count
  */
 function incrementAutofillCount(): void {
-  chrome.storage.local.get(['autofillFillCount'], (result) => {
+  chrome.storage.local.get(["autofillFillCount"], (result) => {
     const newCount = (result.autofillFillCount || 0) + 1;
     chrome.storage.local.set({ autofillFillCount: newCount });
   });
@@ -363,14 +392,17 @@ async function getAutofillStats(): Promise<{
   usageMap: any;
 }> {
   return new Promise((resolve) => {
-    chrome.storage.local.get(['autofillFillCount', 'datasets', 'usageMap'], (result) => {
-      resolve({
-        fillCount: result.autofillFillCount || 0,
-        datasets: result.datasets || [],
-        usageMap: result.usageMap || {}
-      });
-    });
+    chrome.storage.local.get(
+      ["autofillFillCount", "datasets", "usageMap"],
+      (result) => {
+        resolve({
+          fillCount: result.autofillFillCount || 0,
+          datasets: result.datasets || [],
+          usageMap: result.usageMap || {},
+        });
+      }
+    );
   });
 }
 
-export { };
+export {};

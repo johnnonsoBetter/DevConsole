@@ -238,7 +238,7 @@ export function getAllFillableInputs(): Array<
       const rect = input.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) return;
 
-      if (input.offsetParent !== null && !input.disabled && !input.readOnly) {
+      if (input.offsetParent !== null && !input.disabled && !input.type) {
         // Selects don't have readOnly but checking property doesn't hurt or we can cast
         if (input instanceof HTMLSelectElement && input.disabled) return;
         if (

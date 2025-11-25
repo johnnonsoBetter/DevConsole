@@ -55,7 +55,7 @@ export function detectInputType(
     return "image";
   }
 
-    // 2. Trust autocomplete attribute (standard)
+  // 2. Trust autocomplete attribute (standard)
   if (autocomplete) {
     const acMap: Record<string, FieldType> = {
       email: "email",
@@ -73,11 +73,11 @@ export function detectInputType(
   }
 
   // 3. Check inputMode (modern mobile-friendly attribute)
-  const inputMode = input.getAttribute('inputmode')?.toLowerCase();
+  const inputMode = input.getAttribute("inputmode")?.toLowerCase();
   if (inputMode) {
-    if (inputMode === 'email') return 'email';
-    if (inputMode === 'tel') return 'phone';
-    if (inputMode === 'url') return 'website';
+    if (inputMode === "email") return "email";
+    if (inputMode === "tel") return "phone";
+    if (inputMode === "url") return "website";
   }
 
   // 4. For text inputs, use pattern matching with confidence scores
@@ -87,19 +87,23 @@ export function detectInputType(
   if (bestMatch) return bestMatch;
 
   // Fallback: inputMode=numeric/decimal implies a number field if no other pattern matched
-  if (inputMode === 'numeric' || inputMode === 'decimal') {
-    return 'number';
+  if (inputMode === "numeric" || inputMode === "decimal") {
+    return "number";
   }
 
   return "text";
 }
 
-function extractPatterns(input: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement): string[] {
+function extractPatterns(
+  input: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+): string[] {
   const attrs = [
     input.name,
     input.id,
     // Select elements don't have placeholder
-    (input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement) ? input.placeholder : '',
+    input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement
+      ? input.placeholder
+      : "",
     input.getAttribute("aria-label"),
     input.className,
     // Check common data attributes used in testing/frameworks
@@ -116,8 +120,6 @@ function extractPatterns(input: HTMLInputElement | HTMLSelectElement | HTMLTextA
 
   return attrs.split(/[\s\-_]+/); // Split by common separators
 }
-
-
 
 function classifyByPatterns(tokens: string[]): FieldType | null {
   // Look for semantic indicators, not exact matches
