@@ -230,6 +230,8 @@ module.exports = {
         'slide-down': 'slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
         'scale-in': 'scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
         'bounce-subtle': 'bounceSubtle 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55)',
+        'scroll': 'scroll 30s linear infinite',
+        'float': 'float 6s ease-in-out infinite',
       },
       keyframes: {
         'accordion-down': {
@@ -263,6 +265,14 @@ module.exports = {
         shimmer: {
           '0%': { transform: 'translateX(-100%)' },
           '100%': { transform: 'translateX(100%)' },
+        },
+        scroll: {
+          '0%': { transform: 'translateX(0)' },
+          '100%': { transform: 'translateX(-50%)' },
+        },
+        float: {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-10px)' },
         },
       },
       transitionTimingFunction: {
