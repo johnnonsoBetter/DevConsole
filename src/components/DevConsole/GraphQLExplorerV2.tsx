@@ -14,6 +14,7 @@ import { createGraphiQLFetcher } from "@graphiql/toolkit";
 import "graphiql/style.css";
 import {
     AlertCircle,
+    Bookmark,
     Brain,
     Check,
     CheckCircle2,
