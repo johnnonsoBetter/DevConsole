@@ -1,0 +1,3 @@
+application "graphql-smartmemory" {
+  smartmemory "graphql-memory" {}
+}
