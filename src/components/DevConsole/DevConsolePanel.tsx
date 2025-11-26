@@ -25,7 +25,7 @@ import {
 import {
   useDevConsoleStore
 } from '../../utils/stores/devConsole';
-const GraphQLExplorer = lazy(() => import('../DevConsole/GraphQLExplorer').then(module => ({default: module.GraphQLExplorer})));
+const GraphQLExplorer = lazy(() => import('../DevConsole/GraphQLExplorerV2').then(module => ({default: module.GraphQLExplorerV2})));
 
 import { StickyNoteButton } from '../../features/notes';
 import { useGitHubIssueSlideoutStore } from '../../utils/stores';
