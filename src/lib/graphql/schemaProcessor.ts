@@ -1,52 +1,46 @@
 /**
  * GraphQL Schema Processor
- * 
+ *
  * Transforms raw introspection data into a structured, searchable format
  * suitable for SmartMemory storage and AI-powered features.
  */
 
+import { generateSchemaHash } from "./introspection";
 import type {
-  GraphQLIntrospectionResult,
-  GraphQLFullType,
-  GraphQLTypeRef,
   GraphQLField,
+  GraphQLFullType,
   GraphQLInputValue,
+  GraphQLIntrospectionResult,
   GraphQLTypeKind,
-  ProcessedSchema,
-  ProcessedScalar,
-  ProcessedEnum,
-  ProcessedObjectType,
-  ProcessedInterfaceType,
-  ProcessedUnionType,
-  ProcessedInputType,
-  ProcessedField,
+  GraphQLTypeRef,
   ProcessedArgument,
-  ProcessedQuery,
+  ProcessedEnum,
+  ProcessedField,
+  ProcessedInputType,
+  ProcessedInterfaceType,
   ProcessedMutation,
+  ProcessedObjectType,
+  ProcessedQuery,
+  ProcessedScalar,
+  ProcessedSchema,
   ProcessedSubscription,
+  ProcessedUnionType,
   SchemaStats,
   TypeRelationship,
   TypeRelationshipMap,
-} from './types';
-import { generateSchemaHash } from './introspection';
+} from "./types";
 
 // ============================================================================
 // Built-in Types
 // ============================================================================
 
-const BUILT_IN_SCALARS = new Set([
-  'String',
-  'Int',
-  'Float',
-  'Boolean',
-  'ID',
-]);
+const BUILT_IN_SCALARS = new Set(["String", "Int", "Float", "Boolean", "ID"]);
 
 const BUILT_IN_DIRECTIVES = new Set([
-  'skip',
-  'include',
-  'deprecated',
-  'specifiedBy',
+  "skip",
+  "include",
+  "deprecated",
+  "specifiedBy",
 ]);
 
 // ============================================================================
@@ -68,10 +62,10 @@ function unwrapType(typeRef: GraphQLTypeRef): {
 
   // Traverse through NON_NULL and LIST wrappers
   while (current) {
-    if (current.kind === 'NON_NULL') {
+    if (current.kind === "NON_NULL") {
       isNonNull = true;
       current = current.ofType!;
-    } else if (current.kind === 'LIST') {
+    } else if (current.kind === "LIST") {
       isList = true;
       current = current.ofType!;
     } else {
@@ -80,7 +74,7 @@ function unwrapType(typeRef: GraphQLTypeRef): {
   }
 
   return {
-    name: current.name || 'Unknown',
+    name: current.name || "Unknown",
     kind: current.kind,
     isNonNull,
     isList,
@@ -91,13 +85,13 @@ function unwrapType(typeRef: GraphQLTypeRef): {
  * Format type as human-readable string (e.g., "[User!]!")
  */
 export function formatTypeRef(typeRef: GraphQLTypeRef): string {
-  if (typeRef.kind === 'NON_NULL') {
+  if (typeRef.kind === "NON_NULL") {
     return `${formatTypeRef(typeRef.ofType!)}!`;
   }
-  if (typeRef.kind === 'LIST') {
+  if (typeRef.kind === "LIST") {
     return `[${formatTypeRef(typeRef.ofType!)}]`;
   }
-  return typeRef.name || 'Unknown';
+  return typeRef.name || "Unknown";
 }
 
 // ============================================================================
@@ -106,7 +100,7 @@ export function formatTypeRef(typeRef: GraphQLTypeRef): string {
 
 function processArgument(inputValue: GraphQLInputValue): ProcessedArgument {
   const unwrapped = unwrapType(inputValue.type);
-  
+
   return {
     name: inputValue.name,
     description: inputValue.description,
@@ -124,7 +118,7 @@ function processArgument(inputValue: GraphQLInputValue): ProcessedArgument {
 
 function processField(field: GraphQLField): ProcessedField {
   const unwrapped = unwrapType(field.type);
-  
+
   return {
     name: field.name,
     description: field.description,
@@ -154,7 +148,7 @@ function processEnum(type: GraphQLFullType): ProcessedEnum {
   return {
     name: type.name,
     description: type.description,
-    values: (type.enumValues || []).map(ev => ({
+    values: (type.enumValues || []).map((ev) => ({
       name: ev.name,
       description: ev.description,
       isDeprecated: ev.isDeprecated,
@@ -165,13 +159,19 @@ function processEnum(type: GraphQLFullType): ProcessedEnum {
 
 function processObjectType(
   type: GraphQLFullType,
-  roots: { query: string | null; mutation: string | null; subscription: string | null }
+  roots: {
+    query: string | null;
+    mutation: string | null;
+    subscription: string | null;
+  }
 ): ProcessedObjectType {
   return {
     name: type.name,
     description: type.description,
     fields: (type.fields || []).map(processField),
-    interfaces: (type.interfaces || []).map(i => i.name || '').filter(Boolean),
+    interfaces: (type.interfaces || [])
+      .map((i) => i.name || "")
+      .filter(Boolean),
     isQueryRoot: type.name === roots.query,
     isMutationRoot: type.name === roots.mutation,
     isSubscriptionRoot: type.name === roots.subscription,
@@ -184,11 +184,11 @@ function processInterfaceType(
 ): ProcessedInterfaceType {
   // Find all types that implement this interface
   const implementedBy = allTypes
-    .filter(t => 
-      t.kind === 'OBJECT' && 
-      t.interfaces?.some(i => i.name === type.name)
+    .filter(
+      (t) =>
+        t.kind === "OBJECT" && t.interfaces?.some((i) => i.name === type.name)
     )
-    .map(t => t.name);
+    .map((t) => t.name);
 
   return {
     name: type.name,
@@ -202,7 +202,9 @@ function processUnionType(type: GraphQLFullType): ProcessedUnionType {
   return {
     name: type.name,
     description: type.description,
-    possibleTypes: (type.possibleTypes || []).map(t => t.name || '').filter(Boolean),
+    possibleTypes: (type.possibleTypes || [])
+      .map((t) => t.name || "")
+      .filter(Boolean),
   };
 }
 
@@ -218,9 +220,11 @@ function processInputType(type: GraphQLFullType): ProcessedInputType {
 // Operation Processing (Queries, Mutations, Subscriptions)
 // ============================================================================
 
-function processOperation(field: GraphQLField): ProcessedQuery | ProcessedMutation | ProcessedSubscription {
+function processOperation(
+  field: GraphQLField
+): ProcessedQuery | ProcessedMutation | ProcessedSubscription {
   const unwrapped = unwrapType(field.type);
-  
+
   return {
     name: field.name,
     description: field.description,
@@ -237,10 +241,10 @@ function extractOperations(
   rootTypeName: string | null
 ): ProcessedQuery[] {
   if (!rootTypeName) return [];
-  
-  const rootType = types.find(t => t.name === rootTypeName);
+
+  const rootType = types.find((t) => t.name === rootTypeName);
   if (!rootType || !rootType.fields) return [];
-  
+
   return rootType.fields.map(processOperation);
 }
 
@@ -248,7 +252,9 @@ function extractOperations(
 // Relationship Mapping
 // ============================================================================
 
-export function buildRelationshipMap(schema: ProcessedSchema): TypeRelationshipMap {
+export function buildRelationshipMap(
+  schema: ProcessedSchema
+): TypeRelationshipMap {
   const referencedBy = new Map<string, TypeRelationship[]>();
   const references = new Map<string, TypeRelationship[]>();
 
@@ -273,7 +279,7 @@ export function buildRelationshipMap(schema: ProcessedSchema): TypeRelationshipM
         fromType: obj.name,
         toType: field.typeName,
         fieldName: field.name,
-        relationshipType: 'field',
+        relationshipType: "field",
         isNonNull: field.isNonNull,
         isList: field.isList,
       });
@@ -284,7 +290,7 @@ export function buildRelationshipMap(schema: ProcessedSchema): TypeRelationshipM
           fromType: obj.name,
           toType: arg.typeName,
           fieldName: `${field.name}.${arg.name}`,
-          relationshipType: 'argument',
+          relationshipType: "argument",
           isNonNull: arg.isNonNull,
           isList: arg.isList,
         });
@@ -296,8 +302,8 @@ export function buildRelationshipMap(schema: ProcessedSchema): TypeRelationshipM
       addRelationship({
         fromType: obj.name,
         toType: iface,
-        fieldName: '',
-        relationshipType: 'implements',
+        fieldName: "",
+        relationshipType: "implements",
         isNonNull: false,
         isList: false,
       });
@@ -311,7 +317,7 @@ export function buildRelationshipMap(schema: ProcessedSchema): TypeRelationshipM
         fromType: iface.name,
         toType: field.typeName,
         fieldName: field.name,
-        relationshipType: 'field',
+        relationshipType: "field",
         isNonNull: field.isNonNull,
         isList: field.isList,
       });
@@ -324,8 +330,8 @@ export function buildRelationshipMap(schema: ProcessedSchema): TypeRelationshipM
       addRelationship({
         fromType: union.name,
         toType: possibleType,
-        fieldName: '',
-        relationshipType: 'possibleType',
+        fieldName: "",
+        relationshipType: "possibleType",
         isNonNull: false,
         isList: false,
       });
@@ -339,7 +345,7 @@ export function buildRelationshipMap(schema: ProcessedSchema): TypeRelationshipM
         fromType: input.name,
         toType: field.typeName,
         fieldName: field.name,
-        relationshipType: 'inputField',
+        relationshipType: "inputField",
         isNonNull: field.isNonNull,
         isList: field.isList,
       });
@@ -369,15 +375,19 @@ export function processSchema(
   const schema = introspectionData.__schema;
 
   // Filter types
-  const types = schema.types.filter(t => {
+  const types = schema.types.filter((t) => {
     // Always exclude introspection types
-    if (t.name.startsWith('__')) return false;
-    
+    if (t.name.startsWith("__")) return false;
+
     // Optionally exclude built-in scalars
-    if (!includeBuiltInTypes && t.kind === 'SCALAR' && BUILT_IN_SCALARS.has(t.name)) {
+    if (
+      !includeBuiltInTypes &&
+      t.kind === "SCALAR" &&
+      BUILT_IN_SCALARS.has(t.name)
+    ) {
       return false;
     }
-    
+
     return true;
   });
 
@@ -397,27 +407,29 @@ export function processSchema(
 
   for (const type of types) {
     switch (type.kind) {
-      case 'SCALAR':
+      case "SCALAR":
         scalars.push(processScalar(type));
         break;
-      case 'ENUM':
+      case "ENUM":
         enums.push(processEnum(type));
         break;
-      case 'OBJECT':
+      case "OBJECT":
         // Skip root types (they'll be processed as operations)
-        if (type.name !== roots.query && 
-            type.name !== roots.mutation && 
-            type.name !== roots.subscription) {
+        if (
+          type.name !== roots.query &&
+          type.name !== roots.mutation &&
+          type.name !== roots.subscription
+        ) {
           objects.push(processObjectType(type, roots));
         }
         break;
-      case 'INTERFACE':
+      case "INTERFACE":
         interfaces.push(processInterfaceType(type, types));
         break;
-      case 'UNION':
+      case "UNION":
         unions.push(processUnionType(type));
         break;
-      case 'INPUT_OBJECT':
+      case "INPUT_OBJECT":
         inputTypes.push(processInputType(type));
         break;
     }
@@ -431,7 +443,7 @@ export function processSchema(
   // Filter directives (optionally exclude built-in)
   const directives = includeBuiltInTypes
     ? schema.directives
-    : schema.directives.filter(d => !BUILT_IN_DIRECTIVES.has(d.name));
+    : schema.directives.filter((d) => !BUILT_IN_DIRECTIVES.has(d.name));
 
   // Calculate stats
   let totalFields = 0;
@@ -464,7 +476,13 @@ export function processSchema(
   }
 
   const stats: SchemaStats = {
-    totalTypes: scalars.length + enums.length + objects.length + interfaces.length + unions.length + inputTypes.length,
+    totalTypes:
+      scalars.length +
+      enums.length +
+      objects.length +
+      interfaces.length +
+      unions.length +
+      inputTypes.length,
     totalFields,
     totalArguments,
     scalarCount: scalars.length,
@@ -483,7 +501,7 @@ export function processSchema(
     meta: {
       endpoint,
       fetchedAt: Date.now(),
-      version: '1.0',
+      version: "1.0",
       hash: generateSchemaHash(introspectionData),
     },
     roots,
@@ -509,12 +527,18 @@ export interface SchemaDiff {
   added: {
     types: string[];
     fields: Array<{ type: string; field: string }>;
-    operations: Array<{ kind: 'query' | 'mutation' | 'subscription'; name: string }>;
+    operations: Array<{
+      kind: "query" | "mutation" | "subscription";
+      name: string;
+    }>;
   };
   removed: {
     types: string[];
     fields: Array<{ type: string; field: string }>;
-    operations: Array<{ kind: 'query' | 'mutation' | 'subscription'; name: string }>;
+    operations: Array<{
+      kind: "query" | "mutation" | "subscription";
+      name: string;
+    }>;
   };
   changed: {
     types: Array<{ name: string; changes: string[] }>;
@@ -525,7 +549,10 @@ export interface SchemaDiff {
 /**
  * Compare two schemas to detect changes
  */
-export function diffSchemas(oldSchema: ProcessedSchema, newSchema: ProcessedSchema): SchemaDiff {
+export function diffSchemas(
+  oldSchema: ProcessedSchema,
+  newSchema: ProcessedSchema
+): SchemaDiff {
   const diff: SchemaDiff = {
     added: { types: [], fields: [], operations: [] },
     removed: { types: [], fields: [], operations: [] },
@@ -540,23 +567,23 @@ export function diffSchemas(oldSchema: ProcessedSchema, newSchema: ProcessedSche
 
   // Compare types
   const oldTypeNames = new Set([
-    ...oldSchema.objects.map(t => t.name),
-    ...oldSchema.enums.map(t => t.name),
-    ...oldSchema.interfaces.map(t => t.name),
-    ...oldSchema.unions.map(t => t.name),
-    ...oldSchema.inputTypes.map(t => t.name),
+    ...oldSchema.objects.map((t) => t.name),
+    ...oldSchema.enums.map((t) => t.name),
+    ...oldSchema.interfaces.map((t) => t.name),
+    ...oldSchema.unions.map((t) => t.name),
+    ...oldSchema.inputTypes.map((t) => t.name),
   ]);
 
   const newTypeNames = new Set([
-    ...newSchema.objects.map(t => t.name),
-    ...newSchema.enums.map(t => t.name),
-    ...newSchema.interfaces.map(t => t.name),
-    ...newSchema.unions.map(t => t.name),
-    ...newSchema.inputTypes.map(t => t.name),
+    ...newSchema.objects.map((t) => t.name),
+    ...newSchema.enums.map((t) => t.name),
+    ...newSchema.interfaces.map((t) => t.name),
+    ...newSchema.unions.map((t) => t.name),
+    ...newSchema.inputTypes.map((t) => t.name),
   ]);
 
   // Find added types
-  Array.from(newTypeNames).forEach(name => {
+  Array.from(newTypeNames).forEach((name) => {
     if (!oldTypeNames.has(name)) {
       diff.added.types.push(name);
       diff.hasChanges = true;
@@ -564,7 +591,7 @@ export function diffSchemas(oldSchema: ProcessedSchema, newSchema: ProcessedSche
   });
 
   // Find removed types
-  Array.from(oldTypeNames).forEach(name => {
+  Array.from(oldTypeNames).forEach((name) => {
     if (!newTypeNames.has(name)) {
       diff.removed.types.push(name);
       diff.hasChanges = true;
@@ -573,21 +600,21 @@ export function diffSchemas(oldSchema: ProcessedSchema, newSchema: ProcessedSche
 
   // Compare operations
   const compareOps = (
-    kind: 'query' | 'mutation' | 'subscription',
+    kind: "query" | "mutation" | "subscription",
     oldOps: Array<{ name: string }>,
     newOps: Array<{ name: string }>
   ) => {
-    const oldNames = new Set(oldOps.map(o => o.name));
-    const newNames = new Set(newOps.map(o => o.name));
+    const oldNames = new Set(oldOps.map((o) => o.name));
+    const newNames = new Set(newOps.map((o) => o.name));
 
-    Array.from(newNames).forEach(name => {
+    Array.from(newNames).forEach((name) => {
       if (!oldNames.has(name)) {
         diff.added.operations.push({ kind, name });
         diff.hasChanges = true;
       }
     });
 
-    Array.from(oldNames).forEach(name => {
+    Array.from(oldNames).forEach((name) => {
       if (!newNames.has(name)) {
         diff.removed.operations.push({ kind, name });
         diff.hasChanges = true;
@@ -595,9 +622,9 @@ export function diffSchemas(oldSchema: ProcessedSchema, newSchema: ProcessedSche
     });
   };
 
-  compareOps('query', oldSchema.queries, newSchema.queries);
-  compareOps('mutation', oldSchema.mutations, newSchema.mutations);
-  compareOps('subscription', oldSchema.subscriptions, newSchema.subscriptions);
+  compareOps("query", oldSchema.queries, newSchema.queries);
+  compareOps("mutation", oldSchema.mutations, newSchema.mutations);
+  compareOps("subscription", oldSchema.subscriptions, newSchema.subscriptions);
 
   return diff;
 }

@@ -1,11 +1,11 @@
 /**
  * GraphQL Schema Introspection
- * 
+ *
  * Handles fetching the complete GraphQL schema via introspection query.
  * This is the foundation for SmartMemory - capturing all schema elements.
  */
 
-import type { GraphQLIntrospectionResult } from './types';
+import type { GraphQLIntrospectionResult } from "./types";
 
 // ============================================================================
 // Full Introspection Query
@@ -168,7 +168,7 @@ export async function fetchSchemaIntrospection(
     endpoint,
     headers = {},
     timeout = 30000,
-    credentials = 'include',
+    credentials = "include",
   } = options;
 
   const startedAt = Date.now();
@@ -179,15 +179,15 @@ export async function fetchSchemaIntrospection(
     const timeoutId = setTimeout(() => controller.abort(), timeout);
 
     const response = await fetch(endpoint, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
+        "Content-Type": "application/json",
+        Accept: "application/json",
         ...headers,
       },
       body: JSON.stringify({
         query: FULL_INTROSPECTION_QUERY,
-        operationName: 'IntrospectionQuery',
+        operationName: "IntrospectionQuery",
       }),
       credentials,
       signal: controller.signal,
@@ -213,8 +213,8 @@ export async function fetchSchemaIntrospection(
     if (json.errors && json.errors.length > 0) {
       const errorMessages = json.errors
         .map((e: { message: string }) => e.message)
-        .join('; ');
-      
+        .join("; ");
+
       // If we have partial data, still return it
       if (json.data?.__schema) {
         return {
@@ -244,7 +244,7 @@ export async function fetchSchemaIntrospection(
     if (!json.data?.__schema) {
       return {
         success: false,
-        error: 'Invalid introspection response: missing __schema',
+        error: "Invalid introspection response: missing __schema",
         timing: {
           startedAt,
           completedAt: Date.now(),
@@ -265,10 +265,10 @@ export async function fetchSchemaIntrospection(
   } catch (error) {
     const errorMessage =
       error instanceof Error
-        ? error.name === 'AbortError'
+        ? error.name === "AbortError"
           ? `Request timeout after ${timeout}ms`
           : error.message
-        : 'Unknown error during introspection';
+        : "Unknown error during introspection";
 
     return {
       success: false,
@@ -291,16 +291,16 @@ export async function checkIntrospectionSupport(
 ): Promise<{ supported: boolean; error?: string }> {
   try {
     const response = await fetch(endpoint, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
+        "Content-Type": "application/json",
+        Accept: "application/json",
         ...headers,
       },
       body: JSON.stringify({
-        query: '{ __schema { queryType { name } } }',
+        query: "{ __schema { queryType { name } } }",
       }),
-      credentials: 'include',
+      credentials: "include",
     });
 
     if (!response.ok) {
@@ -316,21 +316,21 @@ export async function checkIntrospectionSupport(
       // Check for introspection disabled error
       const isDisabled = json.errors.some(
         (e: { message: string }) =>
-          e.message.toLowerCase().includes('introspection') &&
-          (e.message.toLowerCase().includes('disabled') ||
-            e.message.toLowerCase().includes('not allowed'))
+          e.message.toLowerCase().includes("introspection") &&
+          (e.message.toLowerCase().includes("disabled") ||
+            e.message.toLowerCase().includes("not allowed"))
       );
 
       if (isDisabled) {
         return {
           supported: false,
-          error: 'Introspection is disabled on this endpoint',
+          error: "Introspection is disabled on this endpoint",
         };
       }
 
       return {
         supported: false,
-        error: json.errors[0]?.message || 'Unknown GraphQL error',
+        error: json.errors[0]?.message || "Unknown GraphQL error",
       };
     }
 
@@ -340,7 +340,8 @@ export async function checkIntrospectionSupport(
   } catch (error) {
     return {
       supported: false,
-      error: error instanceof Error ? error.message : 'Failed to check endpoint',
+      error:
+        error instanceof Error ? error.message : "Failed to check endpoint",
     };
   }
 }
@@ -348,23 +349,28 @@ export async function checkIntrospectionSupport(
 /**
  * Generate a hash for schema comparison (detect changes)
  */
-export function generateSchemaHash(introspectionData: GraphQLIntrospectionResult): string {
+export function generateSchemaHash(
+  introspectionData: GraphQLIntrospectionResult
+): string {
   const schema = introspectionData.__schema;
-  
+
   // Create a deterministic string from schema structure
   const typeNames = schema.types
-    .filter(t => !t.name.startsWith('__'))
-    .map(t => `${t.kind}:${t.name}:${t.fields?.length || 0}:${t.inputFields?.length || 0}`)
+    .filter((t) => !t.name.startsWith("__"))
+    .map(
+      (t) =>
+        `${t.kind}:${t.name}:${t.fields?.length || 0}:${t.inputFields?.length || 0}`
+    )
     .sort()
-    .join('|');
+    .join("|");
 
   // Simple hash function
   let hash = 0;
   for (let i = 0; i < typeNames.length; i++) {
     const char = typeNames.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
+    hash = (hash << 5) - hash + char;
     hash = hash & hash; // Convert to 32bit integer
   }
-  
-  return Math.abs(hash).toString(16).padStart(8, '0');
+
+  return Math.abs(hash).toString(16).padStart(8, "0");
 }

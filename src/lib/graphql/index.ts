@@ -87,54 +87,54 @@ export type { ProcessSchemaOptions, SchemaDiff } from "./schemaProcessor";
 
 // SmartMemory Client
 export {
-  GraphQLSmartMemory,
   createGraphQLSmartMemory,
   createGraphQLSmartMemoryWithSession,
+  GraphQLSmartMemory,
   isSmartMemoryConfigured,
 } from "./smartMemory";
 
 export type {
-  GraphQLMemoryConfig,
-  SchemaDocument,
-  TypeDocument,
-  OperationDocument,
-  QueryTemplate,
-  SystemPrompt,
-  SemanticSearchResult,
-  MemorySession,
-  MemoryEntry,
   EpisodicEntry,
-  SummarizationResult,
+  GraphQLMemoryConfig,
+  MemoryEntry,
   MemorySearchResult,
+  MemorySession,
+  OperationDocument,
   ProcedureSearchResult,
+  QueryTemplate,
+  SchemaDocument,
+  SemanticSearchResult,
+  SummarizationResult,
+  SystemPrompt,
+  TypeDocument,
 } from "./smartMemory";
 
 // Schema Service
 export {
-  GraphQLSchemaService,
   createSchemaService,
   getSchemaService,
+  GraphQLSchemaService,
   resetSchemaService,
 } from "./schemaService";
 
 export type {
+  OperationSearchResult,
   SchemaServiceConfig,
   SchemaServiceState,
   TypeSearchResult,
-  OperationSearchResult,
 } from "./schemaService";
 
 // Query Generator (AI-powered)
 export {
-  GraphQLQueryGenerator,
   createQueryGenerator,
   getQueryGenerator,
+  GraphQLQueryGenerator,
   isQueryGeneratorAvailable,
 } from "./queryGenerator";
 
 export type {
-  QueryGeneratorConfig,
-  GenerateQueryRequest,
   GeneratedQuery,
+  GenerateQueryRequest,
+  QueryGeneratorConfig,
   QuerySuggestion,
 } from "./queryGenerator";

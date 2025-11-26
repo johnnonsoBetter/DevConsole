@@ -1,6 +1,6 @@
 /**
  * GraphQL Schema Memory Service
- * 
+ *
  * High-level service that orchestrates:
  * - Schema introspection and processing
  * - Local caching (chrome.storage)
@@ -10,8 +10,19 @@
 
 import { fetchSchemaIntrospection } from "./introspection";
 import { processSchema } from "./schemaProcessor";
-import type { ProcessedSchema, ProcessedQuery, ProcessedMutation, ProcessedSubscription, ProcessedObjectType } from "./types";
-import { GraphQLSmartMemory, createGraphQLSmartMemory, type GraphQLMemoryConfig, type SemanticSearchResult } from "./smartMemory";
+import {
+  GraphQLSmartMemory,
+  createGraphQLSmartMemory,
+  type GraphQLMemoryConfig,
+  type SemanticSearchResult,
+} from "./smartMemory";
+import type {
+  ProcessedMutation,
+  ProcessedObjectType,
+  ProcessedQuery,
+  ProcessedSchema,
+  ProcessedSubscription,
+} from "./types";
 
 // ============================================================================
 // TYPES
@@ -67,14 +78,18 @@ export interface OperationSearchResult {
 // ============================================================================
 
 const STORAGE_PREFIX = "devconsole_graphql_";
-const SCHEMA_CACHE_KEY = (endpoint: string) => `${STORAGE_PREFIX}schema_${btoa(endpoint)}`;
-const SCHEMA_META_KEY = (endpoint: string) => `${STORAGE_PREFIX}meta_${btoa(endpoint)}`;
+const SCHEMA_CACHE_KEY = (endpoint: string) =>
+  `${STORAGE_PREFIX}schema_${btoa(endpoint)}`;
+const SCHEMA_META_KEY = (endpoint: string) =>
+  `${STORAGE_PREFIX}meta_${btoa(endpoint)}`;
 
 // ============================================================================
 // LOCAL CACHE (chrome.storage)
 // ============================================================================
 
-async function getCachedSchema(endpoint: string): Promise<ProcessedSchema | null> {
+async function getCachedSchema(
+  endpoint: string
+): Promise<ProcessedSchema | null> {
   try {
     const key = SCHEMA_CACHE_KEY(endpoint);
     const result = await chrome.storage.local.get(key);
@@ -84,7 +99,10 @@ async function getCachedSchema(endpoint: string): Promise<ProcessedSchema | null
   }
 }
 
-async function setCachedSchema(endpoint: string, schema: ProcessedSchema): Promise<void> {
+async function setCachedSchema(
+  endpoint: string,
+  schema: ProcessedSchema
+): Promise<void> {
   try {
     const schemaKey = SCHEMA_CACHE_KEY(endpoint);
     const metaKey = SCHEMA_META_KEY(endpoint);
@@ -101,7 +119,9 @@ async function setCachedSchema(endpoint: string, schema: ProcessedSchema): Promi
   }
 }
 
-async function getCacheMeta(endpoint: string): Promise<{ hash: string; fetchedAt: number } | null> {
+async function getCacheMeta(
+  endpoint: string
+): Promise<{ hash: string; fetchedAt: number } | null> {
   try {
     const key = SCHEMA_META_KEY(endpoint);
     const result = await chrome.storage.local.get(key);
@@ -168,7 +188,7 @@ export class GraphQLSchemaService {
   }
 
   private notifyListeners(): void {
-    this.listeners.forEach(fn => fn(this.state));
+    this.listeners.forEach((fn) => fn(this.state));
   }
 
   /** Subscribe to state changes */
@@ -194,8 +214,8 @@ export class GraphQLSchemaService {
   /**
    * Fetch and process schema from endpoint
    */
-  async fetchSchema(options?: { 
-    force?: boolean; 
+  async fetchSchema(options?: {
+    force?: boolean;
     skipCache?: boolean;
     syncToCloud?: boolean;
   }): Promise<ProcessedSchema> {
@@ -242,7 +262,7 @@ export class GraphQLSchemaService {
 
       // Sync to SmartMemory if enabled
       if (shouldSync && this.smartMemory) {
-        this.syncToSmartMemory(schema).catch(e => {
+        this.syncToSmartMemory(schema).catch((e) => {
           console.warn("[SchemaService] SmartMemory sync failed:", e);
         });
       }
@@ -260,7 +280,7 @@ export class GraphQLSchemaService {
    */
   async loadFromCache(): Promise<ProcessedSchema | null> {
     const meta = await getCacheMeta(this.config.endpoint);
-    
+
     // Check if cache is still valid
     if (meta && this.config.cacheTTL) {
       const age = Date.now() - meta.fetchedAt;
@@ -359,7 +379,7 @@ export class GraphQLSchemaService {
           name: t.name,
           category: "object",
           description: t.description,
-          fields: t.fields.map(f => f.name),
+          fields: t.fields.map((f) => f.name),
         });
       }
     }
@@ -371,7 +391,7 @@ export class GraphQLSchemaService {
           name: t.name,
           category: "enum",
           description: t.description,
-          fields: t.values.map(v => v.name),
+          fields: t.values.map((v) => v.name),
         });
       }
     }
@@ -383,7 +403,7 @@ export class GraphQLSchemaService {
           name: t.name,
           category: "interface",
           description: t.description,
-          fields: t.fields.map(f => f.name),
+          fields: t.fields.map((f) => f.name),
         });
       }
     }
@@ -395,7 +415,7 @@ export class GraphQLSchemaService {
           name: t.name,
           category: "input",
           description: t.description,
-          fields: t.fields.map(f => f.name),
+          fields: t.fields.map((f) => f.name),
         });
       }
     }
@@ -418,7 +438,9 @@ export class GraphQLSchemaService {
     ) => {
       for (const op of ops) {
         if (this.matchesQuery(op.name, op.description, q)) {
-          const args = op.arguments.map(a => `${a.name}: ${a.typeName}`).join(", ");
+          const args = op.arguments
+            .map((a) => `${a.name}: ${a.typeName}`)
+            .join(", ");
           results.push({
             name: op.name,
             kind,
@@ -437,7 +459,11 @@ export class GraphQLSchemaService {
     return results;
   }
 
-  private matchesQuery(name: string, description: string | null, query: string): boolean {
+  private matchesQuery(
+    name: string,
+    description: string | null,
+    query: string
+  ): boolean {
     return (
       name.toLowerCase().includes(query) ||
       (description?.toLowerCase().includes(query) ?? false)
@@ -470,17 +496,17 @@ export class GraphQLSchemaService {
 
   /** Get type by name */
   getType(name: string): ProcessedObjectType | undefined {
-    return this.state.schema?.objects.find(t => t.name === name);
+    return this.state.schema?.objects.find((t) => t.name === name);
   }
 
   /** Get query by name */
   getQuery(name: string): ProcessedQuery | undefined {
-    return this.state.schema?.queries.find(q => q.name === name);
+    return this.state.schema?.queries.find((q) => q.name === name);
   }
 
   /** Get mutation by name */
   getMutation(name: string): ProcessedMutation | undefined {
-    return this.state.schema?.mutations.find(m => m.name === name);
+    return this.state.schema?.mutations.find((m) => m.name === name);
   }
 
   /** Get schema stats */
@@ -493,7 +519,11 @@ export class GraphQLSchemaService {
   // ==========================================================================
 
   /** Save query template */
-  async saveTemplate(name: string, query: string, description: string): Promise<boolean> {
+  async saveTemplate(
+    name: string,
+    query: string,
+    description: string
+  ): Promise<boolean> {
     if (!this.smartMemory) return false;
     return this.smartMemory.saveTemplate({ name, query, description });
   }
@@ -539,7 +569,10 @@ export class GraphQLSchemaService {
   }
 
   /** Enable SmartMemory */
-  enableSmartMemory(apiKey: string, config?: Omit<GraphQLMemoryConfig, "apiKey">): void {
+  enableSmartMemory(
+    apiKey: string,
+    config?: Omit<GraphQLMemoryConfig, "apiKey">
+  ): void {
     this.smartMemory = createGraphQLSmartMemory({ apiKey, ...config });
     this.updateState({ smartMemoryEnabled: true });
   }
@@ -566,7 +599,9 @@ export class GraphQLSchemaService {
 /**
  * Create a new GraphQL Schema Service
  */
-export function createSchemaService(config: SchemaServiceConfig): GraphQLSchemaService {
+export function createSchemaService(
+  config: SchemaServiceConfig
+): GraphQLSchemaService {
   return new GraphQLSchemaService(config);
 }
 
@@ -579,7 +614,9 @@ let globalService: GraphQLSchemaService | null = null;
 /**
  * Get or create the global schema service instance
  */
-export function getSchemaService(config?: SchemaServiceConfig): GraphQLSchemaService {
+export function getSchemaService(
+  config?: SchemaServiceConfig
+): GraphQLSchemaService {
   if (!globalService && config) {
     globalService = createSchemaService(config);
   }

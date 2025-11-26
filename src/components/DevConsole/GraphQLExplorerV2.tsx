@@ -10,42 +10,35 @@
  * 6. Session context tracking
  */
 
-import { useMemo, useState, useEffect, lazy, useCallback, useRef, Suspense } from "react";
-const GraphiQL = lazy(() => import('graphiql').then(module => ({ default: module.GraphiQL })));
 import { createGraphiQLFetcher } from "@graphiql/toolkit";
-import { 
-  ExternalLink, 
-  Zap, 
-  Settings as SettingsIcon, 
-  Sparkles, 
-  Loader2, 
-  ChevronDown, 
-  ChevronUp,
-  Copy,
-  Check,
-  Brain,
-  Lightbulb,
-  BookOpen,
-  WandSparkles,
-  X,
-  Database,
-  Search,
-  Save,
-  FileText,
-  RefreshCw,
-  Wand2,
-  MessageSquare,
-  History,
-  Bookmark,
-  AlertCircle,
-  CheckCircle2
-} from "lucide-react";
 import "graphiql/style.css";
-import "./graphiql-custom.css";
-import { cn } from "../../utils";
-import { loadGraphQLSettings } from "../../lib/devConsole/graphqlSettings";
-import { GraphQLSettingsPanel } from "./GraphQLSettingsPanel";
+import {
+    AlertCircle,
+    Brain,
+    Check,
+    CheckCircle2,
+    ChevronDown,
+    ChevronUp,
+    Copy,
+    Database,
+    Loader2,
+    MessageSquare,
+    Save,
+    Search,
+    Settings as SettingsIcon,
+    Sparkles,
+    Wand2,
+    WandSparkles,
+    X,
+    Zap
+} from "lucide-react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useGraphQLSmartMemoryV2, type GeneratedQuery, type QueryTemplate, type SemanticSearchResult } from "../../hooks/useGraphQLSmartMemoryV2";
+import { loadGraphQLSettings } from "../../lib/devConsole/graphqlSettings";
+import { cn } from "../../utils";
+import "./graphiql-custom.css";
+import { GraphQLSettingsPanel } from "./GraphQLSettingsPanel";
+const GraphiQL = lazy(() => import('graphiql').then(module => ({ default: module.GraphiQL })));
 
 // ============================================================================
 // TYPES
@@ -117,6 +110,7 @@ export function GraphQLExplorerV2() {
     error: aiError,
     isConfigured,
     schemaStats,
+    indexingProgress,
     ingestSchema,
     searchSchema,
     generateQuery,
@@ -415,8 +409,34 @@ export function GraphQLExplorerV2() {
           </div>
           
           <div className="flex items-center gap-2">
+            {/* Indexing Progress Display */}
+            {indexingProgress && (
+              <div className={cn(
+                "flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg",
+                indexingProgress.phase === "error" 
+                  ? "bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-300"
+                  : indexingProgress.phase === "done"
+                  ? "bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300"
+                  : "bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
+              )}>
+                {indexingProgress.phase === "done" ? (
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                ) : indexingProgress.phase === "error" ? (
+                  <AlertCircle className="w-3.5 h-3.5" />
+                ) : (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                )}
+                <span className="max-w-xs truncate">{indexingProgress.message}</span>
+                {indexingProgress.current !== undefined && indexingProgress.total !== undefined && (
+                  <span className="text-[10px] opacity-75">
+                    ({indexingProgress.current}/{indexingProgress.total})
+                  </span>
+                )}
+              </div>
+            )}
+            
             {/* Ingest Schema Button */}
-            {isConfigured && !schemaIngested && (
+            {isConfigured && !schemaIngested && !indexingProgress && (
               <button
                 onClick={handleIngestSchema}
                 disabled={isIngestingSchema}
@@ -653,7 +673,7 @@ export function GraphQLExplorerV2() {
                   <div className="space-y-2">
                     <p className="text-xs text-gray-500">{searchResults.length} results found</p>
                     {searchResults.map((result, i) => {
-                      let doc: Record<string, unknown> = {};
+                      let doc: { name?: string; kind?: string; category?: string; docType?: string; signature?: string; description?: string } = {};
                       try { doc = JSON.parse(result.text); } catch {}
                       
                       return (
@@ -667,14 +687,14 @@ export function GraphQLExplorerV2() {
                               doc.docType === "operation" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" :
                               "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
                             )}>
-                              {doc.kind || doc.category || doc.docType}
+                              {doc.kind || doc.category || doc.docType || "item"}
                             </span>
                           </div>
                           {doc.signature && (
-                            <p className="text-xs font-mono text-gray-600 dark:text-gray-400">{String(doc.signature)}</p>
+                            <p className="text-xs font-mono text-gray-600 dark:text-gray-400">{doc.signature}</p>
                           )}
                           {doc.description && (
-                            <p className="text-xs text-gray-500 mt-1">{String(doc.description)}</p>
+                            <p className="text-xs text-gray-500 mt-1">{doc.description}</p>
                           )}
                           <div className="text-[10px] text-gray-400 mt-1">Score: {(result.score * 100).toFixed(0)}%</div>
                         </div>

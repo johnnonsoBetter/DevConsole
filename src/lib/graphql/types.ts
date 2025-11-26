@@ -1,6 +1,6 @@
 /**
  * GraphQL Schema Types
- * 
+ *
  * Comprehensive type definitions for GraphQL schema introspection
  * These types represent all elements of a GraphQL schema that can be
  * stored in SmartMemory for intelligent query assistance.
@@ -11,14 +11,14 @@
 // ============================================================================
 
 export type GraphQLTypeKind =
-  | 'SCALAR'
-  | 'OBJECT'
-  | 'INTERFACE'
-  | 'UNION'
-  | 'ENUM'
-  | 'INPUT_OBJECT'
-  | 'LIST'
-  | 'NON_NULL';
+  | "SCALAR"
+  | "OBJECT"
+  | "INTERFACE"
+  | "UNION"
+  | "ENUM"
+  | "INPUT_OBJECT"
+  | "LIST"
+  | "NON_NULL";
 
 // ============================================================================
 // Base Types
@@ -215,44 +215,44 @@ export interface ProcessedSchema {
     version: string;
     hash: string;
   };
-  
+
   /** Root operation type names */
   roots: {
     query: string | null;
     mutation: string | null;
     subscription: string | null;
   };
-  
+
   /** All scalar types (including custom) */
   scalars: ProcessedScalar[];
-  
+
   /** All enum types */
   enums: ProcessedEnum[];
-  
+
   /** All object types */
   objects: ProcessedObjectType[];
-  
+
   /** All interface types */
   interfaces: ProcessedInterfaceType[];
-  
+
   /** All union types */
   unions: ProcessedUnionType[];
-  
+
   /** All input types */
   inputTypes: ProcessedInputType[];
-  
+
   /** All queries (fields on Query type) */
   queries: ProcessedQuery[];
-  
+
   /** All mutations (fields on Mutation type) */
   mutations: ProcessedMutation[];
-  
+
   /** All subscriptions (fields on Subscription type) */
   subscriptions: ProcessedSubscription[];
-  
+
   /** Directives */
   directives: GraphQLDirective[];
-  
+
   /** Statistics */
   stats: SchemaStats;
 }
@@ -281,7 +281,12 @@ export interface TypeRelationship {
   fromType: string;
   toType: string;
   fieldName: string;
-  relationshipType: 'field' | 'argument' | 'implements' | 'possibleType' | 'inputField';
+  relationshipType:
+    | "field"
+    | "argument"
+    | "implements"
+    | "possibleType"
+    | "inputField";
   isNonNull: boolean;
   isList: boolean;
 }

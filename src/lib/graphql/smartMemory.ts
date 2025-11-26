@@ -1,21 +1,21 @@
 /**
  * GraphQL SmartMemory Client
- * 
- * A comprehensive client for GraphQL schema intelligence using LiquidMetal's 
+ *
+ * A comprehensive client for GraphQL schema intelligence using LiquidMetal's
  * Raindrop SmartMemory with full AI capabilities.
- * 
+ *
  * Memory Architecture:
  * - Semantic Memory: Long-term schema knowledge (types, operations, relationships)
  * - Procedural Memory: Reusable templates, prompts, and workflows
  * - Working Memory: Session-based context for multi-turn interactions
  * - Episodic Memory: Historical sessions for context retrieval
- * 
+ *
  * AI Features:
  * - Semantic search with vector embeddings
  * - AI-powered memory summarization
  * - Natural language to query understanding
  * - Session context management
- * 
+ *
  * @see https://docs.liquidmetal.ai/sdk/examples/smart-memory/
  * @see https://docs.liquidmetal.ai/reference/smartmemory/
  */
@@ -181,7 +181,8 @@ export class GraphQLSmartMemory {
     this.location = {
       smartMemory: {
         name: config.memoryName ?? DEFAULT_CONFIG.memoryName,
-        application_name: config.applicationName ?? DEFAULT_CONFIG.applicationName,
+        application_name:
+          config.applicationName ?? DEFAULT_CONFIG.applicationName,
         version: config.version ?? DEFAULT_CONFIG.version,
       },
     };
@@ -509,8 +510,8 @@ export class GraphQLSmartMemory {
         category: "object",
         name: t.name,
         description: t.description ?? "",
-        fields: t.fields.map(f => `${f.name}: ${f.typeName}`).join(", "),
-        relatedTypes: [...t.interfaces, ...t.fields.map(f => f.typeName)],
+        fields: t.fields.map((f) => `${f.name}: ${f.typeName}`).join(", "),
+        relatedTypes: [...t.interfaces, ...t.fields.map((f) => f.typeName)],
       };
       await this.client.putSemanticMemory.create({
         smartMemoryLocation: this.location,
@@ -527,7 +528,7 @@ export class GraphQLSmartMemory {
         category: "enum",
         name: t.name,
         description: t.description ?? "",
-        fields: t.values.map(v => v.name).join(", "),
+        fields: t.values.map((v) => v.name).join(", "),
         relatedTypes: [],
       };
       await this.client.putSemanticMemory.create({
@@ -545,8 +546,8 @@ export class GraphQLSmartMemory {
         category: "interface",
         name: t.name,
         description: t.description ?? "",
-        fields: t.fields.map(f => `${f.name}: ${f.typeName}`).join(", "),
-        relatedTypes: [...t.implementedBy, ...t.fields.map(f => f.typeName)],
+        fields: t.fields.map((f) => `${f.name}: ${f.typeName}`).join(", "),
+        relatedTypes: [...t.implementedBy, ...t.fields.map((f) => f.typeName)],
       };
       await this.client.putSemanticMemory.create({
         smartMemoryLocation: this.location,
@@ -563,8 +564,8 @@ export class GraphQLSmartMemory {
         category: "input",
         name: t.name,
         description: t.description ?? "",
-        fields: t.fields.map(f => `${f.name}: ${f.typeName}`).join(", "),
-        relatedTypes: t.fields.map(f => f.typeName),
+        fields: t.fields.map((f) => `${f.name}: ${f.typeName}`).join(", "),
+        relatedTypes: t.fields.map((f) => f.typeName),
       };
       await this.client.putSemanticMemory.create({
         smartMemoryLocation: this.location,
@@ -588,7 +589,9 @@ export class GraphQLSmartMemory {
       ops: typeof schema.queries
     ) => {
       for (const op of ops) {
-        const args = op.arguments.map(a => `${a.name}: ${a.typeName}`).join(", ");
+        const args = op.arguments
+          .map((a) => `${a.name}: ${a.typeName}`)
+          .join(", ");
         const doc: OperationDocument = {
           docType: "operation",
           endpoint,
@@ -645,8 +648,8 @@ export class GraphQLSmartMemory {
     if (!res.success || !res.document) return null;
 
     try {
-      return typeof res.document === "string" 
-        ? JSON.parse(res.document) 
+      return typeof res.document === "string"
+        ? JSON.parse(res.document)
         : res.document;
     } catch {
       return res.document;
@@ -872,12 +875,14 @@ export class GraphQLSmartMemory {
   /**
    * Get recent query intents for context
    */
-  async getRecentIntents(n = 5): Promise<Array<{
-    intent: string;
-    generatedQuery?: string;
-    successful?: boolean;
-    timestamp: number;
-  }>> {
+  async getRecentIntents(n = 5): Promise<
+    Array<{
+      intent: string;
+      generatedQuery?: string;
+      successful?: boolean;
+      timestamp: number;
+    }>
+  > {
     const memories = await this.getMemories({
       timeline: "query-intents",
       nMostRecent: n,
@@ -1082,7 +1087,9 @@ export async function createGraphQLSmartMemoryWithSession(
 /**
  * Helper to check if SmartMemory is configured
  */
-export function isSmartMemoryConfigured(config: Partial<GraphQLMemoryConfig>): boolean {
+export function isSmartMemoryConfigured(
+  config: Partial<GraphQLMemoryConfig>
+): boolean {
   return Boolean(config.apiKey && config.apiKey.length > 0);
 }
 
@@ -1090,6 +1097,4 @@ export function isSmartMemoryConfigured(config: Partial<GraphQLMemoryConfig>): b
 // RE-EXPORTS
 // ============================================================================
 
-export type {
-  ProcessedSchema,
-} from "./types";
+export type { ProcessedSchema } from "./types";

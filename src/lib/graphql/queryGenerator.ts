@@ -1,19 +1,22 @@
 /**
  * GraphQL Query Generator
- * 
+ *
  * Uses Raindrop SmartMemory's built-in AI capabilities to generate GraphQL queries
  * from natural language. Leverages:
  * - Semantic search to find relevant schema context
  * - Memory summarization for context-aware generation
  * - Procedural memory for query templates and prompts
- * 
+ *
  * This integrates with the existing Raindrop settings used elsewhere in DevConsole.
  */
 
-import type { RaindropSettings } from "../ai/types";
 import { getRaindropSettings } from "../../hooks/useRaindropSettings";
-import { GraphQLSmartMemory, createGraphQLSmartMemory, type GraphQLMemoryConfig } from "./smartMemory";
-import type { ProcessedSchema, ProcessedQuery, ProcessedMutation } from "./types";
+import type { RaindropSettings } from "../ai/types";
+import {
+  GraphQLSmartMemory,
+  createGraphQLSmartMemory,
+  type GraphQLMemoryConfig,
+} from "./smartMemory";
 
 // ============================================================================
 // CONFIGURATION
@@ -195,10 +198,18 @@ export class GraphQLQueryGenerator {
    */
   async generateQuery(request: GenerateQueryRequest): Promise<GeneratedQuery> {
     if (!this.memory) {
-      throw new Error("QueryGenerator not initialized. Call initialize() first.");
+      throw new Error(
+        "QueryGenerator not initialized. Call initialize() first."
+      );
     }
 
-    const { naturalLanguage, schema, operationType, includeContext = true, maxContextItems = 10 } = request;
+    const {
+      naturalLanguage,
+      schema,
+      operationType,
+      includeContext = true,
+      maxContextItems = 10,
+    } = request;
 
     // Record the user's intent
     await this.memory.recordQueryIntent(naturalLanguage);
@@ -209,16 +220,21 @@ export class GraphQLQueryGenerator {
 
     if (schema) {
       // Use provided schema to find relevant operations
-      schemaContext = this.buildSchemaContext(schema, naturalLanguage, operationType, maxContextItems);
-      
+      schemaContext = this.buildSchemaContext(
+        schema,
+        naturalLanguage,
+        operationType,
+        maxContextItems
+      );
+
       // Collect related operation names
       const query = naturalLanguage.toLowerCase();
-      schema.queries.forEach(q => {
+      schema.queries.forEach((q) => {
         if (this.matchesIntent(q.name, q.description, query)) {
           relatedOperations.push(`query.${q.name}`);
         }
       });
-      schema.mutations.forEach(m => {
+      schema.mutations.forEach((m) => {
         if (this.matchesIntent(m.name, m.description, query)) {
           relatedOperations.push(`mutation.${m.name}`);
         }
@@ -229,7 +245,7 @@ export class GraphQLQueryGenerator {
       if (searchResults.length > 0) {
         schemaContext = searchResults
           .slice(0, maxContextItems)
-          .map(r => r.text)
+          .map((r) => r.text)
           .join("\n\n");
       }
     }
@@ -242,9 +258,10 @@ export class GraphQLQueryGenerator {
 
     // Step 3: Get query templates that might help
     const templates = await this.memory.searchTemplates(naturalLanguage);
-    const templateContext = templates.length > 0
-      ? `\n\n## Similar Query Templates:\n${templates.map(t => `- ${t.name}: ${t.description}`).join("\n")}`
-      : "";
+    const templateContext =
+      templates.length > 0
+        ? `\n\n## Similar Query Templates:\n${templates.map((t) => `- ${t.name}: ${t.description}`).join("\n")}`
+        : "";
 
     // Step 4: Combine all context
     const fullContext = this.buildFullContext({
@@ -279,7 +296,11 @@ export class GraphQLQueryGenerator {
 
     if (!result?.summary) {
       // Fallback: construct a basic query suggestion
-      return this.buildFallbackQuery(naturalLanguage, schema, relatedOperations);
+      return this.buildFallbackQuery(
+        naturalLanguage,
+        schema,
+        relatedOperations
+      );
     }
 
     // Parse the generated query from the summary
@@ -319,7 +340,7 @@ export class GraphQLQueryGenerator {
           type: "query",
           description: q.description ?? `Query: ${q.name}`,
           score,
-          signature: `${q.name}(${q.arguments.map(a => `${a.name}: ${a.typeName}`).join(", ")}): ${q.returnType}`,
+          signature: `${q.name}(${q.arguments.map((a) => `${a.name}: ${a.typeName}`).join(", ")}): ${q.returnType}`,
         });
       }
     }
@@ -333,7 +354,7 @@ export class GraphQLQueryGenerator {
           type: "mutation",
           description: m.description ?? `Mutation: ${m.name}`,
           score,
-          signature: `${m.name}(${m.arguments.map(a => `${a.name}: ${a.typeName}`).join(", ")}): ${m.returnType}`,
+          signature: `${m.name}(${m.arguments.map((a) => `${a.name}: ${a.typeName}`).join(", ")}): ${m.returnType}`,
         });
       }
     }
@@ -347,15 +368,13 @@ export class GraphQLQueryGenerator {
           type: "subscription",
           description: s.description ?? `Subscription: ${s.name}`,
           score,
-          signature: `${s.name}(${s.arguments.map(a => `${a.name}: ${a.typeName}`).join(", ")}): ${s.returnType}`,
+          signature: `${s.name}(${s.arguments.map((a) => `${a.name}: ${a.typeName}`).join(", ")}): ${s.returnType}`,
         });
       }
     }
 
     // Sort by score and limit
-    return suggestions
-      .sort((a, b) => b.score - a.score)
-      .slice(0, limit);
+    return suggestions.sort((a, b) => b.score - a.score).slice(0, limit);
   }
 
   /**
@@ -377,7 +396,8 @@ export class GraphQLQueryGenerator {
 
     const prompt = await this.memory.getPrompt("schema-explainer");
     const result = await this.memory.summarizeMemories([memoryId], {
-      systemPrompt: prompt ?? 
+      systemPrompt:
+        prompt ??
         `Explain this GraphQL query in simple terms. Describe what data it fetches, 
          what arguments it uses, and what the response structure will look like.`,
     });
@@ -388,13 +408,16 @@ export class GraphQLQueryGenerator {
   /**
    * Optimize an existing GraphQL query
    */
-  async optimizeQuery(query: string, schema?: ProcessedSchema): Promise<GeneratedQuery> {
+  async optimizeQuery(
+    query: string,
+    schema?: ProcessedSchema
+  ): Promise<GeneratedQuery> {
     if (!this.memory) {
       throw new Error("QueryGenerator not initialized.");
     }
 
     let context = `GraphQL Query to optimize:\n\`\`\`graphql\n${query}\n\`\`\``;
-    
+
     if (schema) {
       context += `\n\nAvailable schema context:\n${this.buildSchemaContext(schema, query, undefined, 5)}`;
     }
@@ -413,7 +436,7 @@ export class GraphQLQueryGenerator {
     });
 
     return this.parseGeneratedQuery(
-      result?.summary ?? query, 
+      result?.summary ?? query,
       "Optimized query"
     );
   }
@@ -445,11 +468,13 @@ export class GraphQLQueryGenerator {
   /**
    * Get saved query templates
    */
-  async getTemplates(): Promise<Array<{
-    name: string;
-    query: string;
-    description: string;
-  }>> {
+  async getTemplates(): Promise<
+    Array<{
+      name: string;
+      query: string;
+      description: string;
+    }>
+  > {
     if (!this.memory) return [];
     return this.memory.listTemplates();
   }
@@ -484,13 +509,15 @@ export class GraphQLQueryGenerator {
     // Find relevant queries
     if (!operationType || operationType === "query") {
       const relevantQueries = schema.queries
-        .filter(q => this.matchesIntent(q.name, q.description, query))
+        .filter((q) => this.matchesIntent(q.name, q.description, query))
         .slice(0, maxItems);
-      
+
       if (relevantQueries.length > 0) {
         parts.push("## Available Queries:");
         for (const q of relevantQueries) {
-          const args = q.arguments.map(a => `${a.name}: ${a.typeName}${a.isNonNull ? "!" : ""}`).join(", ");
+          const args = q.arguments
+            .map((a) => `${a.name}: ${a.typeName}${a.isNonNull ? "!" : ""}`)
+            .join(", ");
           parts.push(`- ${q.name}(${args}): ${q.returnType}`);
           if (q.description) parts.push(`  Description: ${q.description}`);
         }
@@ -500,13 +527,15 @@ export class GraphQLQueryGenerator {
     // Find relevant mutations
     if (!operationType || operationType === "mutation") {
       const relevantMutations = schema.mutations
-        .filter(m => this.matchesIntent(m.name, m.description, query))
+        .filter((m) => this.matchesIntent(m.name, m.description, query))
         .slice(0, maxItems);
-      
+
       if (relevantMutations.length > 0) {
         parts.push("\n## Available Mutations:");
         for (const m of relevantMutations) {
-          const args = m.arguments.map(a => `${a.name}: ${a.typeName}${a.isNonNull ? "!" : ""}`).join(", ");
+          const args = m.arguments
+            .map((a) => `${a.name}: ${a.typeName}${a.isNonNull ? "!" : ""}`)
+            .join(", ");
           parts.push(`- ${m.name}(${args}): ${m.returnType}`);
           if (m.description) parts.push(`  Description: ${m.description}`);
         }
@@ -515,14 +544,19 @@ export class GraphQLQueryGenerator {
 
     // Find relevant types
     const relevantTypes = schema.objects
-      .filter(t => this.matchesIntent(t.name, t.description, query))
+      .filter((t) => this.matchesIntent(t.name, t.description, query))
       .slice(0, 5);
-    
+
     if (relevantTypes.length > 0) {
       parts.push("\n## Relevant Types:");
       for (const t of relevantTypes) {
-        const fields = t.fields.slice(0, 5).map(f => `${f.name}: ${f.typeName}`).join(", ");
-        parts.push(`- ${t.name}: { ${fields}${t.fields.length > 5 ? ", ..." : ""} }`);
+        const fields = t.fields
+          .slice(0, 5)
+          .map((f) => `${f.name}: ${f.typeName}`)
+          .join(", ");
+        parts.push(
+          `- ${t.name}: { ${fields}${t.fields.length > 5 ? ", ..." : ""} }`
+        );
       }
     }
 
@@ -536,11 +570,17 @@ export class GraphQLQueryGenerator {
     explorationContext: string;
     templateContext: string;
   }): string {
-    const { userIntent, operationType, schemaContext, explorationContext, templateContext } = params;
+    const {
+      userIntent,
+      operationType,
+      schemaContext,
+      explorationContext,
+      templateContext,
+    } = params;
 
     let context = `# GraphQL Query Generation Request\n\n`;
     context += `## User Intent\n"${userIntent}"\n`;
-    
+
     if (operationType) {
       context += `\nOperation Type: ${operationType}\n`;
     }
@@ -560,11 +600,19 @@ export class GraphQLQueryGenerator {
     return context;
   }
 
-  private matchesIntent(name: string, description: string | null | undefined, query: string): boolean {
-    const nameMatch = name.toLowerCase().includes(query) || 
-                      query.split(" ").some(word => name.toLowerCase().includes(word));
-    const descMatch = description?.toLowerCase().includes(query) ||
-                      query.split(" ").some(word => description?.toLowerCase().includes(word));
+  private matchesIntent(
+    name: string,
+    description: string | null | undefined,
+    query: string
+  ): boolean {
+    const nameMatch =
+      name.toLowerCase().includes(query) ||
+      query.split(" ").some((word) => name.toLowerCase().includes(word));
+    const descMatch =
+      description?.toLowerCase().includes(query) ||
+      query
+        .split(" ")
+        .some((word) => description?.toLowerCase().includes(word));
     return nameMatch || descMatch;
   }
 
@@ -574,7 +622,7 @@ export class GraphQLQueryGenerator {
     query: string
   ): number {
     let score = 0;
-    const words = query.split(/\s+/).filter(w => w.length > 2);
+    const words = query.split(/\s+/).filter((w) => w.length > 2);
     const nameLower = name.toLowerCase();
     const descLower = description?.toLowerCase() ?? "";
 
@@ -582,27 +630,30 @@ export class GraphQLQueryGenerator {
     if (nameLower.includes(query)) score += 10;
 
     // Word matches in name
-    words.forEach(word => {
+    words.forEach((word) => {
       if (nameLower.includes(word)) score += 3;
     });
 
     // Word matches in description
-    words.forEach(word => {
+    words.forEach((word) => {
       if (descLower.includes(word)) score += 1;
     });
 
     return score;
   }
 
-  private parseGeneratedQuery(response: string, originalIntent: string): GeneratedQuery {
+  private parseGeneratedQuery(
+    response: string,
+    originalIntent: string
+  ): GeneratedQuery {
     // Try to extract GraphQL query from markdown code block
     const codeBlockMatch = response.match(/```graphql\n?([\s\S]*?)```/);
     const query = codeBlockMatch?.[1]?.trim() ?? "";
 
     // Extract explanation (everything outside code blocks)
-    const explanation = response
-      .replace(/```graphql[\s\S]*?```/g, "")
-      .trim() || `Generated query for: ${originalIntent}`;
+    const explanation =
+      response.replace(/```graphql[\s\S]*?```/g, "").trim() ||
+      `Generated query for: ${originalIntent}`;
 
     // Try to detect confidence based on response content
     let confidence: "high" | "medium" | "low" = "medium";
@@ -639,19 +690,23 @@ export class GraphQLQueryGenerator {
     if (firstOp) {
       const [type, name] = firstOp.split(".");
       const ops = type === "mutation" ? schema.mutations : schema.queries;
-      const op = ops.find(o => o.name === name);
-      
+      const op = ops.find((o) => o.name === name);
+
       if (op) {
-        const args = op.arguments.map(a => `$${a.name}: ${a.typeName}`).join(", ");
-        const argUsage = op.arguments.map(a => `${a.name}: $${a.name}`).join(", ");
-        
+        const args = op.arguments
+          .map((a) => `$${a.name}: ${a.typeName}`)
+          .join(", ");
+        const argUsage = op.arguments
+          .map((a) => `${a.name}: $${a.name}`)
+          .join(", ");
+
         const query = `${type} ${name}${args ? `(${args})` : ""} {
   ${name}${argUsage ? `(${argUsage})` : ""} {
     __typename
     # Add fields here
   }
 }`;
-        
+
         return {
           query,
           explanation: `Basic template for ${type} "${name}". Please add the specific fields you need.`,
@@ -685,11 +740,11 @@ export async function getQueryGenerator(
   if (!generatorInstance) {
     generatorInstance = new GraphQLQueryGenerator(config);
   }
-  
+
   if (!generatorInstance.isReady()) {
     await generatorInstance.initialize();
   }
-  
+
   return generatorInstance;
 }
 

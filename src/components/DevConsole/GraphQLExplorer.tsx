@@ -1,28 +1,30 @@
-import { useMemo, useState, useEffect, lazy, useCallback, useRef } from "react";
-const GraphiQL = lazy(() => import('graphiql').then(module => ({ default: module.GraphiQL })));
 import { createGraphiQLFetcher } from "@graphiql/toolkit";
-import { 
-  ExternalLink, 
-  Zap, 
-  Settings as SettingsIcon, 
-  Sparkles, 
-  Loader2, 
-  ChevronDown, 
+import "graphiql/style.css";
+import {
+  BookOpen,
+  Brain,
+  Check,
+  ChevronDown,
   ChevronUp,
   Copy,
-  Check,
-  Brain,
+  ExternalLink,
   Lightbulb,
-  BookOpen,
+  Loader2,
+  Play,
+  Send,
+  Settings as SettingsIcon,
+  Sparkles,
   WandSparkles,
-  X
+  X,
+  Zap
 } from "lucide-react";
-import "graphiql/style.css";
-import "./graphiql-custom.css";
-import { cn } from "../../utils";
-import { loadGraphQLSettings } from "../../lib/devConsole/graphqlSettings";
-import { GraphQLSettingsPanel } from "./GraphQLSettingsPanel";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useGraphQLSmartMemory, type GeneratedQuery, type QuerySuggestion } from "../../hooks/useGraphQLSmartMemory";
+import { loadGraphQLSettings } from "../../lib/devConsole/graphqlSettings";
+import { cn } from "../../utils";
+import "./graphiql-custom.css";
+import { GraphQLSettingsPanel } from "./GraphQLSettingsPanel";
+const GraphiQL = lazy(() => import('graphiql').then(module => ({ default: module.GraphiQL })));
 
 export function GraphQLExplorer() {
   const [endpoint, setEndpoint] = useState<string | null>(null);
@@ -37,6 +39,11 @@ export function GraphQLExplorer() {
   const [copied, setCopied] = useState(false);
   const [isRaindropConfigured, setIsRaindropConfigured] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  
+  // GraphiQL Controlled State - for inserting generated queries
+  const [editorQuery, setEditorQuery] = useState<string | undefined>(undefined);
+  const [editorVariables, setEditorVariables] = useState<string | undefined>(undefined);
+  const [shouldExecute, setShouldExecute] = useState(false);
 
   // GraphQL SmartMemory Hook - simplified, no complex init
   const {
@@ -129,6 +136,49 @@ export function GraphQLExplorer() {
       handleGenerateQuery();
     }
   }, [handleGenerateQuery]);
+
+  // Insert generated query into GraphiQL editor
+  const handleInsertToEditor = useCallback(() => {
+    if (generatedResult?.query) {
+      setEditorQuery(generatedResult.query);
+      if (generatedResult.variables) {
+        setEditorVariables(JSON.stringify(generatedResult.variables, null, 2));
+      }
+      // Close the AI panel after inserting
+      setGeneratedResult(null);
+      setAiQuery("");
+    }
+  }, [generatedResult]);
+
+  // Insert and immediately run the query
+  const handleInsertAndRun = useCallback(() => {
+    if (generatedResult?.query) {
+      setEditorQuery(generatedResult.query);
+      if (generatedResult.variables) {
+        setEditorVariables(JSON.stringify(generatedResult.variables, null, 2));
+      }
+      setShouldExecute(true);
+      // Close the AI panel after inserting
+      setGeneratedResult(null);
+      setAiQuery("");
+    }
+  }, [generatedResult]);
+
+  // Effect to trigger execution after query is set
+  useEffect(() => {
+    if (shouldExecute && editorQuery) {
+      // Small delay to ensure the editor has updated
+      const timer = setTimeout(() => {
+        // Trigger the execute button click via DOM
+        const executeButton = document.querySelector('.graphiql-execute-button') as HTMLButtonElement;
+        if (executeButton) {
+          executeButton.click();
+        }
+        setShouldExecute(false);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [shouldExecute, editorQuery]);
 
   // Show settings panel if no endpoint configured or user clicks settings
   if (isLoading) {
@@ -365,6 +415,32 @@ export function GraphQLExplorer() {
                     <pre className="p-3 rounded-lg bg-gray-900 dark:bg-gray-950 text-gray-100 text-xs font-mono overflow-x-auto border border-gray-700">
                       <code>{generatedResult.query}</code>
                     </pre>
+                    
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-2 mt-3">
+                      <button
+                        onClick={handleInsertToEditor}
+                        className={cn(
+                          "flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm transition-all",
+                          "bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700",
+                          "text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700"
+                        )}
+                      >
+                        <Send className="w-4 h-4" />
+                        Insert to Editor
+                      </button>
+                      <button
+                        onClick={handleInsertAndRun}
+                        className={cn(
+                          "flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm transition-all",
+                          "bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600",
+                          "text-white shadow-md hover:shadow-lg"
+                        )}
+                      >
+                        <Play className="w-4 h-4" />
+                        Run Query
+                      </button>
+                    </div>
                   </div>
                 )}
 
@@ -404,11 +480,21 @@ export function GraphQLExplorer() {
         "[&_.graphiql-toolbar]:bg-gray-50 dark:[&_.graphiql-toolbar]:bg-gray-900"
       )}>
         {fetcher && (
-          <GraphiQL
-            fetcher={fetcher}
-            defaultEditorToolsVisibility="variables"
-            shouldPersistHeaders
-         />
+          <Suspense fallback={
+            <div className="h-full flex items-center justify-center">
+              <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
+            </div>
+          }>
+            <GraphiQL
+              fetcher={fetcher}
+              query={editorQuery}
+              variables={editorVariables}
+              onEditQuery={(newQuery) => setEditorQuery(newQuery)}
+              onEditVariables={(newVariables) => setEditorVariables(newVariables)}
+              defaultEditorToolsVisibility="variables"
+              shouldPersistHeaders
+            />
+          </Suspense>
         )}
       </div>
     </div>
