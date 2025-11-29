@@ -9,7 +9,7 @@ import { Camera, Code2, Github, Maximize2, Minimize2, Minus, Pin, Trash2, X } fr
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { webhookCopilot } from '../../../lib/webhookCopilot';
 import { cn } from '../../../utils';
-import { useGitHubIssueSlideoutStore } from '../../../utils/stores';
+import { useGitHubIssueSlideoutStore, useCodeActionsStore } from '../../../utils/stores';
 import { NotesService } from '../services/notesService';
 import { Note, useNotesStore } from '../stores/notes';
 
@@ -266,6 +266,9 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
     console.log('📝 Note converted to GitHub issue draft:', { title: noteTitle, hasScreenshot: !!screenshot });
   }, [content, screenshot, note, selectedColor, isPinned, githubSlideoutStore]);
 
+  // Code Actions store for tracking
+  const { addAction, updateAction } = useCodeActionsStore();
+
   // Code functionality - Send to Webhook Copilot
   const handleCodeAction = useCallback(async () => {
     if (!content.trim()) {
@@ -279,57 +282,108 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
     setIsExecutingCode(true);
     setNotification({
       type: 'info',
-      message: 'Connecting to VS Code...',
+      message: 'Checking VS Code connection...',
     });
 
+    // Determine the best action based on note content
+    const noteTitle = generateTitle(content);
+    const isQuestion = /\?|how|what|why|when|where|explain/i.test(content);
+    const actionType = isQuestion ? 'copilot_chat' : 'execute_task';
+    const fullPrompt = isQuestion ? content : `${noteTitle}\n\n${content}`;
+
     try {
-      // Check connection first
-      const isConnected = await webhookCopilot.checkConnection();
+      // Check connection and workspace status
+      const { connected, workspaceReady, health } = await webhookCopilot.checkWorkspaceReady();
       
-      if (!isConnected) {
+      // Create action in store
+      const actionId = addAction({
+        source: 'sticky-notes',
+        actionType: actionType as 'execute_task' | 'copilot_chat',
+        promptPreview: fullPrompt.slice(0, 100) + (fullPrompt.length > 100 ? '...' : ''),
+        fullPrompt,
+        status: 'sending',
+        workspaceReady,
+        sentAt: Date.now(),
+      });
+      
+      if (!connected) {
+        // VS Code not running - copy to clipboard as fallback
+        await navigator.clipboard.writeText(fullPrompt);
+        updateAction(actionId, {
+          status: 'copied_fallback',
+          error: 'VS Code not connected',
+          completedAt: Date.now(),
+        });
         setNotification({
-          type: 'error',
-          message: 'Cannot connect to Webhook Copilot. Make sure VS Code is running with the extension active.',
+          type: 'info',
+          message: '📋 VS Code not connected. Prompt copied to clipboard.',
         });
         setIsExecutingCode(false);
         return;
       }
 
-      // Determine the best action based on note content
-      const noteTitle = generateTitle(content);
-      
-      // Check if content looks like a coding task
-      const isCodeTask = /\b(create|build|implement|add|fix|update|refactor|write|generate)\b/i.test(content);
-      const isQuestion = /\?|how|what|why|when|where|explain/i.test(content);
-      
+      if (!workspaceReady) {
+        // Connected but no workspace - copy to clipboard
+        await navigator.clipboard.writeText(fullPrompt);
+        const workspaceMessage = health?.workspace?.message || 'No workspace folder open';
+        updateAction(actionId, {
+          status: 'copied_fallback',
+          error: workspaceMessage,
+          completedAt: Date.now(),
+        });
+        setNotification({
+          type: 'info',
+          message: `📋 ${workspaceMessage}. Prompt copied to clipboard.`,
+        });
+        setIsExecutingCode(false);
+        return;
+      }
+
       setNotification({
         type: 'info',
         message: 'Sending to Copilot...',
       });
 
       let response;
-      
       if (isQuestion) {
-        // Use copilot_chat for questions
-        response = await webhookCopilot.copilotChat(content);
-      } else if (isCodeTask) {
-        // Use execute_task for coding tasks
-        const taskDescription = `${noteTitle}\n\n${content}`;
-        response = await webhookCopilot.executeTask(taskDescription, true);
+        response = await webhookCopilot.copilotChat(fullPrompt);
       } else {
-        // Default to execute_task
-        const taskDescription = `${noteTitle}\n\n${content}`;
-        response = await webhookCopilot.executeTask(taskDescription, true);
+        response = await webhookCopilot.executeTask(fullPrompt, true);
+      }
+
+      // Handle NO_WORKSPACE error
+      if (!response.success && response.error === 'NO_WORKSPACE') {
+        await navigator.clipboard.writeText(fullPrompt);
+        updateAction(actionId, {
+          status: 'copied_fallback',
+          error: 'Workspace closed',
+          completedAt: Date.now(),
+        });
+        setNotification({
+          type: 'info',
+          message: '📋 Workspace closed. Prompt copied to clipboard.',
+        });
+        setIsExecutingCode(false);
+        return;
       }
 
       if (response.success) {
         console.log('✅ Webhook Copilot request successful:', response);
-        
+        updateAction(actionId, {
+          status: 'processing',
+          requestId: response.requestId,
+        });
         setNotification({
           type: 'success',
           message: '✓ Task sent to VS Code! Check Copilot for results.',
         });
       } else {
+        updateAction(actionId, {
+          status: 'failed',
+          error: response.message,
+          errorCode: response.error,
+          completedAt: Date.now(),
+        });
         throw new Error(response.message);
       }
     } catch (error) {
@@ -343,7 +397,7 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
     } finally {
       setIsExecutingCode(false);
     }
-  }, [content]);
+  }, [content, addAction, updateAction]);
 
   // Get color classes
   const colorConfig = STICKY_COLORS.find((c) => c.name === selectedColor) || STICKY_COLORS[0];
