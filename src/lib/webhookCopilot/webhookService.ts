@@ -166,6 +166,101 @@ export class WebhookCopilotService {
   }
 
   /**
+   * Send a prompt to Copilot Chat (simplified API)
+   * This is the recommended method for the chat-first approach
+   */
+  async sendPrompt(
+    prompt: string,
+    context?: {
+      type?: 'log' | 'note' | 'code' | 'custom';
+      log?: string;
+      file?: string;
+      line?: number;
+      source?: string;
+      [key: string]: unknown;
+    }
+  ): Promise<WebhookResponse> {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+
+      const response = await fetch(this.webhookUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt,
+          context,
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      const data = await response.json();
+
+      // Handle 400 Bad Request (MISSING_PROMPT)
+      if (response.status === 400) {
+        return {
+          success: false,
+          error: data.error || "MISSING_PROMPT",
+          message: data.message || "Prompt is required",
+        };
+      }
+
+      // Handle 503 Service Unavailable (NO_WORKSPACE)
+      if (response.status === 503) {
+        return {
+          success: false,
+          error: data.error || "NO_WORKSPACE",
+          message: data.message || "No workspace folder open in VS Code",
+          suggestions: data.suggestions,
+          actionRequired: data.action_required,
+        };
+      }
+
+      // Handle other non-OK responses
+      if (!response.ok) {
+        return {
+          success: false,
+          error: data.error || "REQUEST_FAILED",
+          message: data.message || `Request failed: ${response.status}`,
+        };
+      }
+
+      return {
+        success: true,
+        message: data.message || "Sent to Copilot",
+        requestId: data.requestId,
+        status: data.status,
+        queue: data.queue,
+        data,
+      };
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.name === "AbortError") {
+          return {
+            success: false,
+            error: "TIMEOUT",
+            message: "Request timed out. Make sure VS Code is running.",
+          };
+        }
+        return {
+          success: false,
+          error: "CONNECTION_ERROR",
+          message: error.message,
+        };
+      }
+      return {
+        success: false,
+        error: "UNKNOWN_ERROR",
+        message: "Unknown error occurred",
+      };
+    }
+  }
+
+  /**
    * Execute a task with Copilot
    */
   async executeTask(

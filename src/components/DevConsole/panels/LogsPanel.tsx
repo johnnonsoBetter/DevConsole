@@ -3,7 +3,7 @@
  * Displays captured console logs with filtering and details panel
  */
 
-import { Brain, Check, ChevronDown, ClipboardCopy, Code2, Download, Github, Loader2, Search, Send, Sparkles, Trash2, Wrench, X } from 'lucide-react';
+import { Brain, Check, ChevronDown, ClipboardCopy, Code2, Download, Github, Search, Sparkles, Trash2, Wrench, X, Zap } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useIsMobile } from '../../../hooks/useMediaQuery';
 import { useRaindropSettings } from '../../../hooks/useRaindropSettings';
@@ -17,14 +17,13 @@ import {
   type ContextFormat,
   type LogData,
 } from '../../../lib/devConsole/logContextGenerator';
-import { webhookCopilot } from '../../../lib/webhookCopilot';
 import { cn } from '../../../utils';
 import { useGitHubIssueSlideoutStore } from '../../../utils/stores';
 import { useAISettingsStore } from '../../../utils/stores/aiSettings';
-import { useCodeActionsStore } from '../../../utils/stores/codeActions';
 import { useDevConsoleStore } from '../../../utils/stores/devConsole';
 import { humanizeTime } from '../../../utils/timeUtils';
 import { LogLevelChip } from '../Chips';
+import { CopilotChatInput, type CopilotContext } from '../CopilotChatInput';
 import { EmptyStateHelper } from '../EmptyStateHelper';
 import { GitHubIssueSlideout } from '../GitHubIssueSlideout';
 import type { LogExplanationData } from '../LogExplanation';
@@ -334,11 +333,11 @@ export function LogsPanel({ githubConfig }: LogsPanelProps) {
   const [streamingText, setStreamingText] = useState<string>('');
 
   // Webhook Copilot state
-  const [isSendingToCopilot, setIsSendingToCopilot] = useState(false);
   const [copilotNotification, setCopilotNotification] = useState<{
     type: 'success' | 'error' | 'info';
     message: string;
   } | null>(null);
+  const [isCopilotChatOpen, setIsCopilotChatOpen] = useState(false);
 
   // Auto-hide notification after 4 seconds
   useEffect(() => {
@@ -348,10 +347,10 @@ export function LogsPanel({ githubConfig }: LogsPanelProps) {
     }
   }, [copilotNotification]);
 
-  // Clear Copilot status when switching logs
+  // Clear Copilot chat and notification when switching logs
   useEffect(() => {
     setCopilotNotification(null);
-    setIsSendingToCopilot(false);
+    setIsCopilotChatOpen(false);
   }, [selectedLog?.id]);
 
   // Show only the most recent 10 logs for better performance and UX
@@ -439,10 +438,10 @@ export function LogsPanel({ githubConfig }: LogsPanelProps) {
   }, [selectedLog?.id]);
 
   /**
-   * Build the full prompt for Copilot from the selected log
+   * Build the Copilot context object for the chat input
    */
-  const buildCopilotPrompt = useCallback(() => {
-    if (!selectedLog) return '';
+  const buildCopilotContext = useCallback((): CopilotContext | null => {
+    if (!selectedLog) return null;
 
     const logData: LogData = {
       level: selectedLog.level,
@@ -454,239 +453,40 @@ export function LogsPanel({ githubConfig }: LogsPanelProps) {
       context: selectedLog.context,
     };
 
-    // Generate the copilot-optimized context
-    const { content: baseContext } = generateLogContext(logData, 'copilot');
+    // Generate context for the chat
+    const { content: fullContext } = generateLogContext(logData, 'copilot');
 
-    // Build smart prompt header based on log level
-    let promptHeader: string;
-    if (selectedLog.level === 'error') {
-      promptHeader = 'I encountered this error in my application. Please help me debug and fix it:\n\n';
-    } else if (selectedLog.level === 'warn') {
-      promptHeader = 'I\'m seeing this warning in my application. Help me understand if this needs attention and how to address it:\n\n';
-    } else {
-      promptHeader = 'I\'d like to understand what this log output means and its implications for my application:\n\n';
+    // Build preview (first 200 chars of message + stack hint)
+    let preview = selectedLog.message;
+    if (selectedLog.stack) {
+      preview += '\n' + selectedLog.stack.split('\n').slice(0, 2).join('\n');
+    }
+    if (preview.length > 200) {
+      preview = preview.slice(0, 200) + '...';
     }
 
-    let fullPrompt = promptHeader + baseContext;
+    // Build title
+    const levelLabel = selectedLog.level.charAt(0).toUpperCase() + selectedLog.level.slice(1);
+    const title = selectedLog.source?.file 
+      ? `${levelLabel} in ${selectedLog.source.file.split('/').pop()}`
+      : `${levelLabel} Log`;
 
-    // Append AI explanation summary if available (gives Copilot a head start)
-    if (explanation?.summary) {
-      fullPrompt += '\n\n---\n\n**Previous AI Analysis:**\n' + explanation.summary;
-      if (explanation.explanation && explanation.explanation !== explanation.summary) {
-        const truncatedExplanation = explanation.explanation.length > 500 
-          ? explanation.explanation.substring(0, 500) + '...'
-          : explanation.explanation;
-        fullPrompt += '\n\n' + truncatedExplanation;
-      }
-    }
-
-    return fullPrompt;
+    return {
+      type: 'log',
+      title,
+      preview,
+      fullContext: explanation?.summary 
+        ? fullContext + '\n\n---\n\n**AI Analysis:**\n' + explanation.summary 
+        : fullContext,
+      metadata: {
+        level: selectedLog.level,
+        file: selectedLog.source?.file,
+        line: selectedLog.source?.line,
+        timestamp: selectedLog.timestamp,
+        source: selectedLog.source?.url,
+      },
+    };
   }, [selectedLog, explanation]);
-
-  /**
-   * Copy prompt to clipboard as fallback
-   */
-  const copyPromptToClipboard = useCallback(async (prompt: string): Promise<boolean> => {
-    try {
-      await navigator.clipboard.writeText(prompt);
-      return true;
-    } catch {
-      // Fallback for older browsers
-      try {
-        const textArea = document.createElement('textarea');
-        textArea.value = prompt;
-        textArea.style.position = 'fixed';
-        textArea.style.left = '-999999px';
-        document.body.appendChild(textArea);
-        textArea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textArea);
-        return true;
-      } catch {
-        return false;
-      }
-    }
-  }, []);
-
-  // Code Actions store for tracking
-  const { addAction, updateAction } = useCodeActionsStore();
-
-  /**
-   * Send log context to VS Code Copilot via Webhook
-   * Uses smart prompt framing based on log level
-   * Falls back to clipboard if workspace not ready
-   * Tracks all actions in the Code Actions store
-   */
-  const handleSendToCopilot = useCallback(async () => {
-    if (!selectedLog) return;
-
-    setIsSendingToCopilot(true);
-    setCopilotNotification({ type: 'info', message: 'Checking VS Code connection...' });
-
-    // Build the prompt first (we'll need it for fallback too)
-    const fullPrompt = buildCopilotPrompt();
-    
-    // Determine action type based on log level
-    const isErrorOrWarn = selectedLog.level === 'error' || selectedLog.level === 'warn';
-    const actionType = isErrorOrWarn ? 'execute_task' : 'copilot_chat';
-
-    // Create action in store BEFORE try block so it's accessible in catch
-    const actionId = addAction({
-      source: 'logs',
-      actionType: actionType as 'execute_task' | 'copilot_chat',
-      promptPreview: fullPrompt.slice(0, 100) + (fullPrompt.length > 100 ? '...' : ''),
-      fullPrompt,
-      status: 'sending',
-      workspaceReady: false, // Will be updated after check
-      sentAt: Date.now(),
-    });
-
-    try {
-      // Check connection and workspace status
-      const { connected, workspaceReady, health } = await webhookCopilot.checkWorkspaceReady();
-      
-      // Update action with workspace status
-      updateAction(actionId, { workspaceReady });
-      
-      if (!connected) {
-        // VS Code not running - copy to clipboard as fallback
-        const copied = await copyPromptToClipboard(fullPrompt);
-        updateAction(actionId, {
-          status: 'copied_fallback',
-          error: 'VS Code not connected',
-          completedAt: Date.now(),
-        });
-        if (copied) {
-          setCopilotNotification({
-            type: 'info',
-            message: '📋 VS Code not connected. Prompt copied to clipboard - paste into Copilot when ready.',
-          });
-        } else {
-          setCopilotNotification({
-            type: 'error',
-            message: 'Cannot connect to VS Code and failed to copy to clipboard.',
-          });
-        }
-        setIsSendingToCopilot(false);
-        return;
-      }
-
-      if (!workspaceReady) {
-        // Connected but no workspace - copy to clipboard with specific guidance
-        const copied = await copyPromptToClipboard(fullPrompt);
-        const workspaceMessage = health?.workspace?.message || 'No workspace folder open';
-        updateAction(actionId, {
-          status: 'copied_fallback',
-          error: workspaceMessage,
-          completedAt: Date.now(),
-        });
-        if (copied) {
-          setCopilotNotification({
-            type: 'info',
-            message: `📋 ${workspaceMessage}. Prompt copied - open a folder in VS Code and paste.`,
-          });
-        } else {
-          setCopilotNotification({
-            type: 'error',
-            message: `${workspaceMessage}. Please open a project folder in VS Code.`,
-          });
-        }
-        setIsSendingToCopilot(false);
-        return;
-      }
-
-      setCopilotNotification({ type: 'info', message: 'Sending to Copilot...' });
-      
-      let response;
-      if (isErrorOrWarn) {
-        response = await webhookCopilot.executeTask(fullPrompt, true);
-      } else {
-        response = await webhookCopilot.copilotChat(fullPrompt);
-      }
-
-      // Handle NO_WORKSPACE error from webhook (workspace closed between check and request)
-      if (!response.success && response.error === 'NO_WORKSPACE') {
-        const copied = await copyPromptToClipboard(fullPrompt);
-        updateAction(actionId, {
-          status: 'copied_fallback',
-          error: 'Workspace closed',
-          completedAt: Date.now(),
-        });
-        if (copied) {
-          setCopilotNotification({
-            type: 'info',
-            message: '📋 Workspace closed. Prompt copied - open a folder and paste into Copilot.',
-          });
-        } else {
-          setCopilotNotification({
-            type: 'error',
-            message: response.message || 'No workspace open in VS Code.',
-          });
-        }
-        setIsSendingToCopilot(false);
-        return;
-      }
-
-      if (response.success) {
-        console.log('✅ Log sent to Copilot:', { level: selectedLog.level, requestId: response.requestId, status: response.status });
-        
-        // Check if task was queued or is processing immediately
-        const isQueued = response.status === 'queued';
-        const queuePosition = response.queue?.position;
-        
-        updateAction(actionId, {
-          status: isQueued ? 'queued' : 'processing',
-          requestId: response.requestId,
-          queuePosition: queuePosition,
-        });
-        
-        setCopilotNotification({
-          type: 'success',
-          message: isQueued 
-            ? `✓ Queued (#${queuePosition}) - waiting for other tasks to complete.`
-            : '✓ Sent to VS Code! Check Copilot for results.',
-        });
-      } else {
-        updateAction(actionId, {
-          status: 'failed',
-          error: response.message,
-          errorCode: response.error,
-          completedAt: Date.now(),
-        });
-        throw new Error(response.message);
-      }
-    } catch (error) {
-      console.error('Failed to send to Copilot:', error);
-      
-      // On any error, try clipboard fallback
-      const copied = await copyPromptToClipboard(fullPrompt);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      
-      if (copied) {
-        updateAction(actionId, {
-          status: 'copied_fallback',
-          error: errorMessage,
-          completedAt: Date.now(),
-        });
-        setCopilotNotification({
-          type: 'info',
-          message: `📋 ${errorMessage}. Prompt copied to clipboard.`,
-        });
-      } else {
-        updateAction(actionId, {
-          status: 'failed',
-          error: errorMessage,
-          completedAt: Date.now(),
-        });
-        setCopilotNotification({
-          type: 'error',
-          message: `Failed: ${errorMessage}`,
-        });
-      }
-    } finally {
-      setIsSendingToCopilot(false);
-    }
-  }, [selectedLog, buildCopilotPrompt, copyPromptToClipboard, addAction, updateAction]);
 
 
   // Debounce search input
@@ -903,23 +703,17 @@ export function LogsPanel({ githubConfig }: LogsPanelProps) {
                       )}
                     </button>
                   )}
-                  {/* Send to Copilot Button */}
+                  {/* Ask Copilot Button */}
                   <button
-                    onClick={handleSendToCopilot}
-                    disabled={isSendingToCopilot}
+                    onClick={() => setIsCopilotChatOpen(true)}
                     className={cn(
-                      "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all border hover:shadow-apple-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed",
-                      selectedLog?.level === 'error' || selectedLog?.level === 'warn'
-                        ? "bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-700"
-                        : "bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border-cyan-300 dark:border-cyan-700"
+                      "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all border hover:shadow-apple-sm active:scale-95",
+                      "bg-gradient-to-r from-blue-500/10 to-purple-500/10 hover:from-blue-500/20 hover:to-purple-500/20",
+                      "text-blue-600 dark:text-blue-400 border-blue-300/50 dark:border-blue-700/50"
                     )}
-                    title={isSendingToCopilot ? "Sending..." : "Send to VS Code Copilot"}
+                    title="Ask Copilot about this log"
                   >
-                    {isSendingToCopilot ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Send className="w-3.5 h-3.5" />
-                    )}
+                    <Zap className="w-3.5 h-3.5" />
                   </button>
                   {/* GitHub Issue Button */}
                   <button
@@ -996,24 +790,18 @@ export function LogsPanel({ githubConfig }: LogsPanelProps) {
                       </button>
                     )}
                     
-                    {/* Send to Copilot Button */}
+                    {/* Ask Copilot Button */}
                     <button
-                      onClick={handleSendToCopilot}
-                      disabled={isSendingToCopilot}
+                      onClick={() => setIsCopilotChatOpen(true)}
                       className={cn(
-                        "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
-                        selectedLog?.level === 'error' || selectedLog?.level === 'warn'
-                          ? "bg-blue-600 hover:bg-blue-700 text-white"
-                          : "bg-cyan-600 hover:bg-cyan-700 text-white"
+                        "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium transition-all",
+                        "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700",
+                        "text-white shadow-sm hover:shadow-md active:scale-95"
                       )}
-                      title={isSendingToCopilot ? "Sending..." : "Send to VS Code Copilot"}
+                      title="Ask Copilot about this log"
                     >
-                      {isSendingToCopilot ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <Send className="w-3.5 h-3.5" />
-                      )}
-                      <span>{isSendingToCopilot ? 'Sending...' : 'Copilot'}</span>
+                      <Zap className="w-3.5 h-3.5" />
+                      <span>Ask Copilot</span>
                     </button>
                     
                     {/* Work on Log Button */}
@@ -1057,6 +845,25 @@ export function LogsPanel({ githubConfig }: LogsPanelProps) {
             </>
           )}
         </>
+      )}
+
+      {/* Copilot Chat Input Modal */}
+      {buildCopilotContext() && (
+        <CopilotChatInput
+          context={buildCopilotContext()!}
+          isOpen={isCopilotChatOpen}
+          onClose={() => setIsCopilotChatOpen(false)}
+          onSuccess={(requestId) => {
+            console.log('✅ Sent to Copilot:', requestId);
+            setCopilotNotification({
+              type: 'success',
+              message: '✓ Sent to VS Code! Check Copilot for results.',
+            });
+          }}
+          onFallback={(prompt) => {
+            console.log('📋 Copied to clipboard:', prompt.slice(0, 50) + '...');
+          }}
+        />
       )}
 
       {/* Copilot Notification Toast */}

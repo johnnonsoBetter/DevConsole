@@ -5,11 +5,11 @@
  */
 
 import { useDraggable } from '@dnd-kit/core';
-import { Camera, Code2, Github, Maximize2, Minimize2, Minus, Pin, Trash2, X } from 'lucide-react';
+import { Camera, Github, Maximize2, Minimize2, Minus, Pin, Trash2, X, Zap } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { webhookCopilot } from '../../../lib/webhookCopilot';
+import { CopilotChatInput, type CopilotContext } from '../../../components/DevConsole/CopilotChatInput';
 import { cn } from '../../../utils';
-import { useCodeActionsStore, useGitHubIssueSlideoutStore } from '../../../utils/stores';
+import { useGitHubIssueSlideoutStore } from '../../../utils/stores';
 import { NotesService } from '../services/notesService';
 import { Note, useNotesStore } from '../stores/notes';
 
@@ -49,7 +49,6 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
   const [isSaving, setIsSaving] = useState(false);
   const [screenshot, setScreenshot] = useState<string | undefined>(note?.screenshot);
   const [isCapturing, setIsCapturing] = useState(false);
-  const [isExecutingCode, setIsExecutingCode] = useState(false);
   const [notification, setNotification] = useState<{
     type: 'success' | 'error' | 'info';
     message: string;
@@ -266,11 +265,38 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
     console.log('📝 Note converted to GitHub issue draft:', { title: noteTitle, hasScreenshot: !!screenshot });
   }, [content, screenshot, note, selectedColor, isPinned, githubSlideoutStore]);
 
-  // Code Actions store for tracking
-  const { addAction, updateAction } = useCodeActionsStore();
+  // Copilot Chat state
+  const [isCopilotChatOpen, setIsCopilotChatOpen] = useState(false);
 
-  // Code functionality - Send to Webhook Copilot
-  const handleCodeAction = useCallback(async () => {
+  /**
+   * Build the Copilot context object for the chat input
+   */
+  const buildCopilotContext = useCallback((): CopilotContext | null => {
+    if (!content.trim()) return null;
+
+    const noteTitle = generateTitle(content);
+    
+    // Build preview
+    let preview = content;
+    if (preview.length > 200) {
+      preview = preview.slice(0, 200) + '...';
+    }
+
+    return {
+      type: 'note',
+      title: noteTitle,
+      preview,
+      fullContext: content,
+      metadata: {
+        timestamp: Date.now(),
+      },
+    };
+  }, [content]);
+
+  /**
+   * Handle opening Copilot chat
+   */
+  const handleOpenCopilotChat = useCallback(() => {
     if (!content.trim()) {
       setNotification({
         type: 'error',
@@ -278,158 +304,8 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
       });
       return;
     }
-
-    setIsExecutingCode(true);
-    setNotification({
-      type: 'info',
-      message: 'Checking VS Code connection...',
-    });
-
-    // Determine the best action based on note content
-    const noteTitle = generateTitle(content);
-    const isQuestion = /\?|how|what|why|when|where|explain/i.test(content);
-    const actionType = isQuestion ? 'copilot_chat' : 'execute_task';
-    const fullPrompt = isQuestion ? content : `${noteTitle}\n\n${content}`;
-
-    // Create action in store BEFORE try block so it's accessible in catch
-    const actionId = addAction({
-      source: 'sticky-notes',
-      actionType: actionType as 'execute_task' | 'copilot_chat',
-      promptPreview: fullPrompt.slice(0, 100) + (fullPrompt.length > 100 ? '...' : ''),
-      fullPrompt,
-      status: 'sending',
-      workspaceReady: false, // Will be updated after check
-      sentAt: Date.now(),
-    });
-
-    try {
-      // Check connection and workspace status
-      const { connected, workspaceReady, health } = await webhookCopilot.checkWorkspaceReady();
-      
-      // Update action with workspace status
-      updateAction(actionId, { workspaceReady });
-      
-      if (!connected) {
-        // VS Code not running - copy to clipboard as fallback
-        await navigator.clipboard.writeText(fullPrompt);
-        updateAction(actionId, {
-          status: 'copied_fallback',
-          error: 'VS Code not connected',
-          completedAt: Date.now(),
-        });
-        setNotification({
-          type: 'info',
-          message: '📋 VS Code not connected. Prompt copied to clipboard.',
-        });
-        setIsExecutingCode(false);
-        return;
-      }
-
-      if (!workspaceReady) {
-        // Connected but no workspace - copy to clipboard
-        await navigator.clipboard.writeText(fullPrompt);
-        const workspaceMessage = health?.workspace?.message || 'No workspace folder open';
-        updateAction(actionId, {
-          status: 'copied_fallback',
-          error: workspaceMessage,
-          completedAt: Date.now(),
-        });
-        setNotification({
-          type: 'info',
-          message: `📋 ${workspaceMessage}. Prompt copied to clipboard.`,
-        });
-        setIsExecutingCode(false);
-        return;
-      }
-
-      setNotification({
-        type: 'info',
-        message: 'Sending to Copilot...',
-      });
-
-      let response;
-      if (isQuestion) {
-        response = await webhookCopilot.copilotChat(fullPrompt);
-      } else {
-        response = await webhookCopilot.executeTask(fullPrompt, true);
-      }
-
-      // Handle NO_WORKSPACE error
-      if (!response.success && response.error === 'NO_WORKSPACE') {
-        await navigator.clipboard.writeText(fullPrompt);
-        updateAction(actionId, {
-          status: 'copied_fallback',
-          error: 'Workspace closed',
-          completedAt: Date.now(),
-        });
-        setNotification({
-          type: 'info',
-          message: '📋 Workspace closed. Prompt copied to clipboard.',
-        });
-        setIsExecutingCode(false);
-        return;
-      }
-
-      if (response.success) {
-        console.log('✅ Webhook Copilot request successful:', response);
-        
-        // Check if task was queued or is processing immediately
-        const isQueued = response.status === 'queued';
-        const queuePosition = response.queue?.position;
-        
-        updateAction(actionId, {
-          status: isQueued ? 'queued' : 'processing',
-          requestId: response.requestId,
-          queuePosition: queuePosition,
-        });
-        setNotification({
-          type: 'success',
-          message: isQueued 
-            ? `✓ Queued (#${queuePosition}) - waiting for other tasks.`
-            : '✓ Task sent to VS Code! Check Copilot for results.',
-        });
-      } else {
-        updateAction(actionId, {
-          status: 'failed',
-          error: response.message,
-          errorCode: response.error,
-          completedAt: Date.now(),
-        });
-        throw new Error(response.message);
-      }
-    } catch (error) {
-      console.error('Failed to send webhook:', error);
-      
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      
-      // Try clipboard fallback and update action to terminal state
-      const copied = await navigator.clipboard.writeText(fullPrompt).then(() => true).catch(() => false);
-      
-      if (copied) {
-        updateAction(actionId, {
-          status: 'copied_fallback',
-          error: errorMessage,
-          completedAt: Date.now(),
-        });
-        setNotification({
-          type: 'info',
-          message: `📋 ${errorMessage}. Prompt copied to clipboard.`,
-        });
-      } else {
-        updateAction(actionId, {
-          status: 'failed',
-          error: errorMessage,
-          completedAt: Date.now(),
-        });
-        setNotification({
-          type: 'error',
-          message: `Failed to send: ${errorMessage}`,
-        });
-      }
-    } finally {
-      setIsExecutingCode(false);
-    }
-  }, [content, addAction, updateAction]);
+    setIsCopilotChatOpen(true);
+  }, [content]);
 
   // Get color classes
   const colorConfig = STICKY_COLORS.find((c) => c.name === selectedColor) || STICKY_COLORS[0];
@@ -625,30 +501,25 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
           <Github className="w-5 h-5 text-gray-700 dark:text-gray-300 group-hover:text-success transition-colors" />
         </button>
 
-        {/* Code Action Button */}
+        {/* Ask Copilot Button */}
         <button
           onClick={(e) => {
             e.stopPropagation();
-            handleCodeAction();
+            handleOpenCopilotChat();
           }}
           onMouseDown={(e) => e.stopPropagation()}
-          disabled={isExecutingCode}
           className={cn(
             'p-2.5 rounded-lg transition-all duration-200',
-            'bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm',
-            'border-2 border-gray-300 dark:border-gray-600',
-            'hover:border-primary hover:bg-primary/10 hover:scale-110',
+            'bg-gradient-to-r from-blue-500/90 to-purple-500/90 backdrop-blur-sm',
+            'border-2 border-blue-400/50 dark:border-purple-500/50',
+            'hover:from-blue-600 hover:to-purple-600 hover:scale-110',
             'active:scale-95',
             'shadow-lg hover:shadow-xl',
-            'group',
-            isExecutingCode && 'opacity-50 cursor-wait'
+            'group'
           )}
-          title={isExecutingCode ? 'Sending to VS Code...' : 'Send to Copilot (Code Actions)'}
+          title="Ask Copilot about this note"
         >
-          <Code2 className={cn(
-            'w-5 h-5 text-gray-700 dark:text-gray-300 group-hover:text-primary transition-colors',
-            isExecutingCode && 'animate-pulse'
-          )} />
+          <Zap className="w-5 h-5 text-white" />
         </button>
       </div>
 
@@ -722,6 +593,25 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
           ))}
         </div>
       </div>
+
+      {/* Copilot Chat Input Modal */}
+      {buildCopilotContext() && (
+        <CopilotChatInput
+          context={buildCopilotContext()!}
+          isOpen={isCopilotChatOpen}
+          onClose={() => setIsCopilotChatOpen(false)}
+          onSuccess={(requestId) => {
+            console.log('✅ Sent to Copilot:', requestId);
+            setNotification({
+              type: 'success',
+              message: '✓ Sent to VS Code! Check Copilot for results.',
+            });
+          }}
+          onFallback={(prompt) => {
+            console.log('📋 Copied to clipboard:', prompt.slice(0, 50) + '...');
+          }}
+        />
+      )}
     </div>
   );
 }
