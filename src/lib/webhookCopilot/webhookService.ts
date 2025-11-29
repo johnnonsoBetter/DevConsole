@@ -406,7 +406,13 @@ export class WebhookCopilotService {
       }
 
       if (response.status === 404) {
-        return null; // Request not found
+        // Return a special status indicating the request was not found
+        // This can happen when the extension was restarted
+        return {
+          requestId,
+          status: 'failed' as const,
+          error: 'Request not found - extension may have been restarted',
+        };
       }
 
       return null;

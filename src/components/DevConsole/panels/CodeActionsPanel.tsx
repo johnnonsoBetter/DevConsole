@@ -305,6 +305,14 @@ export function CodeActionsPanel() {
           queuePosition: undefined,
           completedAt: Date.now(),
         });
+      } else {
+        // Polling failed or timed out - mark as failed to stop retrying
+        updateAction(action.id, {
+          status: 'failed',
+          error: result.error || 'Lost connection to VS Code',
+          queuePosition: undefined,
+          completedAt: Date.now(),
+        });
       }
 
       setIsPolling((prev) => {
