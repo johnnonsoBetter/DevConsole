@@ -136,6 +136,8 @@ export class WebhookCopilotService {
         success: true,
         message: data.message || "Webhook sent successfully",
         requestId: data.requestId,
+        status: data.status,
+        queue: data.queue,
         data,
       };
     } catch (error) {

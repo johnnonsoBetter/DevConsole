@@ -291,20 +291,23 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
     const actionType = isQuestion ? 'copilot_chat' : 'execute_task';
     const fullPrompt = isQuestion ? content : `${noteTitle}\n\n${content}`;
 
+    // Create action in store BEFORE try block so it's accessible in catch
+    const actionId = addAction({
+      source: 'sticky-notes',
+      actionType: actionType as 'execute_task' | 'copilot_chat',
+      promptPreview: fullPrompt.slice(0, 100) + (fullPrompt.length > 100 ? '...' : ''),
+      fullPrompt,
+      status: 'sending',
+      workspaceReady: false, // Will be updated after check
+      sentAt: Date.now(),
+    });
+
     try {
       // Check connection and workspace status
       const { connected, workspaceReady, health } = await webhookCopilot.checkWorkspaceReady();
       
-      // Create action in store
-      const actionId = addAction({
-        source: 'sticky-notes',
-        actionType: actionType as 'execute_task' | 'copilot_chat',
-        promptPreview: fullPrompt.slice(0, 100) + (fullPrompt.length > 100 ? '...' : ''),
-        fullPrompt,
-        status: 'sending',
-        workspaceReady,
-        sentAt: Date.now(),
-      });
+      // Update action with workspace status
+      updateAction(actionId, { workspaceReady });
       
       if (!connected) {
         // VS Code not running - copy to clipboard as fallback
@@ -398,10 +401,31 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
       console.error('Failed to send webhook:', error);
       
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      setNotification({
-        type: 'error',
-        message: `Failed to send: ${errorMessage}`,
-      });
+      
+      // Try clipboard fallback and update action to terminal state
+      const copied = await navigator.clipboard.writeText(fullPrompt).then(() => true).catch(() => false);
+      
+      if (copied) {
+        updateAction(actionId, {
+          status: 'copied_fallback',
+          error: errorMessage,
+          completedAt: Date.now(),
+        });
+        setNotification({
+          type: 'info',
+          message: `📋 ${errorMessage}. Prompt copied to clipboard.`,
+        });
+      } else {
+        updateAction(actionId, {
+          status: 'failed',
+          error: errorMessage,
+          completedAt: Date.now(),
+        });
+        setNotification({
+          type: 'error',
+          message: `Failed to send: ${errorMessage}`,
+        });
+      }
     } finally {
       setIsExecutingCode(false);
     }
