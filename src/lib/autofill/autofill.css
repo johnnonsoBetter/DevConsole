@@ -124,15 +124,15 @@
 
 /* Fill All Button - Compact Circular Design */
 .autofill-fill-all-button {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
+  position: fixed !important;
+  bottom: 24px !important;
+  right: 24px !important;
   z-index: 2147483645 !important;
   background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
   color: white;
   padding: 0;
-  width: 56px;
-  height: 56px;
+  width: 48px;
+  height: 48px;
   border: none;
   border-radius: 50%;
   box-shadow: 0 4px 16px rgba(139, 92, 246, 0.35);
@@ -146,26 +146,27 @@
   opacity: 0;
   transform: translateY(20px) scale(0.8);
   user-select: none;
-  position: relative;
 }
 
 .autofill-fill-all-button.visible {
-  opacity: 1;
+  opacity: 0.7;
   transform: translateY(0) scale(1);
 }
 
 .autofill-fill-all-button:hover {
-  transform: translateY(-2px) scale(1.08);
-  box-shadow: 0 6px 24px rgba(139, 92, 246, 0.45);
+  opacity: 1;
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 6px 24px rgba(139, 92, 246, 0.5);
 }
 
 .autofill-fill-all-button:active {
   transform: translateY(0) scale(1);
+  opacity: 1;
 }
 
 .fill-all-icon {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   color: white;
   flex-shrink: 0;
 }
@@ -176,8 +177,8 @@
 
 .fill-all-count {
   position: absolute;
-  top: -4px;
-  right: -4px;
+  top: -6px;
+  right: -6px;
   background: #ef4444;
   color: white;
   min-width: 20px;
@@ -310,21 +311,21 @@
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .autofill-fill-all-button {
-    bottom: 16px;
-    right: 16px;
-    width: 48px;
-    height: 48px;
+    bottom: 16px !important;
+    right: 16px !important;
+    width: 44px;
+    height: 44px;
   }
 
   .fill-all-icon {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
   }
 
   .fill-all-count {
-    min-width: 18px;
-    height: 18px;
-    font-size: 10px;
+    min-width: 16px;
+    height: 16px;
+    font-size: 9px;
     padding: 0 4px;
   }
 

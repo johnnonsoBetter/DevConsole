@@ -47,7 +47,7 @@ export async function initializeAutofill(): Promise<void> {
 }
 
 /**
- * Setup mutation observer to detect dynamically added inputs
+ * Setup mutation observer to detect dynamically added or removed inputs
  */
 function setupMutationObserver(): void {
   if (observer) {
@@ -56,19 +56,45 @@ function setupMutationObserver(): void {
 
   observer = new MutationObserver((mutations) => {
     let shouldEnhance = false;
+    let shouldUpdateButton = false;
 
     for (const mutation of mutations) {
-      if (mutation.type === "childList" && mutation.addedNodes.length > 0) {
+      if (mutation.type === "childList") {
         // Check if any added node is an input or contains inputs
-        for (const node of Array.from(mutation.addedNodes)) {
-          if (node instanceof HTMLElement) {
-            if (node.tagName === "INPUT" || node.tagName === "TEXTAREA") {
-              shouldEnhance = true;
-              break;
+        if (mutation.addedNodes.length > 0) {
+          for (const node of Array.from(mutation.addedNodes)) {
+            if (node instanceof HTMLElement) {
+              if (
+                node.tagName === "INPUT" ||
+                node.tagName === "TEXTAREA" ||
+                node.tagName === "SELECT"
+              ) {
+                shouldEnhance = true;
+                break;
+              }
+              if (node.querySelector("input, textarea, select")) {
+                shouldEnhance = true;
+                break;
+              }
             }
-            if (node.querySelector("input, textarea")) {
-              shouldEnhance = true;
-              break;
+          }
+        }
+        // Check if any removed node contained inputs (page change detection)
+        if (mutation.removedNodes.length > 0) {
+          for (const node of Array.from(mutation.removedNodes)) {
+            if (node instanceof HTMLElement) {
+              if (
+                node.tagName === "INPUT" ||
+                node.tagName === "TEXTAREA" ||
+                node.tagName === "SELECT"
+              ) {
+                shouldUpdateButton = true;
+                break;
+              }
+              if (node.querySelector("input, textarea, select")) {
+                shouldUpdateButton = true;
+                break;
+              }
             }
           }
         }
@@ -76,13 +102,18 @@ function setupMutationObserver(): void {
       if (shouldEnhance) break;
     }
 
-    if (shouldEnhance) {
-      // Debounce the enhancement
+    if (shouldEnhance || shouldUpdateButton) {
+      // Debounce the enhancement and button update
       if ((window as any)._autofillEnhanceTimeout) {
         clearTimeout((window as any)._autofillEnhanceTimeout);
       }
       (window as any)._autofillEnhanceTimeout = setTimeout(() => {
-        enhanceInputs();
+        if (shouldEnhance) {
+          enhanceInputs();
+        } else {
+          // Just update the button count if inputs were removed
+          checkAndShowFillAllButton();
+        }
       }, 200);
     }
   });

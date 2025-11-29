@@ -19,8 +19,9 @@ import {
   Zap
 } from "lucide-react";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useGraphQLSmartMemory, type GeneratedQuery, type QuerySuggestion } from "../../hooks/useGraphQLSmartMemory";
+import { useGraphQLSmartMemoryV2, type GeneratedQuery } from "../../hooks/useGraphQLSmartMemoryV2";
 import { loadGraphQLSettings } from "../../lib/devConsole/graphqlSettings";
+import { fetchSchemaIntrospection } from "../../lib/graphql/introspection";
 import { cn } from "../../utils";
 import "./graphiql-custom.css";
 import { GraphQLSettingsPanel } from "./GraphQLSettingsPanel";
@@ -35,9 +36,10 @@ export function GraphQLExplorer() {
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [aiQuery, setAiQuery] = useState("");
   const [generatedResult, setGeneratedResult] = useState<GeneratedQuery | null>(null);
-  const [suggestions, setSuggestions] = useState<QuerySuggestion[]>([]);
   const [copied, setCopied] = useState(false);
   const [isRaindropConfigured, setIsRaindropConfigured] = useState(false);
+  const [schemaIndexed, setSchemaIndexed] = useState(false);
+  const [isIndexing, setIsIndexing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   
   // GraphiQL Controlled State - for inserting generated queries
@@ -45,18 +47,17 @@ export function GraphQLExplorer() {
   const [editorVariables, setEditorVariables] = useState<string | undefined>(undefined);
   const [shouldExecute, setShouldExecute] = useState(false);
 
-  // GraphQL SmartMemory Hook - simplified, no complex init
+  // GraphQL SmartMemory Hook - V2 with schema ingestion
   const {
     isLoading: isAILoading,
     error: aiError,
     generateQuery,
     checkConfigured,
-  } = useGraphQLSmartMemory();
-
-  // Check if Raindrop is configured on mount
-  useEffect(() => {
-    checkConfigured().then(setIsRaindropConfigured);
-  }, [checkConfigured]);
+    ingestSchema,
+    checkIndexedSchema,
+    schemaStats,
+    indexingProgress,
+  } = useGraphQLSmartMemoryV2();
 
   // Load endpoint from settings
   useEffect(() => {
@@ -77,6 +78,7 @@ export function GraphQLExplorer() {
     }
   };
 
+  // Compute the full graphql endpoint URL
   const graphqlEndpoint = useMemo(() => {
     if (!endpoint) return '';
     
@@ -87,6 +89,51 @@ export function GraphQLExplorer() {
     
     return endpoint;
   }, [endpoint]);
+
+  // Check if Raindrop is configured on mount
+  useEffect(() => {
+    checkConfigured().then(setIsRaindropConfigured);
+  }, [checkConfigured]);
+
+  // Check if schema is already indexed
+  useEffect(() => {
+    if (isRaindropConfigured && endpoint) {
+      checkIndexedSchema().then((stats) => {
+        if (stats && stats.endpoint === endpoint) {
+          setSchemaIndexed(true);
+        } else {
+          setSchemaIndexed(false);
+        }
+      });
+    }
+  }, [isRaindropConfigured, endpoint, checkIndexedSchema]);
+
+  // Index schema into SmartMemory for AI-powered query generation
+  const handleIndexSchema = useCallback(async () => {
+    if (!endpoint || !graphqlEndpoint || !isRaindropConfigured || isIndexing) return;
+    
+    setIsIndexing(true);
+    try {
+      // Fetch schema via introspection
+      const introspectionResult = await fetchSchemaIntrospection({ endpoint: graphqlEndpoint });
+      
+      if (introspectionResult.success && introspectionResult.data) {
+        // Cast to the expected format - the structure is compatible
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const schemaData = introspectionResult.data as any;
+        
+        // Ingest into SmartMemory
+        const result = await ingestSchema(schemaData, endpoint);
+        if (result.success) {
+          setSchemaIndexed(true);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to index schema:', err);
+    } finally {
+      setIsIndexing(false);
+    }
+  }, [endpoint, graphqlEndpoint, isRaindropConfigured, isIndexing, ingestSchema]);
 
   const fetcher = useMemo(() => {
     if (!graphqlEndpoint) return undefined;
@@ -113,11 +160,9 @@ export function GraphQLExplorer() {
     }
   }, [aiQuery, generateQuery]);
 
-  // Handle input change (suggestions disabled for simplicity)
+  // Handle input change
   const handleInputChange = useCallback((value: string) => {
     setAiQuery(value);
-    // Clear any old suggestions
-    setSuggestions([]);
   }, []);
 
   // Copy generated query to clipboard
@@ -340,41 +385,41 @@ export function GraphQLExplorer() {
               </button>
             </div>
 
-            {/* Suggestions */}
-            {suggestions.length > 0 && !generatedResult && (
-              <div className="mt-3">
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 flex items-center gap-1">
-                  <Sparkles className="w-3 h-3" />
-                  Matching operations:
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {suggestions.map((s, i) => (
-                    <button
-                      key={i}
-                      onClick={() => {
-                        setAiQuery(`${s.type} ${s.name}`);
-                        handleGenerateQuery();
-                      }}
-                      className={cn(
-                        "px-2.5 py-1.5 text-xs rounded-lg border transition-all",
-                        "bg-white dark:bg-gray-800 hover:bg-cyan-50 dark:hover:bg-cyan-900/20",
-                        "border-gray-200 dark:border-gray-700 hover:border-cyan-300 dark:hover:border-cyan-700",
-                        "text-gray-700 dark:text-gray-300"
-                      )}
-                    >
-                      <span className={cn(
-                        "font-medium",
-                        s.type === "query" ? "text-green-600 dark:text-green-400" :
-                        s.type === "mutation" ? "text-orange-600 dark:text-orange-400" :
-                        "text-purple-600 dark:text-purple-400"
-                      )}>
-                        {s.type}
-                      </span>
-                      <span className="mx-1">·</span>
-                      {s.name}
-                    </button>
-                  ))}
+            {/* Schema Indexing Status */}
+            {!schemaIndexed && !isIndexing && (
+              <div className="mt-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-amber-700 dark:text-amber-300 flex items-center gap-2">
+                    <Brain className="w-4 h-4" />
+                    Schema not indexed. Index it for better query generation.
+                  </p>
+                  <button
+                    onClick={handleIndexSchema}
+                    className="px-3 py-1.5 text-xs font-medium bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors"
+                  >
+                    Index Schema
+                  </button>
                 </div>
+              </div>
+            )}
+
+            {/* Indexing Progress */}
+            {(isIndexing || indexingProgress) && (
+              <div className="mt-3 p-3 rounded-lg bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-800">
+                <p className="text-sm text-cyan-700 dark:text-cyan-300 flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  {indexingProgress?.message || 'Indexing schema...'}
+                </p>
+              </div>
+            )}
+
+            {/* Schema Stats */}
+            {schemaIndexed && schemaStats && !generatedResult && (
+              <div className="mt-3 p-2 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                <p className="text-xs text-green-700 dark:text-green-300 flex items-center gap-2">
+                  <Check className="w-3 h-3" />
+                  Schema indexed: {schemaStats.queriesCount} queries, {schemaStats.mutationsCount} mutations, {schemaStats.typesCount} types
+                </p>
               </div>
             )}
 
@@ -416,29 +461,29 @@ export function GraphQLExplorer() {
                       <code>{generatedResult.query}</code>
                     </pre>
                     
-                    {/* Action Buttons */}
-                    <div className="flex items-center gap-2 mt-3">
+                    {/* Action Buttons - Grid layout for consistent visibility */}
+                    <div className="grid grid-cols-2 gap-3 mt-4">
                       <button
                         onClick={handleInsertToEditor}
                         className={cn(
-                          "flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm transition-all",
+                          "flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium text-sm transition-all",
                           "bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700",
                           "text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700"
                         )}
                       >
-                        <Send className="w-4 h-4" />
-                        Insert to Editor
+                        <Send className="w-4 h-4 flex-shrink-0" />
+                        <span>Insert to Editor</span>
                       </button>
                       <button
                         onClick={handleInsertAndRun}
                         className={cn(
-                          "flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm transition-all",
+                          "flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium text-sm transition-all",
                           "bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600",
-                          "text-white shadow-md hover:shadow-lg"
+                          "text-white shadow-lg hover:shadow-xl"
                         )}
                       >
-                        <Play className="w-4 h-4" />
-                        Run Query
+                        <Play className="w-4 h-4 flex-shrink-0" />
+                        <span>Run Query</span>
                       </button>
                     </div>
                   </div>
@@ -456,15 +501,6 @@ export function GraphQLExplorer() {
               </div>
             )}
 
-            {/* Not Configured Warning */}
-            {!isRaindropConfigured && (
-              <div className="mt-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-sm">
-                <p className="text-amber-700 dark:text-amber-300 flex items-center gap-2">
-                  <Brain className="w-4 h-4" />
-                  Configure Raindrop SmartMemory in Settings to enable AI features.
-                </p>
-              </div>
-            )}
           </div>
         </div>
       )}

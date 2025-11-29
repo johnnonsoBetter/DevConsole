@@ -12,30 +12,35 @@
 
 import { createGraphiQLFetcher } from "@graphiql/toolkit";
 import "graphiql/style.css";
+import { getIntrospectionQuery, type IntrospectionQuery } from "graphql";
 import {
-    AlertCircle,
-    Bookmark,
-    Brain,
-    Check,
-    CheckCircle2,
-    ChevronDown,
-    ChevronUp,
-    Copy,
-    Database,
-    Loader2,
-    MessageSquare,
-    Save,
-    Search,
-    Settings as SettingsIcon,
-    Sparkles,
-    Wand2,
-    WandSparkles,
-    X,
-    Zap
+  AlertCircle,
+  Bookmark,
+  Brain,
+  Check,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  Database,
+  Download,
+  Loader2,
+  MessageSquare,
+  Play,
+  Save,
+  Search,
+  Send,
+  Settings as SettingsIcon,
+  Sparkles,
+  Wand2,
+  WandSparkles,
+  X,
+  Zap
 } from "lucide-react";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useGraphQLSmartMemoryV2, type GeneratedQuery, type QueryTemplate, type SemanticSearchResult } from "../../hooks/useGraphQLSmartMemoryV2";
 import { loadGraphQLSettings } from "../../lib/devConsole/graphqlSettings";
+import { buildRichSchemaTree, schemaTreeToJSON, type RichSchemaTree } from "../../lib/graphql/schemaTree";
 import { cn } from "../../utils";
 import "./graphiql-custom.css";
 import { GraphQLSettingsPanel } from "./GraphQLSettingsPanel";
@@ -47,28 +52,8 @@ const GraphiQL = lazy(() => import('graphiql').then(module => ({ default: module
 
 type AIMode = "generate" | "explain" | "optimize" | "search" | "templates";
 
-interface IntrospectionResult {
-  __schema: {
-    queryType?: { name: string };
-    mutationType?: { name: string };
-    subscriptionType?: { name: string };
-    types: Array<{
-      name: string;
-      kind: string;
-      description?: string;
-      fields?: Array<{
-        name: string;
-        description?: string;
-        type: { name?: string; kind: string; ofType?: unknown };
-        args?: Array<{ name: string; type: unknown }>;
-      }>;
-      enumValues?: Array<{ name: string; description?: string }>;
-      inputFields?: Array<{ name: string; type: unknown }>;
-      interfaces?: Array<{ name: string }>;
-      possibleTypes?: Array<{ name: string }>;
-    }>;
-  };
-}
+// Using IntrospectionQuery from 'graphql' package for full structured data
+// This captures the complete schema as structured in GraphQL Playground
 
 // ============================================================================
 // MAIN COMPONENT
@@ -96,11 +81,18 @@ export function GraphQLExplorerV2() {
   // Schema state
   const [schemaIngested, setSchemaIngested] = useState(false);
   const [isIngestingSchema, setIsIngestingSchema] = useState(false);
+  const [introspectionData, setIntrospectionData] = useState<IntrospectionQuery | null>(null);
+  const [richSchemaTree, setRichSchemaTree] = useState<RichSchemaTree | null>(null);
   
   // UI state
   const [copied, setCopied] = useState(false);
   const [saveTemplateName, setSaveTemplateName] = useState("");
   const [showSaveDialog, setShowSaveDialog] = useState(false);
+  
+  // GraphiQL Controlled State - for inserting generated queries
+  const [editorQuery, setEditorQuery] = useState<string | undefined>(undefined);
+  const [editorVariables, setEditorVariables] = useState<string | undefined>(undefined);
+  const [shouldExecute, setShouldExecute] = useState(false);
   
   const inputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -155,6 +147,49 @@ export function GraphQLExplorerV2() {
     }
   }, [schemaStats]);
 
+  // Effect to trigger execution after query is set
+  useEffect(() => {
+    if (shouldExecute && editorQuery) {
+      // Small delay to ensure the editor has updated
+      const timer = setTimeout(() => {
+        // Trigger the execute button click via DOM
+        const executeButton = document.querySelector('.graphiql-execute-button') as HTMLButtonElement;
+        if (executeButton) {
+          executeButton.click();
+        }
+        setShouldExecute(false);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [shouldExecute, editorQuery]);
+
+  // Insert generated query into GraphiQL editor
+  const handleInsertToEditor = useCallback(() => {
+    if (generatedResult?.query) {
+      setEditorQuery(generatedResult.query);
+      if (generatedResult.variables) {
+        setEditorVariables(JSON.stringify(generatedResult.variables, null, 2));
+      }
+      // Close the result after inserting
+      setGeneratedResult(null);
+      setInputText("");
+    }
+  }, [generatedResult]);
+
+  // Insert and immediately run the query
+  const handleInsertAndRun = useCallback(() => {
+    if (generatedResult?.query) {
+      setEditorQuery(generatedResult.query);
+      if (generatedResult.variables) {
+        setEditorVariables(JSON.stringify(generatedResult.variables, null, 2));
+      }
+      setShouldExecute(true);
+      // Close the result after inserting
+      setGeneratedResult(null);
+      setInputText("");
+    }
+  }, [generatedResult]);
+
   // --------------------------------------------------------------------------
   // GRAPHQL SETUP
   // --------------------------------------------------------------------------
@@ -183,6 +218,9 @@ export function GraphQLExplorerV2() {
     if (!graphqlEndpoint) return;
     
     setIsIngestingSchema(true);
+
+    
+
     
     try {
       // Introspection query
@@ -191,30 +229,7 @@ export function GraphQLExplorerV2() {
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          query: `
-            query IntrospectionQuery {
-              __schema {
-                queryType { name }
-                mutationType { name }
-                subscriptionType { name }
-                types {
-                  name
-                  kind
-                  description
-                  fields(includeDeprecated: true) {
-                    name
-                    description
-                    type { name kind ofType { name kind ofType { name kind ofType { name kind } } } }
-                    args { name type { name kind ofType { name kind ofType { name kind } } } }
-                  }
-                  enumValues { name description }
-                  inputFields { name type { name kind ofType { name kind ofType { name kind } } } }
-                  interfaces { name }
-                  possibleTypes { name }
-                }
-              }
-            }
-          `,
+          query: await getIntrospectionQuery(),
         }),
       });
       
@@ -224,7 +239,17 @@ export function GraphQLExplorerV2() {
         throw new Error(json.errors[0]?.message || "Introspection failed");
       }
       
-      const result = await ingestSchema(json.data as IntrospectionResult, graphqlEndpoint);
+      // Store introspection data for download - full structured data as in GraphQL Playground
+      const schemaData = json.data as IntrospectionQuery;
+      setIntrospectionData(schemaData);
+      
+      // Build rich schema tree for enhanced download
+      const richTree = buildRichSchemaTree(schemaData, graphqlEndpoint);
+      setRichSchemaTree(richTree);
+      
+      // Convert to a mutable format compatible with ingestSchema
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const result = await ingestSchema(schemaData as any, graphqlEndpoint);
       
       if (result.success) {
         setSchemaIngested(true);
@@ -319,8 +344,78 @@ export function GraphQLExplorerV2() {
       setEndpoint(settings.endpoint);
       setShowSettings(false);
       setSchemaIngested(false); // Reset schema state for new endpoint
+      setIntrospectionData(null); // Reset introspection data for new endpoint
+      setRichSchemaTree(null); // Reset rich schema tree for new endpoint
     }
   }, []);
+
+  // Download rich schema tree as JSON (deeply nested structure)
+  const handleDownloadSchema = useCallback(() => {
+    if (!richSchemaTree) return;
+    
+    const dataStr = schemaTreeToJSON(richSchemaTree);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    const endpointName = graphqlEndpoint
+      .replace(/^https?:\/\//, '')
+      .replace(/[^a-zA-Z0-9]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+    link.download = `graphql-schema-tree-${endpointName}-${new Date().toISOString().split('T')[0]}.json`;
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [richSchemaTree, graphqlEndpoint]);
+
+  // Download raw introspection data
+  const handleDownloadRawIntrospection = useCallback(() => {
+    if (!introspectionData) return;
+    
+    const dataStr = JSON.stringify(introspectionData, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    const endpointName = graphqlEndpoint
+      .replace(/^https?:\/\//, '')
+      .replace(/[^a-zA-Z0-9]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+    link.download = `graphql-introspection-${endpointName}-${new Date().toISOString().split('T')[0]}.json`;
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [introspectionData, graphqlEndpoint]);
+
+  // Download SDL
+  const handleDownloadSDL = useCallback(() => {
+    if (!richSchemaTree?.sdl) return;
+    
+    const blob = new Blob([richSchemaTree.sdl], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    const endpointName = graphqlEndpoint
+      .replace(/^https?:\/\//, '')
+      .replace(/[^a-zA-Z0-9]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+    link.download = `schema-${endpointName}-${new Date().toISOString().split('T')[0]}.graphql`;
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [richSchemaTree, graphqlEndpoint]);
 
   // --------------------------------------------------------------------------
   // RENDER: Loading
@@ -395,6 +490,51 @@ export function GraphQLExplorerV2() {
                     <Database className="w-3 h-3" />
                     Schema Indexed
                   </span>
+                )}
+                {richSchemaTree && (
+                  <div className="relative group">
+                    <button
+                      className="px-1.5 py-0.5 text-[10px] font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded flex items-center gap-1 hover:bg-blue-200 dark:hover:bg-blue-800/40 transition-colors"
+                      title="Download schema"
+                    >
+                      <Download className="w-3 h-3" />
+                      Download
+                      <ChevronDown className="w-2.5 h-2.5" />
+                    </button>
+                    {/* Dropdown menu */}
+                    <div className="absolute left-0 top-full mt-1 w-48 py-1 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                      <button
+                        onClick={handleDownloadSchema}
+                        className="w-full px-3 py-2 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                      >
+                        <Download className="w-3.5 h-3.5 text-blue-500" />
+                        <div>
+                          <div className="font-medium">Rich Schema Tree</div>
+                          <div className="text-[10px] text-gray-400">Deeply nested JSON structure</div>
+                        </div>
+                      </button>
+                      <button
+                        onClick={handleDownloadRawIntrospection}
+                        className="w-full px-3 py-2 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                      >
+                        <Download className="w-3.5 h-3.5 text-purple-500" />
+                        <div>
+                          <div className="font-medium">Raw Introspection</div>
+                          <div className="text-[10px] text-gray-400">Standard GraphQL format</div>
+                        </div>
+                      </button>
+                      <button
+                        onClick={handleDownloadSDL}
+                        className="w-full px-3 py-2 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                      >
+                        <Download className="w-3.5 h-3.5 text-green-500" />
+                        <div>
+                          <div className="font-medium">SDL (.graphql)</div>
+                          <div className="text-[10px] text-gray-400">Schema Definition Language</div>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
                 )}
                 {isConfigured && (
                   <span className="px-1.5 py-0.5 text-[10px] font-medium bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 rounded flex items-center gap-1">
@@ -487,9 +627,9 @@ export function GraphQLExplorerV2() {
 
       {/* AI Panel */}
       {showAIPanel && isConfigured && (
-        <div className="border-b border-gray-200 dark:border-gray-800 bg-gradient-to-r from-cyan-50/50 via-blue-50/50 to-purple-50/50 dark:from-cyan-900/10 dark:via-blue-900/10 dark:to-purple-900/10">
+        <div className="border-b border-gray-200 dark:border-gray-800 bg-gradient-to-r from-cyan-50/50 via-blue-50/50 to-purple-50/50 dark:from-cyan-900/10 dark:via-blue-900/10 dark:to-purple-900/10 flex flex-col max-h-[60vh]">
           {/* Mode Tabs */}
-          <div className="flex border-b border-gray-200 dark:border-gray-700 px-4">
+          <div className="flex border-b border-gray-200 dark:border-gray-700 px-4 flex-shrink-0">
             {([
               { id: "generate", label: "Generate", icon: WandSparkles },
               { id: "search", label: "Search Schema", icon: Search },
@@ -513,7 +653,7 @@ export function GraphQLExplorerV2() {
             ))}
           </div>
 
-          <div className="p-4">
+          <div className="p-4 overflow-y-auto flex-1 min-h-0">
             {/* Not indexed warning */}
             {!schemaIngested && aiMode !== "templates" && (
               <div className="mb-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-sm flex items-center gap-2">
@@ -534,34 +674,46 @@ export function GraphQLExplorerV2() {
             {/* GENERATE MODE */}
             {aiMode === "generate" && (
               <div className="space-y-4">
-                <div className="flex gap-2">
-                  <input
-                    ref={inputRef}
-                    type="text"
-                    value={inputText}
-                    onChange={(e) => setInputText(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Describe your query... (e.g., 'get all users with their posts')"
-                    className={cn(
-                      "flex-1 px-4 py-2.5 text-sm rounded-lg border",
-                      "bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-700",
-                      "focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500"
-                    )}
-                  />
-                  <button
-                    onClick={handleGenerate}
-                    disabled={isAILoading || !inputText.trim()}
-                    className={cn(
-                      "px-4 py-2.5 rounded-lg font-medium text-sm",
-                      "bg-gradient-to-r from-cyan-500 to-blue-500 text-white",
-                      "hover:from-cyan-600 hover:to-blue-600",
-                      "disabled:opacity-50 disabled:cursor-not-allowed",
-                      "flex items-center gap-2"
-                    )}
-                  >
-                    {isAILoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <WandSparkles className="w-4 h-4" />}
-                    Generate
-                  </button>
+                {/* Input Section */}
+                <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-hidden">
+                  <div className="px-4 py-2.5 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <WandSparkles className="w-4 h-4 text-cyan-500" />
+                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Describe Your Query</span>
+                    </div>
+                    <span className="text-[10px] text-gray-400">Press Enter to generate</span>
+                  </div>
+                  <div className="flex items-center gap-2 p-2">
+                    <input
+                      ref={inputRef}
+                      type="text"
+                      value={inputText}
+                      onChange={(e) => setInputText(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      placeholder="e.g., 'get all users with their posts' or 'create a new project mutation'"
+                      className={cn(
+                        "flex-1 px-3 py-2.5 text-sm rounded-lg",
+                        "bg-transparent border-0",
+                        "focus:ring-0 focus:outline-none",
+                        "placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                      )}
+                    />
+                    <button
+                      onClick={handleGenerate}
+                      disabled={isAILoading || !inputText.trim()}
+                      className={cn(
+                        "px-4 py-2.5 rounded-lg font-medium text-sm flex-shrink-0",
+                        "bg-gradient-to-r from-cyan-500 to-blue-500 text-white",
+                        "hover:from-cyan-600 hover:to-blue-600",
+                        "disabled:opacity-50 disabled:cursor-not-allowed",
+                        "flex items-center gap-2",
+                        "shadow-md hover:shadow-lg transition-all"
+                      )}
+                    >
+                      {isAILoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <WandSparkles className="w-4 h-4" />}
+                      {isAILoading ? "..." : "Generate"}
+                    </button>
+                  </div>
                 </div>
 
                 {generatedResult && (
@@ -600,6 +752,32 @@ export function GraphQLExplorerV2() {
                       <pre className="p-3 rounded-lg bg-gray-900 text-gray-100 text-xs font-mono overflow-x-auto border border-gray-700">
                         <code>{generatedResult.query}</code>
                       </pre>
+                      
+                      {/* Action Buttons - Insert to Editor and Run Query */}
+                      <div className="grid grid-cols-2 gap-3 mt-4">
+                        <button
+                          onClick={handleInsertToEditor}
+                          className={cn(
+                            "flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium text-sm transition-all",
+                            "bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700",
+                            "text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700"
+                          )}
+                        >
+                          <Send className="w-4 h-4 flex-shrink-0" />
+                          <span>Insert to Editor</span>
+                        </button>
+                        <button
+                          onClick={handleInsertAndRun}
+                          className={cn(
+                            "flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium text-sm transition-all",
+                            "bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600",
+                            "text-white shadow-lg hover:shadow-xl"
+                          )}
+                        >
+                          <Play className="w-4 h-4 flex-shrink-0" />
+                          <span>Run Query</span>
+                        </button>
+                      </div>
                     </div>
                     
                     {generatedResult.explanation && (
@@ -643,31 +821,45 @@ export function GraphQLExplorerV2() {
             {/* SEARCH MODE */}
             {aiMode === "search" && (
               <div className="space-y-4">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={inputText}
-                    onChange={(e) => setInputText(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Search schema... (e.g., 'user authentication' or 'order mutations')"
-                    className={cn(
-                      "flex-1 px-4 py-2.5 text-sm rounded-lg border",
-                      "bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-700",
-                      "focus:ring-2 focus:ring-cyan-500/50"
-                    )}
-                  />
-                  <button
-                    onClick={handleSearch}
-                    disabled={isAILoading || !inputText.trim()}
-                    className={cn(
-                      "px-4 py-2.5 rounded-lg font-medium text-sm",
-                      "bg-gradient-to-r from-purple-500 to-pink-500 text-white",
-                      "disabled:opacity-50 flex items-center gap-2"
-                    )}
-                  >
-                    {isAILoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-                    Search
-                  </button>
+                {/* Input Section */}
+                <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-hidden">
+                  <div className="px-4 py-2.5 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Search className="w-4 h-4 text-purple-500" />
+                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Search Schema</span>
+                    </div>
+                    <span className="text-[10px] text-gray-400">Find types, fields, and operations</span>
+                  </div>
+                  <div className="flex items-center gap-2 p-2">
+                    <input
+                      type="text"
+                      value={inputText}
+                      onChange={(e) => setInputText(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      placeholder="e.g., 'user authentication' or 'order mutations' or 'payment fields'"
+                      className={cn(
+                        "flex-1 px-3 py-2.5 text-sm rounded-lg",
+                        "bg-transparent border-0",
+                        "focus:ring-0 focus:outline-none",
+                        "placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                      )}
+                    />
+                    <button
+                      onClick={handleSearch}
+                      disabled={isAILoading || !inputText.trim()}
+                      className={cn(
+                        "px-4 py-2.5 rounded-lg font-medium text-sm flex-shrink-0",
+                        "bg-gradient-to-r from-purple-500 to-pink-500 text-white",
+                        "hover:from-purple-600 hover:to-pink-600",
+                        "disabled:opacity-50 disabled:cursor-not-allowed",
+                        "flex items-center gap-2",
+                        "shadow-md hover:shadow-lg transition-all"
+                      )}
+                    >
+                      {isAILoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                      {isAILoading ? "..." : "Search"}
+                    </button>
+                  </div>
                 </div>
 
                 {searchResults.length > 0 && (
@@ -709,34 +901,59 @@ export function GraphQLExplorerV2() {
             {/* EXPLAIN MODE */}
             {aiMode === "explain" && (
               <div className="space-y-4">
-                <textarea
-                  ref={textareaRef}
-                  value={queryToAnalyze}
-                  onChange={(e) => setQueryToAnalyze(e.target.value)}
-                  placeholder="Paste a GraphQL query to explain..."
-                  className={cn(
-                    "w-full px-4 py-3 text-sm rounded-lg border font-mono",
-                    "bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-700",
-                    "focus:ring-2 focus:ring-cyan-500/50",
-                    "h-32 resize-none"
-                  )}
-                />
+                {/* Input Section */}
+                <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-hidden">
+                  <div className="px-4 py-2.5 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <MessageSquare className="w-4 h-4 text-orange-500" />
+                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Query to Explain</span>
+                    </div>
+                    <span className="text-[10px] text-gray-400">Paste your GraphQL query</span>
+                  </div>
+                  <textarea
+                    ref={textareaRef}
+                    value={queryToAnalyze}
+                    onChange={(e) => setQueryToAnalyze(e.target.value)}
+                    placeholder={`Example:\nquery GetUsers {\n  users {\n    id\n    name\n    email\n  }\n}`}
+                    className={cn(
+                      "w-full px-4 py-3 text-sm font-mono",
+                      "bg-transparent border-0",
+                      "focus:ring-0 focus:outline-none",
+                      "min-h-[120px] max-h-[200px] resize-y",
+                      "placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                    )}
+                  />
+                </div>
+                
                 <button
                   onClick={handleExplain}
                   disabled={isAILoading || !queryToAnalyze.trim()}
                   className={cn(
-                    "px-4 py-2 rounded-lg font-medium text-sm",
+                    "w-full px-4 py-3 rounded-xl font-medium text-sm",
                     "bg-gradient-to-r from-orange-500 to-amber-500 text-white",
-                    "disabled:opacity-50 flex items-center gap-2"
+                    "hover:from-orange-600 hover:to-amber-600",
+                    "disabled:opacity-50 disabled:cursor-not-allowed",
+                    "flex items-center justify-center gap-2",
+                    "shadow-lg shadow-orange-500/20 hover:shadow-xl hover:shadow-orange-500/30",
+                    "transition-all duration-200"
                   )}
                 >
                   {isAILoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageSquare className="w-4 h-4" />}
-                  Explain Query
+                  {isAILoading ? "Analyzing..." : "Explain Query"}
                 </button>
 
+                {/* Explanation Result */}
                 {explanation && (
-                  <div className="p-4 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                    {explanation}
+                  <div className="rounded-xl border border-blue-200 dark:border-blue-800/50 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 overflow-hidden">
+                    <div className="px-4 py-2.5 bg-blue-100/50 dark:bg-blue-900/30 border-b border-blue-200 dark:border-blue-800/50">
+                      <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 flex items-center gap-2">
+                        <Brain className="w-3.5 h-3.5" />
+                        Explanation
+                      </p>
+                    </div>
+                    <div className="p-4 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap max-h-[300px] overflow-y-auto leading-relaxed">
+                      {explanation}
+                    </div>
                   </div>
                 )}
               </div>
@@ -745,44 +962,124 @@ export function GraphQLExplorerV2() {
             {/* OPTIMIZE MODE */}
             {aiMode === "optimize" && (
               <div className="space-y-4">
-                <textarea
-                  value={queryToAnalyze}
-                  onChange={(e) => setQueryToAnalyze(e.target.value)}
-                  placeholder="Paste a GraphQL query to optimize..."
-                  className={cn(
-                    "w-full px-4 py-3 text-sm rounded-lg border font-mono",
-                    "bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-700",
-                    "h-32 resize-none"
-                  )}
-                />
+                {/* Input Section */}
+                <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-hidden">
+                  <div className="px-4 py-2.5 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Wand2 className="w-4 h-4 text-emerald-500" />
+                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Query to Optimize</span>
+                    </div>
+                    <span className="text-[10px] text-gray-400">Paste your query or describe the issue</span>
+                  </div>
+                  <textarea
+                    value={queryToAnalyze}
+                    onChange={(e) => setQueryToAnalyze(e.target.value)}
+                    placeholder={`Example:\nnetworks(where: { members: 3 }) { is having error\n\nOr paste your full GraphQL query here...`}
+                    className={cn(
+                      "w-full px-4 py-3 text-sm font-mono",
+                      "bg-transparent border-0",
+                      "focus:ring-0 focus:outline-none",
+                      "min-h-[120px] max-h-[200px] resize-y",
+                      "placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                    )}
+                  />
+                </div>
+                
                 <button
                   onClick={handleOptimize}
                   disabled={isAILoading || !queryToAnalyze.trim()}
                   className={cn(
-                    "px-4 py-2 rounded-lg font-medium text-sm",
+                    "w-full px-4 py-3 rounded-xl font-medium text-sm",
                     "bg-gradient-to-r from-emerald-500 to-teal-500 text-white",
-                    "disabled:opacity-50 flex items-center gap-2"
+                    "hover:from-emerald-600 hover:to-teal-600",
+                    "disabled:opacity-50 disabled:cursor-not-allowed",
+                    "flex items-center justify-center gap-2",
+                    "shadow-lg shadow-emerald-500/20 hover:shadow-xl hover:shadow-emerald-500/30",
+                    "transition-all duration-200"
                   )}
                 >
                   {isAILoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
-                  Optimize
+                  {isAILoading ? "Analyzing..." : "Optimize Query"}
                 </button>
 
+                {/* Results Section */}
                 {optimization && (
-                  <div className="space-y-3">
+                  <div className="space-y-4 pt-2">
+                    {/* Suggestions Card */}
                     {optimization.suggestions.length > 0 && (
-                      <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
-                        <p className="text-xs font-medium text-amber-700 dark:text-amber-300 mb-2">Suggestions:</p>
-                        <ul className="list-disc list-inside text-xs text-amber-600 dark:text-amber-400 space-y-1">
-                          {optimization.suggestions.map((s, i) => <li key={i}>{s}</li>)}
+                      <div className="rounded-xl border border-amber-200 dark:border-amber-800/50 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 overflow-hidden">
+                        <div className="px-4 py-2.5 bg-amber-100/50 dark:bg-amber-900/30 border-b border-amber-200 dark:border-amber-800/50">
+                          <p className="text-xs font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-2">
+                            <AlertCircle className="w-3.5 h-3.5" />
+                            Suggestions
+                          </p>
+                        </div>
+                        <ul className="p-4 space-y-2">
+                          {optimization.suggestions.map((s, i) => (
+                            <li key={i} className="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-300">
+                              <span className="mt-1 w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" />
+                              <span>{s}</span>
+                            </li>
+                          ))}
                         </ul>
                       </div>
                     )}
-                    <div>
-                      <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Optimized Query:</p>
-                      <pre className="p-3 rounded-lg bg-gray-900 text-gray-100 text-xs font-mono overflow-x-auto">
-                        <code>{optimization.query}</code>
-                      </pre>
+                    
+                    {/* Optimized Query Card */}
+                    <div className="rounded-xl border border-green-200 dark:border-green-800/50 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 overflow-hidden">
+                      <div className="px-4 py-2.5 bg-green-100/50 dark:bg-green-900/30 border-b border-green-200 dark:border-green-800/50 flex items-center justify-between">
+                        <p className="text-xs font-semibold text-green-700 dark:text-green-300 flex items-center gap-2">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          Optimized Query
+                        </p>
+                        <button
+                          onClick={() => handleCopy(optimization.query)}
+                          className="flex items-center gap-1 px-2 py-1 text-xs text-green-600 dark:text-green-400 hover:bg-green-200/50 dark:hover:bg-green-800/30 rounded-md transition-colors"
+                        >
+                          {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                          {copied ? "Copied!" : "Copy"}
+                        </button>
+                      </div>
+                      <div className="p-4">
+                        <pre className="p-4 rounded-lg bg-gray-900 text-gray-100 text-xs font-mono overflow-x-auto max-h-[300px] overflow-y-auto">
+                          <code>{optimization.query}</code>
+                        </pre>
+                        
+                        {/* Action Buttons for Optimized Query */}
+                        <div className="grid grid-cols-2 gap-3 mt-4">
+                          <button
+                            onClick={() => {
+                              setEditorQuery(optimization.query);
+                              setOptimization(null);
+                              setQueryToAnalyze("");
+                            }}
+                            className={cn(
+                              "flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm transition-all",
+                              "bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700",
+                              "text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600"
+                            )}
+                          >
+                            <Send className="w-4 h-4 flex-shrink-0" />
+                            <span>Insert to Editor</span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEditorQuery(optimization.query);
+                              setShouldExecute(true);
+                              setOptimization(null);
+                              setQueryToAnalyze("");
+                            }}
+                            className={cn(
+                              "flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm transition-all",
+                              "bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600",
+                              "text-white shadow-md hover:shadow-lg"
+                            )}
+                          >
+                            <Play className="w-4 h-4 flex-shrink-0" />
+                            <span>Run Query</span>
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -853,7 +1150,17 @@ export function GraphQLExplorerV2() {
             <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
           </div>
         }>
-          {fetcher && <GraphiQL fetcher={fetcher} defaultEditorToolsVisibility="variables" shouldPersistHeaders />}
+          {fetcher && (
+            <GraphiQL
+              fetcher={fetcher}
+              query={editorQuery}
+              variables={editorVariables}
+              onEditQuery={(newQuery) => setEditorQuery(newQuery)}
+              onEditVariables={(newVariables) => setEditorVariables(newVariables)}
+              defaultEditorToolsVisibility="variables"
+              shouldPersistHeaders
+            />
+          )}
         </Suspense>
       </div>
     </div>

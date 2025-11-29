@@ -314,6 +314,13 @@ export function checkAndShowFillAllButton(): void {
   // Only show if there are 2 or more empty inputs
   if (emptyInputs.length >= 2) {
     showFillAllButton();
+    // Always update the count to show total fillable inputs in the view
+    if (fillAllButton) {
+      const countSpan = fillAllButton.querySelector(".fill-all-count");
+      if (countSpan) {
+        countSpan.textContent = `${inputs.length}`;
+      }
+    }
   } else if (fillAllButton) {
     fillAllButton.style.opacity = "0";
     setTimeout(() => {
@@ -348,17 +355,11 @@ function showFillAllButton(): void {
 
   document.body.appendChild(fillAllButton);
 
-  // Update count
+  // Update count to show total fillable inputs
   const inputs = getAllFillableInputs();
-  const emptyInputs = inputs.filter((input) => {
-    if (input instanceof HTMLInputElement && input.type === "file") {
-      return !input.files || input.files.length === 0;
-    }
-    return !input.value.trim();
-  });
   const countSpan = fillAllButton.querySelector(".fill-all-count");
-  if (countSpan && emptyInputs.length > 0) {
-    countSpan.textContent = `${emptyInputs.length}`;
+  if (countSpan && inputs.length > 0) {
+    countSpan.textContent = `${inputs.length}`;
   }
 
   // Add click handler

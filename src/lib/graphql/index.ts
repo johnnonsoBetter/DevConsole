@@ -30,111 +30,114 @@
 
 // Types
 export type {
-  GraphQLDirective,
-  GraphQLEnumValue,
-  GraphQLField,
-  GraphQLFullType,
-  GraphQLInputValue,
-  GraphQLIntrospectionResult,
-  GraphQLSchemaRoot,
-  // Core GraphQL types
-  GraphQLTypeKind,
-  GraphQLTypeRef,
-  ProcessedArgument,
-  ProcessedEnum,
-  ProcessedEnumValue,
-  ProcessedField,
-  ProcessedInputType,
-  ProcessedInterfaceType,
-  ProcessedMutation,
-  ProcessedObjectType,
-  ProcessedQuery,
-  // Processed types (for SmartMemory)
-  ProcessedScalar,
-  ProcessedSchema,
-  ProcessedSubscription,
-  ProcessedUnionType,
-  SchemaStats,
+    GraphQLDirective,
+    GraphQLEnumValue,
+    GraphQLField,
+    GraphQLFullType,
+    GraphQLInputValue,
+    GraphQLIntrospectionResult,
+    GraphQLSchemaRoot,
+    // Core GraphQL types
+    GraphQLTypeKind,
+    GraphQLTypeRef,
+    ProcessedArgument,
+    ProcessedEnum,
+    ProcessedEnumValue,
+    ProcessedField,
+    ProcessedInputType,
+    ProcessedInterfaceType,
+    ProcessedMutation,
+    ProcessedObjectType,
+    ProcessedQuery,
+    // Processed types (for SmartMemory)
+    ProcessedScalar,
+    ProcessedSchema,
+    ProcessedSubscription,
+    ProcessedUnionType,
+    SchemaStats,
 
-  // Relationships
-  TypeRelationship,
-  TypeRelationshipMap,
+    // Relationships
+    TypeRelationship,
+    TypeRelationshipMap
 } from "./types";
 
 // Introspection
 export {
-  checkIntrospectionSupport,
-  fetchSchemaIntrospection,
-  FULL_INTROSPECTION_QUERY,
-  generateSchemaHash,
-  LIGHT_INTROSPECTION_QUERY,
+    FULL_INTROSPECTION_QUERY, LIGHT_INTROSPECTION_QUERY, checkIntrospectionSupport,
+    fetchSchemaIntrospection, generateSchemaHash
 } from "./introspection";
 
 export type {
-  IntrospectionOptions,
-  IntrospectionResult,
+    IntrospectionOptions,
+    IntrospectionResult
 } from "./introspection";
 
 // Schema Processing
 export {
-  buildRelationshipMap,
-  diffSchemas,
-  formatTypeRef,
-  processSchema,
+    buildRelationshipMap,
+    diffSchemas,
+    formatTypeRef,
+    processSchema
 } from "./schemaProcessor";
 
 export type { ProcessSchemaOptions, SchemaDiff } from "./schemaProcessor";
 
 // SmartMemory Client
 export {
-  createGraphQLSmartMemory,
-  createGraphQLSmartMemoryWithSession,
-  GraphQLSmartMemory,
-  isSmartMemoryConfigured,
+    GraphQLSmartMemory, createGraphQLSmartMemory,
+    createGraphQLSmartMemoryWithSession, isSmartMemoryConfigured
 } from "./smartMemory";
 
 export type {
-  EpisodicEntry,
-  GraphQLMemoryConfig,
-  MemoryEntry,
-  MemorySearchResult,
-  MemorySession,
-  OperationDocument,
-  ProcedureSearchResult,
-  QueryTemplate,
-  SchemaDocument,
-  SemanticSearchResult,
-  SummarizationResult,
-  SystemPrompt,
-  TypeDocument,
+    EpisodicEntry,
+    GraphQLMemoryConfig,
+    MemoryEntry,
+    MemorySearchResult,
+    MemorySession,
+    OperationDocument,
+    ProcedureSearchResult,
+    QueryTemplate,
+    SchemaDocument,
+    SemanticSearchResult,
+    SummarizationResult,
+    SystemPrompt,
+    TypeDocument
 } from "./smartMemory";
+
+// SmartBuckets Client
+export {
+    GraphQLSmartBuckets, createGraphQLSmartBuckets
+} from "./smartBuckets";
+
+export type {
+    ChunkSearchResult,
+    DocumentQueryResult,
+    FileEntry,
+    SearchResult,
+    SmartBucketsConfig
+} from "./smartBuckets";
 
 // Schema Service
 export {
-  createSchemaService,
-  getSchemaService,
-  GraphQLSchemaService,
-  resetSchemaService,
+    GraphQLSchemaService, createSchemaService,
+    getSchemaService, resetSchemaService
 } from "./schemaService";
 
 export type {
-  OperationSearchResult,
-  SchemaServiceConfig,
-  SchemaServiceState,
-  TypeSearchResult,
+    OperationSearchResult,
+    SchemaServiceConfig,
+    SchemaServiceState,
+    TypeSearchResult
 } from "./schemaService";
 
 // Query Generator (AI-powered)
 export {
-  createQueryGenerator,
-  getQueryGenerator,
-  GraphQLQueryGenerator,
-  isQueryGeneratorAvailable,
+    GraphQLQueryGenerator, createQueryGenerator,
+    getQueryGenerator, isQueryGeneratorAvailable
 } from "./queryGenerator";
 
 export type {
-  GeneratedQuery,
-  GenerateQueryRequest,
-  QueryGeneratorConfig,
-  QuerySuggestion,
+    GenerateQueryRequest, GeneratedQuery, QueryGeneratorConfig,
+    QuerySuggestion
 } from "./queryGenerator";
+

@@ -206,23 +206,18 @@ export function getAllFillableInputs(): Array<
         return;
       }
 
-      const rect = input.getBoundingClientRect();
-      if (rect.width === 0 || rect.height === 0) {
-        // Allow radio buttons to be invisible if they are part of a custom UI (often hidden input + styled label)
-        if (input.type !== "radio") return;
-      }
-
-      // Check if input is visible and not disabled
-      if (input.offsetParent !== null && !input.disabled && !input.readOnly) {
-        fillableInputs.push(input);
-      }
-
       // Special handling for radio buttons that might be visually hidden but functional
-      if (input.type === "radio" && !input.disabled) {
-        fillableInputs.push(input);
+      if (input.type === "radio") {
+        if (!input.disabled) {
+          fillableInputs.push(input);
+        }
         return;
       }
 
+      const rect = input.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return;
+
+      // Check if input is visible and not disabled
       if (
         input.offsetParent !== null &&
         !input.disabled &&
@@ -238,14 +233,13 @@ export function getAllFillableInputs(): Array<
       const rect = input.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) return;
 
-      if (input.offsetParent !== null && !input.disabled && !input.type) {
-        // Selects don't have readOnly but checking property doesn't hurt or we can cast
-        if (input instanceof HTMLSelectElement && input.disabled) return;
-        if (
-          input instanceof HTMLTextAreaElement &&
-          (input.disabled || input.readOnly)
-        )
-          return;
+      if (input instanceof HTMLSelectElement && !input.disabled) {
+        fillableInputs.push(input);
+      } else if (
+        input instanceof HTMLTextAreaElement &&
+        !input.disabled &&
+        !input.readOnly
+      ) {
         fillableInputs.push(input);
       }
     }

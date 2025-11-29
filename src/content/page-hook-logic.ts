@@ -54,12 +54,12 @@
   // RUNTIME STATE
   // ============================================================================
   let captureEnabled = true;
-  let liveObjectCache = new WeakMap<any, string>();
+  let liveObjectCache = new WeakMap();
   let objectIdCounter = 0; // Unique counter for object IDs
   let messageCount = 0;
   let totalMessageSize = 0;
   let logRingBuffer: any[] = []; // Ring buffer for logs
-  let seenObjects = new Map<any, string>(); // Cache for object serialization
+  let seenObjects = new Map(); // Cache for object serialization
 
   // ============================================================================
   // HELPERS
