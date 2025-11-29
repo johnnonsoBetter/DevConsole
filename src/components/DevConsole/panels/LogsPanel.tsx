@@ -3,16 +3,20 @@
  * Displays captured console logs with filtering and details panel
  */
 
-import ReactJson from '@microlink/react-json-view';
-import { Brain, Github, Search, Sparkles, Trash2, X } from 'lucide-react';
+import { Brain, Check, ChevronDown, ClipboardCopy, Code2, Download, Github, Search, Sparkles, Trash2, Wrench, X } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useIsMobile } from '../../../hooks/useMediaQuery';
 import { useRaindropSettings } from '../../../hooks/useRaindropSettings';
-import { useUnifiedTheme } from '../../../hooks/useTheme';
 import { createLogExplainer } from '../../../lib/ai/services/logExplainer';
 import { createMemoryEnhancedLogExplainer } from '../../../lib/ai/services/memoryEnhancedLogExplainer';
+import {
+  copyLogContext,
+  downloadLogContext,
+  getFormatOptions,
+  type ContextFormat,
+  type LogData,
+} from '../../../lib/devConsole/logContextGenerator';
 import { cn } from '../../../utils';
-import { ensureJsonObject } from '../../../utils/jsonSanitizer';
 import { useGitHubIssueSlideoutStore } from '../../../utils/stores';
 import { useAISettingsStore } from '../../../utils/stores/aiSettings';
 import { useDevConsoleStore } from '../../../utils/stores/devConsole';
@@ -21,8 +25,8 @@ import { LogLevelChip } from '../Chips';
 import { EmptyStateHelper } from '../EmptyStateHelper';
 import { GitHubIssueSlideout } from '../GitHubIssueSlideout';
 import type { LogExplanationData } from '../LogExplanation';
-import { LogExplanation } from '../LogExplanation';
 import { MobileBottomSheet, MobileBottomSheetContent } from '../MobileBottomSheet';
+import { LogDetailsContent } from './LogDetailsContent';
 
 export interface GitHubConfig {
   username: string;
@@ -30,236 +34,130 @@ export interface GitHubConfig {
   token: string;
 }
 
-/**
- * Lazy ReactJson wrapper - only renders when expanded
- * Safely handles any data type and prevents errors from invalid JSON
- */
-const LazyReactJson = memo(({ data, isDarkMode, name }: { data: any; isDarkMode: boolean; name: string }) => {
-  const safeData = useMemo(() => ensureJsonObject(data), [data]);
+// ============================================================================
+// LOG ACTION BUTTON COMPONENT
+// ============================================================================
 
-  return (
-    <ReactJson
-      src={safeData}
-      theme={isDarkMode ? 'monokai' : 'rjv-default'}
-      style={{
-        fontSize: '12px',
-        fontFamily: 'monospace',
-        backgroundColor: 'transparent',
-      }}
-      collapsed={1}
-      displayDataTypes={false}
-      displayObjectSize={true}
-      enableClipboard={true}
-      name={name}
-    />
-  );
-});
-
-LazyReactJson.displayName = 'LazyReactJson';
-
-/**
- * ClickableStackTrace Component
- * Parses and displays stack traces with formatted output
- * Highlights user code vs library/framework code
- */
-interface ClickableStackTraceProps {
-  stack: string;
-}
-
-function ClickableStackTrace({ stack }: ClickableStackTraceProps) {
-  const lines = stack.split('\n');
-
-  /**
-   * Parse a single stack trace line
-   * Extracts function name, file path, line and column numbers
-   * @returns Parsed stack info or null if line doesn't match pattern
-   */
-  const parseStackLine = useCallback((line: string) => {
-    // Match: at functionName (http://localhost:8912/path/to/file.ts:line:col)
-    const match = line.match(/at\s+(?:(.+?)\s+)?\(?(.+?):(\d+):(\d+)\)?/);
-    if (!match) return null;
-
-    const [, functionName, filePath, lineNum, colNum] = match;
-    return {
-      functionName: functionName?.trim() || 'anonymous',
-      filePath,
-      line: parseInt(lineNum, 10),
-      column: parseInt(colNum, 10),
-      isUserCode:
-        !filePath.includes('node_modules') &&
-        !filePath.includes('vite') &&
-        !filePath.includes('@fs'),
-    };
-  }, []);
-
-  return (
-    <div className="space-y-1">
-      {lines.map((line, index) => {
-        const parsed = parseStackLine(line);
-
-        if (!parsed) {
-          return (
-            <div key={index} className="text-xs font-mono text-gray-700 dark:text-gray-300">
-              {line}
-            </div>
-          );
-        }
-
-        const fileName = parsed.filePath.split('/').pop()?.split('?')[0] || parsed.filePath;
-        const isClickable = parsed.isUserCode;
-
-        return (
-          <div
-            key={index}
-            className={cn(
-              'text-xs font-mono flex items-start gap-2 py-0.5',
-              isClickable && 'hover:bg-primary/5 rounded px-1 -mx-1'
-            )}
-          >
-            <span className="text-gray-500 dark:text-gray-400">at</span>
-            <span className="text-gray-700 dark:text-gray-300">{parsed.functionName}</span>
-
-            <span className="text-gray-500 dark:text-gray-400">
-              {fileName}:{parsed.line}:{parsed.column}
-            </span>
-          </div>
-        );
-      })}
-    </div>
-  );
+interface LogActionButtonProps {
+  log: any;
+  action: 'work' | 'context';
 }
 
 /**
- * LogDetailsContent Component
- * Displays detailed information about a selected log entry
- * Includes AI analysis, message, arguments, stack trace, and metadata
- * Used in both mobile bottom sheet and desktop side panel
+ * Reusable action button for log operations
+ * - work: Copies AI-optimized prompt for Copilot
+ * - context: Shows dropdown to export in various formats
  */
-interface LogDetailsContentProps {
-  selectedLog: any;
-  explanation?: LogExplanationData;
-  isExplaining?: boolean;
-  explainError?: string;
-  streamingText?: string;
-  onClearExplanation?: () => void;
-}
-
-function LogDetailsContent({
-  selectedLog,
-  explanation,
-  isExplaining,
-  explainError,
-  streamingText,
-  onClearExplanation,
-}: LogDetailsContentProps) {
-  const { isDarkMode } = useUnifiedTheme();
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
-    args: false,
-    metadata: false,
-  });
-
-  const toggleSection = useCallback((section: string) => {
-    setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
-  }, []);
+function LogActionButton({ log, action }: LogActionButtonProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [copySuccess, setCopySuccess] = useState<string | null>(null);
   
-  return (
-    <div className="space-y-4">
-      {/* AI Explanation Display */}
-      {(explanation || isExplaining || explainError || streamingText) && (
-        <LogExplanation
-          explanation={explanation}
-          isLoading={isExplaining}
-          error={explainError}
-          streamingText={streamingText}
-          onClose={onClearExplanation}
-        />
-      )}
+  const formatOptions = getFormatOptions();
 
-      {/* Message */}
-      <div>
-        <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">
-          Message
-        </h4>
-        <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-          <p className="text-sm font-mono text-gray-900 dark:text-gray-100 whitespace-pre-wrap">
-            {selectedLog.message}
-          </p>
-        </div>
-      </div>
+  const logData: LogData = useMemo(() => ({
+    level: log.level,
+    message: log.message,
+    args: log.args || [],
+    stack: log.stack,
+    source: log.source,
+    timestamp: log.timestamp,
+    context: log.context,
+  }), [log]);
 
-      {/* Arguments */}
-      {selectedLog.args.length > 0 && (
-        <div>
-          <button
-            onClick={() => toggleSection('args')}
-            className="w-full flex items-center justify-between text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-          >
-            <span>Arguments ({selectedLog.args.length})</span>
-            <span className="text-xs">{expandedSections.args ? '▼' : '▶'}</span>
-          </button>
-          {expandedSections.args && (
-            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-              <LazyReactJson data={selectedLog.args} isDarkMode={isDarkMode} name="args" />
-            </div>
-          )}
-        </div>
-      )}
+  const handleWorkOnLog = useCallback(async () => {
+    const success = await copyLogContext(logData, 'copilot');
+    if (success) {
+      setCopySuccess('copilot');
+      setTimeout(() => setCopySuccess(null), 2000);
+    }
+  }, [logData]);
 
-      {/* Stack Trace */}
-      {selectedLog.stack && (
-        <div>
-          <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">
-            Stack Trace
-          </h4>
-          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-            <ClickableStackTrace stack={selectedLog.stack} />
-          </div>
-        </div>
-      )}
+  const handleCopy = useCallback(async (format: ContextFormat) => {
+    const success = await copyLogContext(logData, format);
+    if (success) {
+      setCopySuccess(format);
+      setTimeout(() => setCopySuccess(null), 2000);
+    }
+    setMenuOpen(false);
+  }, [logData]);
 
-      {/* Metadata */}
-      <div>
-        <button
-          onClick={() => toggleSection('metadata')}
-          className="w-full flex items-center justify-between text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-        >
-          <span>Metadata</span>
-          <span className="text-xs">{expandedSections.metadata ? '▼' : '▶'}</span>
-        </button>
-        {expandedSections.metadata && (
-          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 space-y-2">
-            <div className="flex justify-between text-xs">
-              <span className="text-gray-500 dark:text-gray-400">Timestamp:</span>
-              <span className="text-gray-900 dark:text-gray-100 font-mono">
-                {new Date(selectedLog.timestamp).toISOString()}
-              </span>
-            </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-gray-500 dark:text-gray-400">Level:</span>
-              <LogLevelChip level={selectedLog.level} />
-            </div>
-            {selectedLog.source && (
-              <>
-                <div className="flex justify-between text-xs">
-                  <span className="text-gray-500 dark:text-gray-400">File:</span>
-                  <span className="text-gray-900 dark:text-gray-100 font-mono">
-                    {selectedLog.source.file}
-                  </span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-gray-500 dark:text-gray-400">Line:</span>
-                  <span className="text-gray-900 dark:text-gray-100 font-mono">
-                    {selectedLog.source.line}
-                  </span>
-                </div>
-              </>
-            )}
-          </div>
+  const handleDownload = useCallback((format: ContextFormat) => {
+    downloadLogContext(logData, format);
+    setMenuOpen(false);
+  }, [logData]);
+
+  if (action === 'work') {
+    return (
+      <button
+        onClick={handleWorkOnLog}
+        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium transition-colors bg-emerald-600 hover:bg-emerald-700 text-white"
+        title="Copy AI prompt for Copilot"
+      >
+        {copySuccess === 'copilot' ? (
+          <>
+            <Check className="w-3.5 h-3.5" />
+            <span>Copied</span>
+          </>
+        ) : (
+          <>
+            <Wrench className="w-3.5 h-3.5" />
+            <span>Work</span>
+          </>
         )}
-      </div>
+      </button>
+    );
+  }
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setMenuOpen(!menuOpen)}
+        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium transition-colors bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
+        title="Export context"
+      >
+        <Code2 className="w-3.5 h-3.5" />
+        <span>Context</span>
+        <ChevronDown className={cn('w-3 h-3 transition-transform', menuOpen && 'rotate-180')} />
+      </button>
+
+      {menuOpen && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+          <div className="absolute right-0 top-full mt-1 w-48 z-20 bg-white dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-700 shadow-lg py-1">
+            <div className="px-2 py-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Copy</div>
+            {formatOptions.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => handleCopy(opt.value)}
+                className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-left hover:bg-gray-100 dark:hover:bg-gray-800"
+              >
+                <ClipboardCopy className="w-3 h-3 text-gray-400" />
+                <span className="text-gray-700 dark:text-gray-300">{opt.label}</span>
+                {copySuccess === opt.value && <Check className="w-3 h-3 text-green-500 ml-auto" />}
+              </button>
+            ))}
+            <div className="border-t border-gray-100 dark:border-gray-800 my-1" />
+            <div className="px-2 py-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Download</div>
+            {formatOptions.slice(0, 4).map((opt) => (
+              <button
+                key={`dl-${opt.value}`}
+                onClick={() => handleDownload(opt.value)}
+                className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-left hover:bg-gray-100 dark:hover:bg-gray-800"
+              >
+                <Download className="w-3 h-3 text-gray-400" />
+                <span className="text-gray-700 dark:text-gray-300">{opt.label}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
+
+// ============================================================================
+// LOG ROW COMPONENT
+// ============================================================================
 
 interface LogRowProps {
   log: any;
@@ -388,7 +286,7 @@ export function LogsPanel({ githubConfig }: LogsPanelProps) {
 
   // Check if AI is ready to use
   const isAIReady = useMemo(() => {
-    return (
+    return !!(
       aiSettings.enabled &&
       ((aiSettings.useGateway && aiSettings.gatewayApiKey) ||
         (!aiSettings.useGateway && aiSettings.apiKey))
@@ -729,59 +627,54 @@ export function LogsPanel({ githubConfig }: LogsPanelProps) {
 
               <div className="flex flex-col" style={{ width: `${detailPanelWidth}%` }}>
                 <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30 shrink-0">
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center justify-between mb-3">
                     <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
                       Log Details
                     </h3>
                     <button
                       onClick={() => setSelectedLog(null)}
-                      className="p-1.5 hover:bg-white dark:hover:bg-gray-800 rounded-lg transition-all hover:shadow-apple-sm active:scale-95"
+                      className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
                       title="Close Details"
                     >
                       <X className="w-4 h-4 text-gray-500 dark:text-gray-400" />
                     </button>
                   </div>
 
-                  {/* Action Buttons */}
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {/* AI Explain Button - Always visible */}
+                  {/* Action Buttons - Clean flat design */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {/* AI Explain Button */}
                     {!explanation && !isExplaining && (
                       <button
                         onClick={handleExplainLog}
                         disabled={isExplaining}
-                        className={cn(
-                          "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border hover:shadow-apple-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed",
-                          isRaindropConfigured 
-                            ? "bg-gradient-to-r from-cyan-500/10 to-blue-500/10 hover:from-cyan-500/20 hover:to-blue-500/20 text-cyan-600 dark:text-cyan-400 border-cyan-300 dark:border-cyan-700"
-                            : "bg-gradient-to-r from-purple-500/10 to-blue-500/10 hover:from-purple-500/20 hover:to-blue-500/20 text-purple-600 dark:text-purple-400 border-purple-300 dark:border-purple-700"
-                        )}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium transition-colors bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                         title={isRaindropConfigured ? "Explain with AI + SmartMemory" : "Explain this log with AI"}
                       >
-                        {isRaindropConfigured ? (
-                          <Brain className="w-3.5 h-3.5" />
-                        ) : (
-                          <Sparkles className="w-3.5 h-3.5" />
-                        )}
-                        <span className="hidden sm:inline">
-                          {isRaindropConfigured ? 'Explain with Memory' : 'Explain with AI'}
-                        </span>
-                        <span className="sm:hidden">AI</span>
+                        <Brain className="w-3.5 h-3.5" />
+                        <span>Explain</span>
                       </button>
                     )}
-                    {/* GitHub Issue Button - Always show for any selected log */}
+                    
+                    {/* Work on Log Button */}
+                    <LogActionButton 
+                      log={selectedLog} 
+                      action="work" 
+                    />
+                    
+                    {/* Context Export Button */}
+                    <LogActionButton 
+                      log={selectedLog} 
+                      action="context" 
+                    />
+                    
+                    {/* Create Issue Button */}
                     <button
                       onClick={() => githubSlideoutStore.open(selectedLog)}
-                      className={cn(
-                        'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border hover:shadow-apple-sm active:scale-95',
-                        selectedLog?.level === 'error' || selectedLog?.level === 'warn'
-                          ? 'bg-success/10 hover:bg-success/15 text-success border-success/20'
-                          : 'bg-primary/10 hover:bg-primary/15 text-primary border-primary/20'
-                      )}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium transition-colors bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
                       title="Create GitHub Issue from this log"
                     >
                       <Github className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline">Create Issue</span>
-                      <span className="sm:hidden">Issue</span>
+                      <span>Issue</span>
                     </button>
                   </div>
                 </div>
