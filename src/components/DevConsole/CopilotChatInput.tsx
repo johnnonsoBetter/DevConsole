@@ -2,18 +2,21 @@
  * CopilotChatInput Component
  * A beautiful, chat-style interface for sending context to VS Code Copilot
  * 
+ * Design: Floating avatar at bottom-center with chat bubble above
+ * 
  * Features:
+ * - Animated Copilot avatar at bottom center
+ * - Chat bubble that expands from the avatar
  * - Context preview with attached log/note info
- * - User-controlled prompt input
  * - Quick action suggestions
  * - Connection status indicator
- * - Elegant animations and transitions
+ * - Graceful fallback to clipboard
  */
 
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   AlertCircle,
-  ArrowRight,
+  ArrowUp,
   CheckCircle2,
   Clipboard,
   Code2,
@@ -56,7 +59,6 @@ export interface CopilotChatInputProps {
   onClose: () => void;
   onSuccess?: (requestId: string) => void;
   onFallback?: (prompt: string) => void;
-  position?: 'bottom' | 'inline';
   className?: string;
 }
 
@@ -78,33 +80,104 @@ const QUICK_ACTIONS: QuickAction[] = [
     label: 'Explain',
     icon: HelpCircle,
     prompt: 'Explain what this means and why it might be happening',
-    color: 'text-blue-500',
+    color: 'text-blue-400',
   },
   {
     id: 'fix',
     label: 'Fix',
     icon: Wrench,
     prompt: 'Help me fix this issue',
-    color: 'text-orange-500',
+    color: 'text-orange-400',
   },
   {
     id: 'improve',
     label: 'Improve',
     icon: Lightbulb,
     prompt: 'Suggest improvements or best practices',
-    color: 'text-yellow-500',
+    color: 'text-yellow-400',
   },
   {
     id: 'debug',
     label: 'Debug',
     icon: Terminal,
     prompt: 'Help me debug this step by step',
-    color: 'text-purple-500',
+    color: 'text-purple-400',
   },
 ];
 
 // ============================================================================
-// CONNECTION STATUS COMPONENT
+// ANIMATED COPILOT AVATAR
+// ============================================================================
+
+interface CopilotAvatarProps {
+  isActive?: boolean;
+  isLoading?: boolean;
+  onClick?: () => void;
+}
+
+const CopilotAvatar = memo(({ isActive = false, isLoading = false, onClick }: CopilotAvatarProps) => {
+  return (
+    <motion.button
+      onClick={onClick}
+      whileHover={{ scale: 1.08 }}
+      whileTap={{ scale: 0.95 }}
+      className={cn(
+        'relative w-14 h-14 rounded-full flex items-center justify-center',
+        'bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500',
+        'shadow-xl shadow-purple-500/40',
+        'cursor-pointer transition-shadow',
+        'hover:shadow-2xl hover:shadow-purple-500/50'
+      )}
+    >
+      {/* Outer pulse ring when active */}
+      {isActive && (
+        <motion.div
+          className="absolute inset-0 rounded-full border-2 border-white/40"
+          animate={{
+            scale: [1, 1.25, 1],
+            opacity: [0.4, 0, 0.4],
+          }}
+          transition={{
+            duration: 2,
+            repeat: Infinity,
+            ease: 'easeInOut',
+          }}
+        />
+      )}
+      
+      {/* Loading pulse effect */}
+      {isLoading && (
+        <motion.div
+          className="absolute inset-0 rounded-full bg-white/30"
+          animate={{
+            scale: [1, 1.4],
+            opacity: [0.5, 0],
+          }}
+          transition={{
+            duration: 1,
+            repeat: Infinity,
+            ease: 'easeOut',
+          }}
+        />
+      )}
+
+      {/* Inner glow */}
+      <div className="absolute inset-1 rounded-full bg-gradient-to-br from-white/20 to-transparent" />
+
+      {/* Icon */}
+      {isLoading ? (
+        <Loader2 className="w-7 h-7 text-white animate-spin" />
+      ) : (
+        <Zap className="w-7 h-7 text-white drop-shadow-lg" />
+      )}
+    </motion.button>
+  );
+});
+
+CopilotAvatar.displayName = 'CopilotAvatar';
+
+// ============================================================================
+// CONNECTION STATUS
 // ============================================================================
 
 type ConnectionStatus = 'checking' | 'connected' | 'no-workspace' | 'disconnected';
@@ -119,25 +192,25 @@ const ConnectionIndicator = memo(({ status, workspaceName }: ConnectionIndicator
     checking: {
       icon: Loader2,
       text: 'Checking...',
-      className: 'text-gray-400 animate-pulse',
+      className: 'text-gray-400',
       iconClassName: 'animate-spin',
     },
     connected: {
       icon: CheckCircle2,
-      text: workspaceName || 'VS Code Ready',
-      className: 'text-green-500',
+      text: workspaceName ? `Connected: ${workspaceName}` : 'VS Code Ready',
+      className: 'text-green-400',
       iconClassName: '',
     },
     'no-workspace': {
       icon: AlertCircle,
       text: 'Open a folder in VS Code',
-      className: 'text-amber-500',
+      className: 'text-amber-400',
       iconClassName: '',
     },
     disconnected: {
       icon: AlertCircle,
       text: 'VS Code not running',
-      className: 'text-red-500',
+      className: 'text-red-400',
       iconClassName: '',
     },
   };
@@ -148,7 +221,7 @@ const ConnectionIndicator = memo(({ status, workspaceName }: ConnectionIndicator
   return (
     <div className={cn('flex items-center gap-1.5 text-xs', config.className)}>
       <Icon className={cn('w-3.5 h-3.5', config.iconClassName)} />
-      <span>{config.text}</span>
+      <span className="truncate max-w-[200px]">{config.text}</span>
     </div>
   );
 });
@@ -156,27 +229,19 @@ const ConnectionIndicator = memo(({ status, workspaceName }: ConnectionIndicator
 ConnectionIndicator.displayName = 'ConnectionIndicator';
 
 // ============================================================================
-// CONTEXT PREVIEW COMPONENT
+// CONTEXT PREVIEW
 // ============================================================================
 
 interface ContextPreviewProps {
   context: CopilotContext;
-  onRemove?: () => void;
 }
 
-const ContextPreview = memo(({ context, onRemove }: ContextPreviewProps) => {
+const ContextPreview = memo(({ context }: ContextPreviewProps) => {
   const levelColors = {
-    error: 'border-red-300 dark:border-red-700 bg-red-50/50 dark:bg-red-900/20',
-    warn: 'border-yellow-300 dark:border-yellow-700 bg-yellow-50/50 dark:bg-yellow-900/20',
-    info: 'border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-900/20',
-    log: 'border-gray-300 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50',
-  };
-
-  const levelIcons = {
-    error: <AlertCircle className="w-4 h-4 text-red-500" />,
-    warn: <AlertCircle className="w-4 h-4 text-yellow-500" />,
-    info: <MessageSquare className="w-4 h-4 text-blue-500" />,
-    log: <Terminal className="w-4 h-4 text-gray-500" />,
+    error: 'border-l-red-500 bg-red-500/10',
+    warn: 'border-l-yellow-500 bg-yellow-500/10',
+    info: 'border-l-blue-500 bg-blue-500/10',
+    log: 'border-l-gray-500 bg-gray-500/10',
   };
 
   const typeIcons = {
@@ -192,39 +257,26 @@ const ContextPreview = memo(({ context, onRemove }: ContextPreviewProps) => {
   return (
     <div
       className={cn(
-        'relative rounded-lg border p-3 transition-all',
+        'rounded-lg border-l-4 p-3',
         levelColors[level]
       )}
     >
       {/* Header */}
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <div className="flex items-center gap-2">
-          {context.type === 'log' && context.metadata?.level
-            ? levelIcons[context.metadata.level]
-            : <TypeIcon className="w-4 h-4 text-gray-500" />
-          }
-          <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
-            {context.title}
-          </span>
-        </div>
-        {onRemove && (
-          <button
-            onClick={onRemove}
-            className="p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
-          >
-            <X className="w-3.5 h-3.5 text-gray-400" />
-          </button>
-        )}
+      <div className="flex items-center gap-2 mb-1.5">
+        <TypeIcon className="w-3.5 h-3.5 text-gray-400" />
+        <span className="text-xs font-medium text-gray-300 truncate">
+          {context.title}
+        </span>
       </div>
 
       {/* Preview */}
-      <div className="text-xs text-gray-600 dark:text-gray-400 font-mono line-clamp-2 break-all">
+      <div className="text-xs text-gray-400 font-mono line-clamp-2 break-all leading-relaxed">
         {context.preview}
       </div>
 
-      {/* Metadata */}
+      {/* File info */}
       {context.metadata?.file && (
-        <div className="mt-2 flex items-center gap-1.5 text-[10px] text-gray-400">
+        <div className="mt-2 flex items-center gap-1 text-[10px] text-gray-500">
           <Code2 className="w-3 h-3" />
           <span className="truncate">
             {context.metadata.file}
@@ -248,7 +300,6 @@ export const CopilotChatInput = memo(({
   onClose,
   onSuccess,
   onFallback,
-  position = 'bottom',
   className,
 }: CopilotChatInputProps) => {
   const [userPrompt, setUserPrompt] = useState('');
@@ -294,21 +345,19 @@ export const CopilotChatInput = memo(({
     checkConnection();
     
     // Focus input when opened
-    setTimeout(() => inputRef.current?.focus(), 100);
+    setTimeout(() => inputRef.current?.focus(), 150);
 
     return () => { cancelled = true; };
   }, [isOpen]);
 
-  // Build the full prompt with context
+  // Build the full prompt with context (for clipboard fallback & display)
   const buildFullPrompt = useCallback((userMessage: string): string => {
     let prompt = userMessage.trim();
     
-    // Add context
     if (context.fullContext) {
       prompt += '\n\n---\n\n**Context:**\n' + context.fullContext;
     }
     
-    // Add metadata hints
     if (context.metadata?.file) {
       prompt += `\n\nFile: \`${context.metadata.file}\``;
       if (context.metadata.line) {
@@ -331,8 +380,8 @@ export const CopilotChatInput = memo(({
 
   // Send to Copilot
   const handleSend = useCallback(async (promptOverride?: string) => {
-    const prompt = promptOverride || userPrompt.trim();
-    if (!prompt) {
+    const userMessage = promptOverride || userPrompt.trim();
+    if (!userMessage) {
       setNotification({ type: 'error', message: 'Please enter a message' });
       return;
     }
@@ -340,13 +389,14 @@ export const CopilotChatInput = memo(({
     setIsSending(true);
     setNotification(null);
 
-    const fullPrompt = buildFullPrompt(prompt);
+    // Build full prompt for clipboard/storage
+    const fullPrompt = buildFullPrompt(userMessage);
 
     // Create action in store
     const actionId = addAction({
       source: context.type === 'log' ? 'logs' : 'sticky-notes',
       actionType: 'copilot_chat',
-      promptPreview: prompt.slice(0, 100) + (prompt.length > 100 ? '...' : ''),
+      promptPreview: userMessage.slice(0, 100) + (userMessage.length > 100 ? '...' : ''),
       fullPrompt,
       status: 'sending',
       workspaceReady: connectionStatus === 'connected',
@@ -367,11 +417,12 @@ export const CopilotChatInput = memo(({
         if (copied) {
           setNotification({
             type: 'info',
-            message: '📋 Prompt copied! Paste it into Copilot when ready.',
+            message: '📋 Copied! Paste in Copilot when ready.',
           });
           onFallback?.(fullPrompt);
           setTimeout(() => {
             onClose();
+            setUserPrompt('');
           }, 2000);
         } else {
           setNotification({ type: 'error', message: 'Failed to copy to clipboard' });
@@ -380,7 +431,8 @@ export const CopilotChatInput = memo(({
         return;
       }
 
-      // Send to webhook using simplified API
+      // Send to webhook - use the FULL prompt with embedded context
+      // The extension's /webhook endpoint expects the prompt field to contain everything
       const response = await webhookCopilot.sendPrompt(fullPrompt, {
         type: context.type,
         ...(context.metadata || {}),
@@ -399,7 +451,7 @@ export const CopilotChatInput = memo(({
         if (copied) {
           setNotification({
             type: 'info',
-            message: `📋 ${response.message || 'Error'}. Prompt copied to clipboard.`,
+            message: `📋 ${response.message || 'Error'}. Copied to clipboard.`,
           });
           onFallback?.(fullPrompt);
         } else {
@@ -421,13 +473,12 @@ export const CopilotChatInput = memo(({
         setNotification({
           type: 'success',
           message: isQueued
-            ? `✓ Queued (#${response.queue?.position}) - waiting for other tasks`
-            : '✓ Sent to Copilot! Check VS Code.',
+            ? `✓ Queued (#${response.queue?.position})`
+            : '✓ Sent to Copilot!',
         });
         
         onSuccess?.(response.requestId || '');
         
-        // Close after success
         setTimeout(() => {
           onClose();
           setUserPrompt('');
@@ -448,7 +499,7 @@ export const CopilotChatInput = memo(({
       if (copied) {
         setNotification({
           type: 'info',
-          message: `📋 ${errorMessage}. Prompt copied to clipboard.`,
+          message: `📋 ${errorMessage}. Copied to clipboard.`,
         });
         onFallback?.(fullPrompt);
       } else {
@@ -473,8 +524,7 @@ export const CopilotChatInput = memo(({
   // Handle quick action click
   const handleQuickAction = useCallback((action: QuickAction) => {
     setUserPrompt(action.prompt);
-    // Auto-send after a brief delay for visual feedback
-    setTimeout(() => handleSend(action.prompt), 150);
+    setTimeout(() => handleSend(action.prompt), 100);
   }, [handleSend]);
 
   // Handle keyboard shortcuts
@@ -501,162 +551,182 @@ export const CopilotChatInput = memo(({
   return (
     <AnimatePresence>
       {isOpen && (
-        <>
+        <div className={cn('fixed inset-0 z-50 pointer-events-none', className)}>
           {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/20 dark:bg-black/40 backdrop-blur-sm z-40"
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm pointer-events-auto"
           />
 
-          {/* Chat Panel */}
-          <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.98 }}
-            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className={cn(
-              'fixed z-50 w-full max-w-lg mx-auto',
-              position === 'bottom'
-                ? 'bottom-4 left-1/2 -translate-x-1/2 px-4'
-                : 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2',
-              className
-            )}
-          >
-            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden">
-              {/* Header */}
-              <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-                    <Zap className="w-4 h-4 text-white" />
+          {/* Bottom-center container with avatar and chat bubble */}
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-auto">
+            
+            {/* Chat Bubble - appears above avatar */}
+            <motion.div
+              initial={{ opacity: 0, y: 30, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 30, scale: 0.9 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="mb-3 w-[400px] max-w-[calc(100vw-2rem)]"
+            >
+              <div className="bg-gray-900 rounded-2xl shadow-2xl border border-gray-700/60 overflow-hidden">
+                
+                {/* Header */}
+                <div className="px-4 py-3 border-b border-gray-800/80 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg">
+                      <Zap className="w-4 h-4 text-white" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-semibold text-white">
+                        Ask Copilot
+                      </h3>
+                      <ConnectionIndicator status={connectionStatus} workspaceName={workspaceName} />
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-                      Ask Copilot
-                    </h3>
-                    <ConnectionIndicator status={connectionStatus} workspaceName={workspaceName} />
-                  </div>
-                </div>
-                <button
-                  onClick={onClose}
-                  className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                >
-                  <X className="w-5 h-5 text-gray-400" />
-                </button>
-              </div>
-
-              {/* Context Preview */}
-              <div className="px-4 pt-4">
-                <ContextPreview context={context} />
-              </div>
-
-              {/* Quick Actions */}
-              <div className="px-4 pt-4">
-                <div className="flex items-center gap-1.5 mb-2">
-                  <Sparkles className="w-3 h-3 text-gray-400" />
-                  <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">
-                    Quick Actions
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {QUICK_ACTIONS.map((action) => {
-                    const Icon = action.icon;
-                    return (
-                      <button
-                        key={action.id}
-                        onClick={() => handleQuickAction(action)}
-                        disabled={isSending}
-                        className={cn(
-                          'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium',
-                          'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700',
-                          'text-gray-700 dark:text-gray-300 transition-all',
-                          'hover:shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed',
-                          'border border-transparent hover:border-gray-300 dark:hover:border-gray-600'
-                        )}
-                      >
-                        <Icon className={cn('w-3.5 h-3.5', action.color)} />
-                        <span>{action.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Input Area */}
-              <div className="p-4">
-                <div className="relative">
-                  <textarea
-                    ref={inputRef}
-                    value={userPrompt}
-                    onChange={(e) => setUserPrompt(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder="What would you like Copilot to help with?"
-                    disabled={isSending}
-                    rows={3}
-                    className={cn(
-                      'w-full px-4 py-3 pr-12 rounded-xl resize-none',
-                      'bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700',
-                      'text-sm text-gray-900 dark:text-white placeholder:text-gray-400',
-                      'focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500',
-                      'transition-all disabled:opacity-50'
-                    )}
-                  />
-                  
-                  {/* Send Button */}
                   <button
-                    onClick={() => handleSend()}
-                    disabled={isSending || !userPrompt.trim()}
-                    className={cn(
-                      'absolute right-2 bottom-2 p-2 rounded-lg transition-all',
-                      'disabled:opacity-50 disabled:cursor-not-allowed',
-                      userPrompt.trim()
-                        ? 'bg-blue-500 hover:bg-blue-600 text-white shadow-lg shadow-blue-500/25'
-                        : 'bg-gray-200 dark:bg-gray-700 text-gray-400'
-                    )}
+                    onClick={onClose}
+                    className="p-1.5 rounded-lg hover:bg-gray-800 transition-colors"
                   >
-                    {isSending ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <ArrowRight className="w-4 h-4" />
-                    )}
+                    <X className="w-4 h-4 text-gray-400" />
                   </button>
                 </div>
 
-                {/* Keyboard Hint */}
-                <div className="mt-2 flex items-center justify-between text-[10px] text-gray-400">
-                  <span>Press <kbd className="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 font-mono">⌘</kbd> + <kbd className="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 font-mono">Enter</kbd> to send</span>
-                  {connectionStatus !== 'connected' && (
-                    <span className="flex items-center gap-1">
-                      <Clipboard className="w-3 h-3" />
-                      Will copy to clipboard
-                    </span>
-                  )}
+                {/* Context Preview */}
+                <div className="px-4 pt-3">
+                  <ContextPreview context={context} />
                 </div>
+
+                {/* Quick Actions */}
+                <div className="px-4 pt-3">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <Sparkles className="w-3 h-3 text-gray-500" />
+                    <span className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">
+                      Quick Actions
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {QUICK_ACTIONS.map((action) => {
+                      const Icon = action.icon;
+                      return (
+                        <button
+                          key={action.id}
+                          onClick={() => handleQuickAction(action)}
+                          disabled={isSending}
+                          className={cn(
+                            'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium',
+                            'bg-gray-800/80 hover:bg-gray-700',
+                            'text-gray-300 transition-all',
+                            'hover:scale-[1.02] active:scale-[0.98]',
+                            'disabled:opacity-50 disabled:cursor-not-allowed',
+                            'border border-gray-700/50 hover:border-gray-600'
+                          )}
+                        >
+                          <Icon className={cn('w-3.5 h-3.5', action.color)} />
+                          <span>{action.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Input Area */}
+                <div className="p-4">
+                  <div className="relative">
+                    <textarea
+                      ref={inputRef}
+                      value={userPrompt}
+                      onChange={(e) => setUserPrompt(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      placeholder="What would you like Copilot to help with?"
+                      disabled={isSending}
+                      rows={2}
+                      className={cn(
+                        'w-full px-4 py-3 pr-12 rounded-xl resize-none',
+                        'bg-gray-800/80 border border-gray-700/60',
+                        'text-sm text-white placeholder:text-gray-500',
+                        'focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50',
+                        'transition-all disabled:opacity-50'
+                      )}
+                    />
+                    
+                    {/* Send Button */}
+                    <button
+                      onClick={() => handleSend()}
+                      disabled={isSending || !userPrompt.trim()}
+                      className={cn(
+                        'absolute right-2 bottom-2 p-2 rounded-lg transition-all',
+                        'disabled:opacity-30 disabled:cursor-not-allowed',
+                        userPrompt.trim()
+                          ? 'bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-lg shadow-purple-500/30'
+                          : 'bg-gray-700 text-gray-500'
+                      )}
+                    >
+                      {isSending ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <ArrowUp className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Footer hints */}
+                  <div className="mt-2 flex items-center justify-between text-[10px] text-gray-500">
+                    <span>
+                      <kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono text-[9px]">⌘</kbd>
+                      {' + '}
+                      <kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono text-[9px]">↵</kbd>
+                      {' to send'}
+                    </span>
+                    {connectionStatus !== 'connected' && (
+                      <span className="flex items-center gap-1 text-amber-400/80">
+                        <Clipboard className="w-3 h-3" />
+                        Will copy to clipboard
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Notification */}
+                <AnimatePresence>
+                  {notification && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 10 }}
+                      className={cn(
+                        'mx-4 mb-4 px-4 py-2.5 rounded-xl text-sm font-medium',
+                        notification.type === 'success' && 'bg-green-500/20 text-green-400 border border-green-500/30',
+                        notification.type === 'error' && 'bg-red-500/20 text-red-400 border border-red-500/30',
+                        notification.type === 'info' && 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                      )}
+                    >
+                      {notification.message}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
 
-              {/* Notification */}
-              <AnimatePresence>
-                {notification && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 10 }}
-                    className={cn(
-                      'mx-4 mb-4 px-4 py-3 rounded-xl text-sm font-medium',
-                      notification.type === 'success' && 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300',
-                      notification.type === 'error' && 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300',
-                      notification.type === 'info' && 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                    )}
-                  >
-                    {notification.message}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          </motion.div>
-        </>
+              {/* Speech bubble pointer (triangle) */}
+              <div className="flex justify-center -mt-px">
+                <div 
+                  className="w-4 h-4 bg-gray-900 border-r border-b border-gray-700/60 transform rotate-45 -translate-y-2"
+                  style={{ boxShadow: '2px 2px 4px rgba(0,0,0,0.2)' }}
+                />
+              </div>
+            </motion.div>
+
+            {/* Animated Copilot Avatar */}
+            <CopilotAvatar
+              isActive={isOpen}
+              isLoading={isSending}
+              onClick={onClose}
+            />
+          </div>
+        </div>
       )}
     </AnimatePresence>
   );
