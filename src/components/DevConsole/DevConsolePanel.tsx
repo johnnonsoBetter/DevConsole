@@ -12,6 +12,7 @@ import {
   Info,
   Network,
   RefreshCw,
+  Send,
   Settings,
   Terminal,
   Zap
@@ -28,12 +29,13 @@ import {
 const GraphQLExplorer = lazy(() => import('../DevConsole/GraphQLExplorerV2').then(module => ({default: module.GraphQLExplorerV2})));
 
 import { StickyNoteButton } from '../../features/notes';
-import { useGitHubIssueSlideoutStore } from '../../utils/stores';
+import { useGitHubIssueSlideoutStore, useCodeActionsStore } from '../../utils/stores';
 import { useAISettingsStore } from '../../utils/stores/aiSettings';
 import { useGitHubSettingsStore } from '../../utils/stores/githubSettings';
 import { BetterTabs } from '../ui/better-tabs';
 import { GitHubIssueSlideout } from './GitHubIssueSlideout';
 import { GitHubIssuesTab } from './GitHubIssuesTab';
+import { CodeActionsPanel } from './panels/CodeActionsPanel';
 import { LogsPanel } from './panels/LogsPanel';
 import { NetworkPanel } from './panels/NetworkPanel';
 import { NotesPanel } from './panels/NotesPanel';
@@ -59,6 +61,7 @@ const CONSOLE_TABS = [
   { id: 'logs', label: 'Logs', icon: Terminal },
   { id: 'network', label: 'Network', icon: Network },
   { id: 'notes', label: 'Notes', icon: BookOpen },
+  { id: 'actions', label: 'Actions', icon: Send },
   { id: 'graphql', label: 'GraphQL', icon: Zap },
   { id: 'tools', label: 'Tools', icon: Activity },
   { id: 'github', label: 'GitHub', icon: Github },
@@ -91,6 +94,13 @@ export function DevConsolePanel({ githubConfig }: DevConsolePanelProps = {}) {
 
   const githubSlideoutStore = useGitHubIssueSlideoutStore();
 
+  // Get pending actions count for badge
+  const pendingActionsCount = useCodeActionsStore((state) =>
+    state.actions.filter(
+      (a) => a.status === 'queued' || a.status === 'sending' || a.status === 'processing'
+    ).length
+  );
+
   // Use prop githubConfig if provided, otherwise use settings from store
   const effectiveGithubConfig =
     githubConfig ||
@@ -108,11 +118,19 @@ export function DevConsolePanel({ githubConfig }: DevConsolePanelProps = {}) {
     () =>
       CONSOLE_TABS.map((tab) => {
         const IconComponent = tab.icon;
+        // Determine badge for each tab
+        let badge: number | undefined;
+        if (tab.id === 'logs' && unreadErrorCount > 0) {
+          badge = unreadErrorCount;
+        } else if (tab.id === 'actions' && pendingActionsCount > 0) {
+          badge = pendingActionsCount;
+        }
+        
         return {
           id: tab.id,
           label: tab.label,
           icon: <IconComponent className="w-4 h-4" />,
-          badge: tab.id === 'logs' && unreadErrorCount > 0 ? unreadErrorCount : undefined,
+          badge,
           content: (
             <>
               {tab.id === 'logs' && (
@@ -122,6 +140,7 @@ export function DevConsolePanel({ githubConfig }: DevConsolePanelProps = {}) {
               )}
               {tab.id === 'network' && <NetworkPanel />}
               {tab.id === 'notes' && <NotesPanel />}
+              {tab.id === 'actions' && <CodeActionsPanel />}
               {tab.id === 'graphql' && <GraphQLExplorer />}
               {tab.id === 'tools' && <ToolsPanel />}
               {tab.id === 'github' && (
@@ -135,7 +154,7 @@ export function DevConsolePanel({ githubConfig }: DevConsolePanelProps = {}) {
           ),
         };
       }),
-    [effectiveGithubConfig, unreadErrorCount]
+    [effectiveGithubConfig, unreadErrorCount, pendingActionsCount]
   );
 
   return (

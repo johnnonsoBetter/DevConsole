@@ -19,18 +19,44 @@ export type WebhookAction =
 export interface WebhookPayload {
   action: WebhookAction;
   task?: string;
-  question?: string;
+  prompt?: string;
   filePath?: string;
   content?: string;
   command?: string;
   query?: string;
   requireApproval?: boolean;
+  context?: Record<string, unknown>;
+  options?: Record<string, unknown>;
 }
 
 export interface WebhookResponse {
   success: boolean;
   message: string;
+  error?: string;
   data?: any;
+  requestId?: string;
+  suggestions?: string[];
+  actionRequired?: string;
+}
+
+export interface WorkspaceFolder {
+  name: string;
+  path: string;
+}
+
+export interface WorkspaceHealth {
+  ready: boolean;
+  folders: WorkspaceFolder[];
+  message: string;
+}
+
+export interface ServerHealth {
+  status: "ok" | "degraded" | "offline";
+  timestamp: number;
+  version: string;
+  port?: number;
+  workspace?: WorkspaceHealth;
+  error?: string;
 }
 
 // ============================================================================
@@ -70,17 +96,32 @@ export class WebhookCopilotService {
 
       clearTimeout(timeoutId);
 
-      if (!response.ok) {
-        throw new Error(
-          `Webhook request failed: ${response.status} ${response.statusText}`
-        );
+      const data = await response.json();
+
+      // Handle 503 Service Unavailable (NO_WORKSPACE)
+      if (response.status === 503) {
+        return {
+          success: false,
+          error: data.error || "SERVICE_UNAVAILABLE",
+          message: data.message || "VS Code service is unavailable",
+          suggestions: data.suggestions,
+          actionRequired: data.action_required,
+        };
       }
 
-      const data = await response.json();
+      // Handle other non-OK responses
+      if (!response.ok) {
+        return {
+          success: false,
+          error: data.error || "REQUEST_FAILED",
+          message: data.message || `Request failed: ${response.status} ${response.statusText}`,
+        };
+      }
 
       return {
         success: true,
-        message: "Webhook sent successfully",
+        message: data.message || "Webhook sent successfully",
+        requestId: data.requestId,
         data,
       };
     } catch (error) {
@@ -125,10 +166,10 @@ export class WebhookCopilotService {
   /**
    * Ask Copilot a question
    */
-  async copilotChat(question: string): Promise<WebhookResponse> {
+  async copilotChat(prompt: string): Promise<WebhookResponse> {
     return this.sendWebhook({
       action: "copilot_chat",
-      question,
+      prompt,
     });
   }
 
@@ -181,14 +222,51 @@ export class WebhookCopilotService {
   }
 
   /**
-   * Check if webhook server is available using health endpoint
+   * Check if webhook server is available and workspace is ready
    */
   async checkConnection(): Promise<boolean> {
+    try {
+      const health = await this.getHealth();
+      // Consider connected if server is reachable (even if workspace not ready)
+      return health !== null;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Check if workspace is ready for webhooks
+   */
+  async checkWorkspaceReady(): Promise<{
+    connected: boolean;
+    workspaceReady: boolean;
+    health: ServerHealth | null;
+  }> {
+    try {
+      const health = await this.getHealth();
+      
+      if (!health) {
+        return { connected: false, workspaceReady: false, health: null };
+      }
+
+      return {
+        connected: true,
+        workspaceReady: health.workspace?.ready ?? false,
+        health,
+      };
+    } catch {
+      return { connected: false, workspaceReady: false, health: null };
+    }
+  }
+
+  /**
+   * Get server health and workspace info
+   */
+  async getHealth(): Promise<ServerHealth | null> {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000);
 
-      // Use the health check endpoint
       const baseUrl = this.webhookUrl.replace(/\/webhook$/, "");
       const healthUrl = `${baseUrl}/health`;
 
@@ -200,18 +278,17 @@ export class WebhookCopilotService {
       clearTimeout(timeoutId);
 
       if (response.ok) {
-        const data = await response.json();
-        return data.status === "ok";
+        return await response.json();
       }
 
-      return false;
+      return null;
     } catch {
-      return false;
+      return null;
     }
   }
 
   /**
-   * Get server health and info
+   * Get server health and info (deprecated - use getHealth instead)
    */
   async getServerHealth(): Promise<{
     status: string;
@@ -241,6 +318,100 @@ export class WebhookCopilotService {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Get status of a webhook request by requestId
+   */
+  async getRequestStatus(requestId: string): Promise<{
+    requestId: string;
+    status: 'pending' | 'processing' | 'completed' | 'failed';
+    action?: string;
+    task?: string;
+    createdAt?: number;
+    completedAt?: number;
+    result?: {
+      success: boolean;
+      message?: string;
+    };
+    error?: string;
+  } | null> {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+      const baseUrl = this.webhookUrl.replace(/\/webhook$/, "");
+      const statusUrl = `${baseUrl}/webhook/${requestId}/status`;
+
+      const response = await fetch(statusUrl, {
+        method: "GET",
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        return await response.json();
+      }
+
+      if (response.status === 404) {
+        return null; // Request not found
+      }
+
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Poll for request completion with timeout
+   */
+  async pollForCompletion(
+    requestId: string,
+    options: {
+      maxAttempts?: number;
+      intervalMs?: number;
+      onStatusChange?: (status: string) => void;
+    } = {}
+  ): Promise<{
+    completed: boolean;
+    status: string;
+    result?: { success: boolean; message?: string };
+    error?: string;
+  }> {
+    const { maxAttempts = 30, intervalMs = 2000, onStatusChange } = options;
+    
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const statusResponse = await this.getRequestStatus(requestId);
+      
+      if (!statusResponse) {
+        return { completed: false, status: 'unknown', error: 'Failed to get status' };
+      }
+
+      onStatusChange?.(statusResponse.status);
+
+      if (statusResponse.status === 'completed') {
+        return {
+          completed: true,
+          status: 'completed',
+          result: statusResponse.result,
+        };
+      }
+
+      if (statusResponse.status === 'failed') {
+        return {
+          completed: true,
+          status: 'failed',
+          error: statusResponse.error,
+        };
+      }
+
+      // Wait before next poll
+      await new Promise(resolve => setTimeout(resolve, intervalMs));
+    }
+
+    return { completed: false, status: 'timeout', error: 'Polling timed out' };
   }
 
   /**
