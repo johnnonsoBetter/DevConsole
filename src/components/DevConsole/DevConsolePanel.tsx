@@ -5,31 +5,31 @@
  */
 
 import {
-  Activity,
-  BookOpen,
-  Download,
-  Github,
-  Info,
-  Network,
-  RefreshCw,
-  Send,
-  Settings,
-  Terminal,
-  Zap
+    Activity,
+    BookOpen,
+    Download,
+    Github,
+    Info,
+    Network,
+    RefreshCw,
+    Send,
+    Settings,
+    Terminal,
+    Zap
 } from 'lucide-react';
 import { lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  copyContextPackToClipboard,
-  createContextPack,
-  exportContextPack,
+    copyContextPackToClipboard,
+    createContextPack,
+    exportContextPack,
 } from '../../lib/devConsole/contextPacker';
 import {
-  useDevConsoleStore
+    useDevConsoleStore
 } from '../../utils/stores/devConsole';
 const GraphQLExplorer = lazy(() => import('../DevConsole/GraphQLExplorerV2').then(module => ({default: module.GraphQLExplorerV2})));
 
 import { StickyNoteButton } from '../../features/notes';
-import { useGitHubIssueSlideoutStore, useCodeActionsStore } from '../../utils/stores';
+import { useCodeActionsStore, useGitHubIssueSlideoutStore } from '../../utils/stores';
 import { useAISettingsStore } from '../../utils/stores/aiSettings';
 import { useGitHubSettingsStore } from '../../utils/stores/githubSettings';
 import { BetterTabs } from '../ui/better-tabs';

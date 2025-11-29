@@ -625,14 +625,23 @@ export function LogsPanel({ githubConfig }: LogsPanelProps) {
       }
 
       if (response.success) {
-        console.log('✅ Log sent to Copilot:', { level: selectedLog.level, requestId: response.requestId });
+        console.log('✅ Log sent to Copilot:', { level: selectedLog.level, requestId: response.requestId, status: response.status });
+        
+        // Check if task was queued or is processing immediately
+        const isQueued = response.status === 'queued';
+        const queuePosition = response.queue?.position;
+        
         updateAction(actionId, {
-          status: 'processing',
+          status: isQueued ? 'queued' : 'processing',
           requestId: response.requestId,
+          queuePosition: queuePosition,
         });
+        
         setCopilotNotification({
           type: 'success',
-          message: '✓ Sent to VS Code! Check Copilot for results.',
+          message: isQueued 
+            ? `✓ Queued (#${queuePosition}) - waiting for other tasks to complete.`
+            : '✓ Sent to VS Code! Check Copilot for results.',
         });
       } else {
         updateAction(actionId, {

@@ -9,7 +9,7 @@ import { Camera, Code2, Github, Maximize2, Minimize2, Minus, Pin, Trash2, X } fr
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { webhookCopilot } from '../../../lib/webhookCopilot';
 import { cn } from '../../../utils';
-import { useGitHubIssueSlideoutStore, useCodeActionsStore } from '../../../utils/stores';
+import { useCodeActionsStore, useGitHubIssueSlideoutStore } from '../../../utils/stores';
 import { NotesService } from '../services/notesService';
 import { Note, useNotesStore } from '../stores/notes';
 
@@ -369,13 +369,21 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
 
       if (response.success) {
         console.log('✅ Webhook Copilot request successful:', response);
+        
+        // Check if task was queued or is processing immediately
+        const isQueued = response.status === 'queued';
+        const queuePosition = response.queue?.position;
+        
         updateAction(actionId, {
-          status: 'processing',
+          status: isQueued ? 'queued' : 'processing',
           requestId: response.requestId,
+          queuePosition: queuePosition,
         });
         setNotification({
           type: 'success',
-          message: '✓ Task sent to VS Code! Check Copilot for results.',
+          message: isQueued 
+            ? `✓ Queued (#${queuePosition}) - waiting for other tasks.`
+            : '✓ Task sent to VS Code! Check Copilot for results.',
         });
       } else {
         updateAction(actionId, {

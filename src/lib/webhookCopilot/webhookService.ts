@@ -37,6 +37,18 @@ export interface WebhookResponse {
   requestId?: string;
   suggestions?: string[];
   actionRequired?: string;
+  status?: "queued" | "processing";
+  queue?: {
+    position: number;
+    length: number;
+  };
+}
+
+export interface QueueStatus {
+  isProcessing: boolean;
+  queueLength: number;
+  currentTaskId?: string;
+  pendingTasks: string[];
 }
 
 export interface WorkspaceFolder {
@@ -114,7 +126,9 @@ export class WebhookCopilotService {
         return {
           success: false,
           error: data.error || "REQUEST_FAILED",
-          message: data.message || `Request failed: ${response.status} ${response.statusText}`,
+          message:
+            data.message ||
+            `Request failed: ${response.status} ${response.statusText}`,
         };
       }
 
@@ -244,7 +258,7 @@ export class WebhookCopilotService {
   }> {
     try {
       const health = await this.getHealth();
-      
+
       if (!health) {
         return { connected: false, workspaceReady: false, health: null };
       }
@@ -288,6 +302,42 @@ export class WebhookCopilotService {
   }
 
   /**
+   * Get current queue status
+   */
+  async getQueueStatus(): Promise<QueueStatus | null> {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+      const baseUrl = this.webhookUrl.replace(/\/webhook$/, "");
+      const queueUrl = `${baseUrl}/queue`;
+
+      const response = await fetch(queueUrl, {
+        method: "GET",
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        return await response.json();
+      }
+
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Check if server is currently processing a task
+   */
+  async isServerBusy(): Promise<boolean> {
+    const queueStatus = await this.getQueueStatus();
+    return queueStatus?.isProcessing ?? false;
+  }
+
+  /**
    * Get server health and info (deprecated - use getHealth instead)
    */
   async getServerHealth(): Promise<{
@@ -325,7 +375,8 @@ export class WebhookCopilotService {
    */
   async getRequestStatus(requestId: string): Promise<{
     requestId: string;
-    status: 'pending' | 'processing' | 'completed' | 'failed';
+    status: "queued" | "pending" | "processing" | "completed" | "failed";
+    queuePosition?: number;
     action?: string;
     task?: string;
     createdAt?: number;
@@ -372,46 +423,51 @@ export class WebhookCopilotService {
     options: {
       maxAttempts?: number;
       intervalMs?: number;
-      onStatusChange?: (status: string) => void;
+      onStatusChange?: (status: string, queuePosition?: number) => void;
     } = {}
   ): Promise<{
     completed: boolean;
     status: string;
+    queuePosition?: number;
     result?: { success: boolean; message?: string };
     error?: string;
   }> {
     const { maxAttempts = 30, intervalMs = 2000, onStatusChange } = options;
-    
+
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const statusResponse = await this.getRequestStatus(requestId);
-      
+
       if (!statusResponse) {
-        return { completed: false, status: 'unknown', error: 'Failed to get status' };
+        return {
+          completed: false,
+          status: "unknown",
+          error: "Failed to get status",
+        };
       }
 
-      onStatusChange?.(statusResponse.status);
+      onStatusChange?.(statusResponse.status, statusResponse.queuePosition);
 
-      if (statusResponse.status === 'completed') {
+      if (statusResponse.status === "completed") {
         return {
           completed: true,
-          status: 'completed',
+          status: "completed",
           result: statusResponse.result,
         };
       }
 
-      if (statusResponse.status === 'failed') {
+      if (statusResponse.status === "failed") {
         return {
           completed: true,
-          status: 'failed',
+          status: "failed",
           error: statusResponse.error,
         };
       }
 
       // Wait before next poll
-      await new Promise(resolve => setTimeout(resolve, intervalMs));
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
     }
 
-    return { completed: false, status: 'timeout', error: 'Polling timed out' };
+    return { completed: false, status: "timeout", error: "Polling timed out" };
   }
 
   /**

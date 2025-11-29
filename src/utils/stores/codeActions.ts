@@ -1,43 +1,44 @@
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
-export type CodeActionStatus = 
-  | 'queued'
-  | 'sending' 
-  | 'processing' 
-  | 'completed' 
-  | 'failed' 
-  | 'copied_fallback';
+export type CodeActionStatus =
+  | "queued"
+  | "sending"
+  | "processing"
+  | "completed"
+  | "failed"
+  | "copied_fallback";
 
-export type CodeActionSource = 'logs' | 'sticky-notes' | 'manual';
-export type CodeActionType = 'execute_task' | 'copilot_chat';
+export type CodeActionSource = "logs" | "sticky-notes" | "manual";
+export type CodeActionType = "execute_task" | "copilot_chat";
 
 export interface CodeAction {
   id: string;
   createdAt: number;
   source: CodeActionSource;
-  
+
   // Request info
   actionType: CodeActionType;
-  promptPreview: string;  // First 100 chars
+  promptPreview: string; // First 100 chars
   fullPrompt: string;
-  
+
   // Status tracking
   status: CodeActionStatus;
-  
+  queuePosition?: number; // Position in server queue (1-based)
+
   // Response from extension
   requestId?: string;
   error?: string;
   errorCode?: string;
   suggestions?: string[];
-  
+
   // Context
   workspaceReady: boolean;
-  
+
   // Timing
   sentAt?: number;
   completedAt?: number;
@@ -50,14 +51,14 @@ export interface CodeAction {
 interface CodeActionsState {
   actions: CodeAction[];
   maxActions: number;
-  
+
   // Actions
-  addAction: (action: Omit<CodeAction, 'id' | 'createdAt'>) => string;
+  addAction: (action: Omit<CodeAction, "id" | "createdAt">) => string;
   updateAction: (id: string, updates: Partial<CodeAction>) => void;
   removeAction: (id: string) => void;
   clearAll: () => void;
   clearCompleted: () => void;
-  
+
   // Queries
   getAction: (id: string) => CodeAction | undefined;
   getPendingActions: () => CodeAction[];
@@ -69,7 +70,7 @@ export const useCodeActionsStore = create<CodeActionsState>()(
     (set, get) => ({
       actions: [],
       maxActions: 50, // Keep last 50 actions
-      
+
       addAction: (actionData) => {
         const id = `action-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
         const action: CodeAction = {
@@ -77,7 +78,7 @@ export const useCodeActionsStore = create<CodeActionsState>()(
           id,
           createdAt: Date.now(),
         };
-        
+
         set((state) => {
           const newActions = [action, ...state.actions];
           // Trim to max size
@@ -86,10 +87,10 @@ export const useCodeActionsStore = create<CodeActionsState>()(
           }
           return { actions: newActions };
         });
-        
+
         return id;
       },
-      
+
       updateAction: (id, updates) => {
         set((state) => ({
           actions: state.actions.map((a) =>
@@ -97,41 +98,44 @@ export const useCodeActionsStore = create<CodeActionsState>()(
           ),
         }));
       },
-      
+
       removeAction: (id) => {
         set((state) => ({
           actions: state.actions.filter((a) => a.id !== id),
         }));
       },
-      
+
       clearAll: () => {
         set({ actions: [] });
       },
-      
+
       clearCompleted: () => {
         set((state) => ({
           actions: state.actions.filter(
-            (a) => a.status !== 'completed' && a.status !== 'copied_fallback'
+            (a) => a.status !== "completed" && a.status !== "copied_fallback"
           ),
         }));
       },
-      
+
       getAction: (id) => {
         return get().actions.find((a) => a.id === id);
       },
-      
+
       getPendingActions: () => {
         return get().actions.filter(
-          (a) => a.status === 'queued' || a.status === 'sending' || a.status === 'processing'
+          (a) =>
+            a.status === "queued" ||
+            a.status === "sending" ||
+            a.status === "processing"
         );
       },
-      
+
       getRecentActions: (limit = 10) => {
         return get().actions.slice(0, limit);
       },
     }),
     {
-      name: 'devconsole-code-actions',
+      name: "devconsole-code-actions",
       partialize: (state) => ({ actions: state.actions }),
     }
   )
@@ -151,13 +155,13 @@ export function createCodeAction(
   workspaceReady: boolean
 ): string {
   const store = useCodeActionsStore.getState();
-  
+
   return store.addAction({
     source,
     actionType,
-    promptPreview: prompt.slice(0, 100) + (prompt.length > 100 ? '...' : ''),
+    promptPreview: prompt.slice(0, 100) + (prompt.length > 100 ? "..." : ""),
     fullPrompt: prompt,
-    status: 'queued',
+    status: "queued",
     workspaceReady,
   });
 }
@@ -167,7 +171,7 @@ export function createCodeAction(
  */
 export function markActionSending(id: string): void {
   useCodeActionsStore.getState().updateAction(id, {
-    status: 'sending',
+    status: "sending",
     sentAt: Date.now(),
   });
 }
@@ -177,7 +181,7 @@ export function markActionSending(id: string): void {
  */
 export function markActionCompleted(id: string, requestId?: string): void {
   useCodeActionsStore.getState().updateAction(id, {
-    status: 'completed',
+    status: "completed",
     requestId,
     completedAt: Date.now(),
   });
@@ -186,9 +190,14 @@ export function markActionCompleted(id: string, requestId?: string): void {
 /**
  * Mark action as failed
  */
-export function markActionFailed(id: string, error: string, errorCode?: string, suggestions?: string[]): void {
+export function markActionFailed(
+  id: string,
+  error: string,
+  errorCode?: string,
+  suggestions?: string[]
+): void {
   useCodeActionsStore.getState().updateAction(id, {
-    status: 'failed',
+    status: "failed",
     error,
     errorCode,
     suggestions,
@@ -201,7 +210,7 @@ export function markActionFailed(id: string, error: string, errorCode?: string, 
  */
 export function markActionCopiedFallback(id: string, reason: string): void {
   useCodeActionsStore.getState().updateAction(id, {
-    status: 'copied_fallback',
+    status: "copied_fallback",
     error: reason,
     completedAt: Date.now(),
   });

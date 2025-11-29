@@ -5,25 +5,25 @@
  */
 
 import {
-  AlertCircle,
-  Check,
-  Clipboard,
-  Clock,
-  Code2,
-  Loader2,
-  RefreshCw,
-  Send,
-  StickyNote,
-  Terminal,
-  Trash2,
-  X,
+    AlertCircle,
+    Check,
+    Clipboard,
+    Clock,
+    Code2,
+    Loader2,
+    RefreshCw,
+    Send,
+    StickyNote,
+    Terminal,
+    Trash2,
+    X,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { webhookCopilot } from '../../../lib/webhookCopilot/webhookService';
 import {
-  CodeAction,
-  CodeActionStatus,
-  useCodeActionsStore,
+    CodeAction,
+    CodeActionStatus,
+    useCodeActionsStore,
 } from '../../../utils/stores/codeActions';
 
 // ============================================================================
@@ -39,10 +39,19 @@ function formatTimeAgo(timestamp: number): string {
   return `${Math.floor(seconds / 86400)}d ago`;
 }
 
-function getStatusIcon(status: CodeActionStatus) {
+function getStatusIcon(status: CodeActionStatus, queuePosition?: number) {
   switch (status) {
     case 'queued':
-      return <Clock className="w-4 h-4 text-gray-400" />;
+      return (
+        <div className="relative">
+          <Clock className="w-4 h-4 text-orange-500" />
+          {queuePosition && (
+            <span className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center">
+              {queuePosition}
+            </span>
+          )}
+        </div>
+      );
     case 'sending':
     case 'processing':
       return <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />;
@@ -57,9 +66,9 @@ function getStatusIcon(status: CodeActionStatus) {
   }
 }
 
-function getStatusLabel(status: CodeActionStatus): string {
+function getStatusLabel(status: CodeActionStatus, queuePosition?: number): string {
   switch (status) {
-    case 'queued': return 'Queued';
+    case 'queued': return queuePosition ? `Queued #${queuePosition}` : 'Queued';
     case 'sending': return 'Sending...';
     case 'processing': return 'Processing...';
     case 'completed': return 'Done';
@@ -95,7 +104,7 @@ function ActionItem({ action, onRetry, onCopy, onRemove }: ActionItemProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   const statusColor = {
-    queued: 'bg-gray-100 dark:bg-gray-800',
+    queued: 'bg-orange-50 dark:bg-orange-900/20',
     sending: 'bg-blue-50 dark:bg-blue-900/20',
     processing: 'bg-blue-50 dark:bg-blue-900/20',
     completed: 'bg-green-50 dark:bg-green-900/20',
@@ -113,7 +122,7 @@ function ActionItem({ action, onRetry, onCopy, onRemove }: ActionItemProps) {
         onClick={() => setIsExpanded(!isExpanded)}
       >
         {/* Status Icon */}
-        <div className="flex-shrink-0">{getStatusIcon(action.status)}</div>
+        <div className="flex-shrink-0">{getStatusIcon(action.status, action.queuePosition)}</div>
 
         {/* Source Badge */}
         <div className="flex-shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-200/50 dark:bg-gray-700/50 text-xs text-gray-600 dark:text-gray-400">
@@ -143,10 +152,12 @@ function ActionItem({ action, onRetry, onCopy, onRemove }: ActionItemProps) {
                 ? 'text-red-600 dark:text-red-400'
                 : action.status === 'copied_fallback'
                 ? 'text-amber-600 dark:text-amber-400'
-                : 'text-gray-600 dark:text-gray-400'
+                : action.status === 'queued'
+                ? 'text-orange-600 dark:text-orange-400'
+                : 'text-blue-600 dark:text-blue-400'
             }
           >
-            {getStatusLabel(action.status)}
+            {getStatusLabel(action.status, action.queuePosition)}
           </span>
         </div>
       </div>
@@ -264,23 +275,25 @@ export function CodeActionsPanel() {
   const { actions, removeAction, clearAll, clearCompleted, updateAction } = useCodeActionsStore();
   const [isPolling, setIsPolling] = useState<Set<string>>(new Set());
 
-  // Poll for status updates on processing actions
+  // Poll for status updates on queued/processing actions
   useEffect(() => {
-    const processingActions = actions.filter(
-      (a) => (a.status === 'processing' || a.status === 'sending') && a.requestId && !isPolling.has(a.id)
+    const activeActions = actions.filter(
+      (a) => (a.status === 'processing' || a.status === 'sending' || a.status === 'queued') && a.requestId && !isPolling.has(a.id)
     );
 
-    processingActions.forEach(async (action) => {
+    activeActions.forEach(async (action) => {
       if (!action.requestId) return;
       
       setIsPolling((prev) => new Set(prev).add(action.id));
       
       const result = await webhookCopilot.pollForCompletion(action.requestId, {
-        maxAttempts: 30,
+        maxAttempts: 60, // Longer for queued tasks
         intervalMs: 2000,
-        onStatusChange: (status) => {
+        onStatusChange: (status, queuePosition) => {
           if (status === 'processing') {
-            updateAction(action.id, { status: 'processing' });
+            updateAction(action.id, { status: 'processing', queuePosition: undefined });
+          } else if (status === 'queued') {
+            updateAction(action.id, { status: 'queued', queuePosition });
           }
         },
       });
@@ -289,6 +302,7 @@ export function CodeActionsPanel() {
         updateAction(action.id, {
           status: result.status === 'completed' ? 'completed' : 'failed',
           error: result.error,
+          queuePosition: undefined,
           completedAt: Date.now(),
         });
       }
@@ -302,7 +316,7 @@ export function CodeActionsPanel() {
   }, [actions, isPolling, updateAction]);
 
   const handleRetry = useCallback(async (action: CodeAction) => {
-    updateAction(action.id, { status: 'sending', sentAt: Date.now(), error: undefined });
+    updateAction(action.id, { status: 'sending', sentAt: Date.now(), error: undefined, queuePosition: undefined });
     
     try {
       const { connected, workspaceReady } = await webhookCopilot.checkWorkspaceReady();
@@ -322,9 +336,11 @@ export function CodeActionsPanel() {
         : await webhookCopilot.copilotChat(action.fullPrompt);
 
       if (response.success) {
+        const isQueued = response.status === 'queued';
         updateAction(action.id, {
-          status: 'processing',
+          status: isQueued ? 'queued' : 'processing',
           requestId: response.requestId,
+          queuePosition: response.queue?.position,
         });
       } else {
         updateAction(action.id, {
