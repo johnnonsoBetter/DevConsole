@@ -1,7 +1,7 @@
 # Content Script Optimizations
 
 ## Overview
-Enhanced the message batching and relay system in `src/content/index.ts` with advanced optimization features for better performance, reliability, and security.
+Enhanced the message batching and relay system in `src/content/index.ts` with advanced optimization features for better performance and reliability.
 
 ## Implemented Optimizations
 
@@ -19,34 +19,7 @@ Enhanced the message batching and relay system in `src/content/index.ts` with ad
 - Reduces memory pressure on service worker
 - More predictable network payload sizes
 
-### 2. Enhanced Privacy Redaction
-**Purpose**: Protect sensitive data from being captured in logs and network requests
-
-**Improvements**:
-- **Expanded field pattern detection**:
-  - Original: `pass|pwd|token|secret|auth|cookie|authorization|ssn|credit|api[_-]?key`
-  - Enhanced: Added `bearer`, `private_key`, `access_key`, `client_secret`, `session`, `cvv`, `pin`, `account_number`, `routing_number`, etc.
-
-- **Value-based detection**: New patterns catch sensitive values regardless of key name:
-  - Long alphanumeric strings (20+ chars) → likely tokens
-  - Stripe-like secret keys (`sk_*`)
-  - JWT tokens (standard format)
-  - GitHub personal access tokens (`ghp_*`)
-  - Slack tokens (`xox[bp]-*`)
-
-- **Header redaction**: New `redactSensitiveHeaders()` function for HTTP headers:
-  - `Authorization`, `Cookie`, `Set-Cookie`
-  - `X-API-Key`, `X-Auth-Token`, `X-CSRF-Token`, etc.
-
-- **Depth limiting**: Prevents infinite recursion (max depth: 10 levels)
-
-**Benefits**:
-- Comprehensive privacy protection
-- Catches more edge cases (value-based detection)
-- Prevents accidental sensitive data leaks
-- Complies with data protection best practices
-
-### 3. Retry Logic with Exponential Backoff
+### 2. Retry Logic with Exponential Backoff
 **Purpose**: Handle transient failures and improve message delivery reliability
 
 **Implementation**:
@@ -62,7 +35,7 @@ Enhanced the message batching and relay system in `src/content/index.ts` with ad
 - Prioritizes error preservation
 - Non-blocking (async, doesn't hold up message collection)
 
-### 4. Priority Batching for Errors
+### 3. Priority Batching for Errors
 **Purpose**: Ensure critical error messages are sent faster than routine logs
 
 **Implementation**:
@@ -128,39 +101,13 @@ interface PriorityMessage {
 }
 ```
 
-### Enhanced Redaction Patterns
-
-**Sensitive field names** (case-insensitive):
-```regex
-/pass(word)?|pwd|token|secret|auth|cookie|authorization|bearer|
- api[_-]?key|private[_-]?key|access[_-]?key|client[_-]?secret|
- session|ssn|social[_-]?security|credit[_-]?card|card[_-]?number|
- cvv|pin|account[_-]?number|routing[_-]?number/i
-```
-
-**Sensitive value patterns**:
-```typescript
-/^[A-Za-z0-9_-]{20,}$/                          // Long tokens
-/^sk_[a-z]+_[A-Za-z0-9]{20,}$/                  // Stripe keys
-/^ey[A-Za-z0-9_-]+\.ey[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/  // JWT
-/^ghp_[A-Za-z0-9]{36}$/                          // GitHub PAT
-/^xox[bp]-[A-Za-z0-9-]+$/                       // Slack tokens
-```
-
-**Sensitive headers** (case-insensitive):
-```typescript
-authorization, cookie, set-cookie, x-api-key, x-auth-token,
-x-csrf-token, x-access-token, api-key, apikey, auth-token
-```
-
 ## Testing Recommendations
 
 ### Manual Validation
 1. **Size limits**: Generate large log entries (>500KB) → verify batching splits correctly
 2. **Priority flushing**: Log 5+ errors rapidly → verify immediate send
 3. **Retry logic**: Reload extension while logging → verify retries and re-queuing
-4. **Redaction**: Log objects with tokens/passwords → verify `[REDACTED]` output
-5. **BeforeUnload**: Navigate away while logging → verify high-priority preservation
+4. **BeforeUnload**: Navigate away while logging → verify high-priority preservation
 
 ### Performance Testing
 ```javascript
@@ -182,27 +129,6 @@ for (let i = 0; i < 10; i++) {
 console.error('Test retry behavior');
 ```
 
-### Security Testing
-```javascript
-// Verify redaction works
-console.log({
-  password: 'secret123',
-  apiKey: 'sk_live_abcdef123456789',
-  token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
-  userToken: 'ghp_1234567890123456789012345678901234',
-  normalField: 'this should NOT be redacted'
-});
-
-// Verify header redaction
-fetch('/api/test', {
-  headers: {
-    'Authorization': 'Bearer secret-token',
-    'X-API-Key': 'api-key-12345',
-    'Content-Type': 'application/json'
-  }
-});
-```
-
 ## Migration Notes
 
 ### Breaking Changes
@@ -210,7 +136,7 @@ None - all changes are backward compatible.
 
 ### Behavioral Changes
 - **Faster error delivery**: Errors now sent more aggressively (may appear sooner in DevConsole)
-- **Better privacy**: More fields/values redacted (may see more `[REDACTED]` in captures)
+- **Full data capture**: All data captured without redaction for complete debugging on client machine
 - **Retry attempts**: Failed sends now retry up to 3 times (may see brief delays on network issues)
 
 ### Configuration Tuning
@@ -225,7 +151,7 @@ Adjust constants if needed:
 1. **Dynamic batch sizing**: Adjust batch size based on network conditions
 2. **Compression**: Gzip batches before sending for bandwidth savings
 3. **Persistent queue**: Use IndexedDB to survive extension restarts
-4. **Telemetry**: Track batch sizes, retry rates, redaction counts
+4. **Telemetry**: Track batch sizes, retry rates
 5. **Configurable priorities**: User-defined priority rules in settings
 6. **Smart throttling**: Adaptive rate limiting during high-volume logging
 
@@ -233,7 +159,6 @@ Adjust constants if needed:
 - Message loss rate (retry exhaustion)
 - Average batch size (bytes and count)
 - Priority vs normal message ratio
-- Redaction frequency
 - Retry attempt distribution
 
 ## Related Files
@@ -245,4 +170,3 @@ Adjust constants if needed:
 ## References
 - Chrome Extension messaging limits: https://developer.chrome.com/docs/extensions/mv3/messaging/
 - Exponential backoff best practices: https://en.wikipedia.org/wiki/Exponential_backoff
-- Data privacy patterns: OWASP Security Guidelines

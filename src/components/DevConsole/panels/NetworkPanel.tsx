@@ -4,25 +4,185 @@
  */
 
 import ReactJson from '@microlink/react-json-view';
-import { Search, Sparkles, Trash2, X } from 'lucide-react';
+import { Brain, Check, ChevronDown, ClipboardCopy, Code2, Download, Github, Search, Sparkles, Trash2, X, Zap } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useIsMobile } from '../../../hooks/useMediaQuery';
+import { useRaindropSettings } from '../../../hooks/useRaindropSettings';
 import { useUnifiedTheme } from '../../../hooks/useTheme';
 import { createLogExplainer } from '../../../lib/ai/services/logExplainer';
+import { createMemoryEnhancedLogExplainer } from '../../../lib/ai/services/memoryEnhancedLogExplainer';
+import {
+  copyNetworkContext,
+  downloadNetworkContext,
+  generateNetworkContext,
+  getNetworkFormatOptions,
+  type ContextFormat,
+  type NetworkData,
+} from '../../../lib/devConsole/networkContextGenerator';
 import { cn } from '../../../utils';
 import { formatDuration } from '../../../utils/formatUtils';
 import { ensureJsonObject } from '../../../utils/jsonSanitizer';
+import { useGitHubIssueSlideoutStore } from '../../../utils/stores';
 import { useAISettingsStore } from '../../../utils/stores/aiSettings';
 import { useDevConsoleStore } from '../../../utils/stores/devConsole';
 import { humanizeTime } from '../../../utils/timeUtils';
-import { BetterTabs } from '../../ui/better-tabs';
 import { DurationChip, GraphQLChip, MethodChip, StatusChip } from '../Chips';
+import { CopilotChatInput, type CopilotContext } from '../CopilotChatInput';
 import { EmptyStateHelper } from '../EmptyStateHelper';
+import { GitHubIssueSlideout } from '../GitHubIssueSlideout';
 import type { LogExplanationData } from '../LogExplanation';
 import { LogExplanation } from '../LogExplanation';
 import { MobileBottomSheet, MobileBottomSheetContent } from '../MobileBottomSheet';
-import { NetworkKeyInfo } from '../NetworkKeyInfo';
+
 import { DurationSparkline } from '../Sparkline';
+
+// ============================================================================
+// NOTIFICATION TOAST COMPONENT
+// ============================================================================
+
+interface NotificationToastProps {
+  notification: { type: 'success' | 'error' | 'info'; message: string } | null;
+  onClose: () => void;
+}
+
+function NotificationToast({ notification, onClose }: NotificationToastProps) {
+  if (!notification) return null;
+
+  return (
+    <div
+      className={cn(
+        'fixed bottom-4 right-4 z-50 p-3 rounded-lg shadow-lg animate-in slide-in-from-bottom-2 fade-in duration-300',
+        'backdrop-blur-sm border max-w-sm',
+        notification.type === 'success' && 'bg-green-50/95 dark:bg-green-900/95 border-green-300 dark:border-green-700',
+        notification.type === 'error' && 'bg-red-50/95 dark:bg-red-900/95 border-red-300 dark:border-red-700',
+        notification.type === 'info' && 'bg-blue-50/95 dark:bg-blue-900/95 border-blue-300 dark:border-blue-700'
+      )}
+    >
+      <div className="flex items-start gap-2">
+        <div className="flex-1">
+          <p className={cn(
+            'text-sm font-medium',
+            notification.type === 'success' && 'text-green-800 dark:text-green-100',
+            notification.type === 'error' && 'text-red-800 dark:text-red-100',
+            notification.type === 'info' && 'text-blue-800 dark:text-blue-100'
+          )}>
+            {notification.message}
+          </p>
+        </div>
+        <button
+          onClick={onClose}
+          className={cn(
+            'p-0.5 rounded hover:bg-black/10 transition-colors',
+            notification.type === 'success' && 'text-green-600 dark:text-green-300',
+            notification.type === 'error' && 'text-red-600 dark:text-red-300',
+            notification.type === 'info' && 'text-blue-600 dark:text-blue-300'
+          )}
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export interface GitHubConfig {
+  username: string;
+  repo: string;
+  token: string;
+}
+
+// ============================================================================
+// NETWORK CONTEXT DROPDOWN COMPONENT
+// ============================================================================
+
+interface NetworkContextDropdownProps {
+  request: any;
+}
+
+/**
+ * Dropdown button for exporting network context in various formats
+ */
+function NetworkContextDropdown({ request }: NetworkContextDropdownProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [copySuccess, setCopySuccess] = useState<string | null>(null);
+  
+  const formatOptions = getNetworkFormatOptions();
+
+  const networkData: NetworkData = useMemo(() => ({
+    method: request.method,
+    url: request.url,
+    status: request.status,
+    duration: request.duration,
+    timestamp: request.timestamp,
+    requestHeaders: request.requestHeaders,
+    requestBody: request.requestBody,
+    responseHeaders: request.responseHeaders,
+    responseBody: request.responseBody,
+    error: request.error,
+    type: request.type,
+    graphql: request.graphql,
+  }), [request]);
+
+  const handleCopy = useCallback(async (format: ContextFormat) => {
+    const success = await copyNetworkContext(networkData, format);
+    if (success) {
+      setCopySuccess(format);
+      setTimeout(() => setCopySuccess(null), 2000);
+    }
+    setMenuOpen(false);
+  }, [networkData]);
+
+  const handleDownload = useCallback((format: ContextFormat) => {
+    downloadNetworkContext(networkData, format);
+    setMenuOpen(false);
+  }, [networkData]);
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setMenuOpen(!menuOpen)}
+        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors bg-muted hover:bg-accent text-muted-foreground hover:text-accent-foreground"
+        title="Export context"
+      >
+        <Code2 className="w-3.5 h-3.5" />
+        <span>Context</span>
+        <ChevronDown className={cn('w-3 h-3 transition-transform', menuOpen && 'rotate-180')} />
+      </button>
+
+      {menuOpen && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+          <div className="absolute right-0 top-full mt-1 w-48 z-20 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 shadow-lg py-1">
+            <div className="px-2 py-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Copy</div>
+            {formatOptions.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => handleCopy(opt.value)}
+                className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-left hover:bg-gray-100 dark:hover:bg-gray-800"
+              >
+                <ClipboardCopy className="w-3 h-3 text-gray-400" />
+                <span className="flex-1 text-gray-700 dark:text-gray-300">{opt.label}</span>
+                {copySuccess === opt.value && <Check className="w-3 h-3 text-green-500" />}
+              </button>
+            ))}
+            <div className="border-t border-gray-100 dark:border-gray-800 my-1" />
+            <div className="px-2 py-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Download</div>
+            {formatOptions.slice(0, 4).map((opt) => (
+              <button
+                key={`dl-${opt.value}`}
+                onClick={() => handleDownload(opt.value)}
+                className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-left hover:bg-gray-100 dark:hover:bg-gray-800"
+              >
+                <Download className="w-3 h-3 text-gray-400" />
+                <span className="text-gray-700 dark:text-gray-300">{opt.label}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 /**
  * Lazy ReactJson wrapper - only renders when expanded
@@ -114,18 +274,6 @@ const NetworkRow = memo(({ request: req, isSelected, onSelect, style, endpointSt
   
   const trendData = useMemo(() => endpointStats[endpoint]?.slice(-20) || [], [endpointStats, endpoint]);
 
-  // Calculate response size if available
-  const responseSize = useMemo(() => {
-    if (req.responseBody) {
-      const sizeBytes = JSON.stringify(req.responseBody).length;
-      // Simple byte formatting
-      if (sizeBytes < 1024) return `${sizeBytes}B`;
-      if (sizeBytes < 1024 * 1024) return `${(sizeBytes / 1024).toFixed(1)}KB`;
-      return `${(sizeBytes / (1024 * 1024)).toFixed(1)}MB`;
-    }
-    return null;
-  }, [req.responseBody]);
-
   // Check if request has error (status is truly missing with error, not just undefined)
   const hasError = !!req.error;
   // Check if request is pending (no status and no error - still in flight)
@@ -178,11 +326,6 @@ const NetworkRow = memo(({ request: req, isSelected, onSelect, style, endpointSt
             <span title={new Date(req.timestamp).toLocaleString()}>
               {humanizeTime(req.timestamp)}
             </span>
-            {responseSize && (
-              <span className="hidden lg:inline" title="Response size">
-                {responseSize}
-              </span>
-            )}
             <span className="sm:hidden">
               <DurationChip duration={req.duration || 0} threshold={500} />
             </span>
@@ -251,16 +394,6 @@ function NetworkRequestDetails({
            request.responseHeaders?.['Content-Type'] || 
            'unknown';
   }, [request.responseHeaders]);
-
-  const responseSize = useMemo(() => {
-    if (request.responseBody) {
-      const sizeBytes = JSON.stringify(request.responseBody).length;
-      if (sizeBytes < 1024) return `${sizeBytes} B`;
-      if (sizeBytes < 1024 * 1024) return `${(sizeBytes / 1024).toFixed(1)} KB`;
-      return `${(sizeBytes / (1024 * 1024)).toFixed(2)} MB`;
-    }
-    return '—';
-  }, [request.responseBody]);
 
   // Parse query parameters from URL
   const queryParams = useMemo(() => {
@@ -355,18 +488,10 @@ function NetworkRequestDetails({
             </span>
           </div>
 
-          {/* Size & Duration Row */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <span className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Size</span>
-              <span className="text-xs font-mono text-gray-900 dark:text-gray-100 font-semibold">
-                {responseSize}
-              </span>
-            </div>
-            <div>
-              <span className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Duration</span>
-              <DurationChip duration={request.duration || 0} threshold={500} />
-            </div>
+          {/* Duration */}
+          <div>
+            <span className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Duration</span>
+            <DurationChip duration={request.duration || 0} threshold={500} />
           </div>
 
           {/* Timestamp */}
@@ -514,7 +639,7 @@ function NetworkRequestDetails({
               <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-2 mb-2">
                 <p className="text-xs text-yellow-800 dark:text-yellow-300 flex items-center gap-1">
                   <span>⚠️</span>
-                  <span>May contain sensitive data. Size: {responseSize}</span>
+                  <span>May contain sensitive data</span>
                 </p>
               </div>
               <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 max-h-96 overflow-auto">
@@ -560,11 +685,12 @@ function NetworkRequestDetails({
 export function NetworkPanel() {
   const {networkRequests, clearNetwork} = useDevConsoleStore();
   const aiSettings = useAISettingsStore();
+  const { settings: raindropSettings, isConfigured: isRaindropConfigured } = useRaindropSettings();
+  const githubSlideoutStore = useGitHubIssueSlideoutStore();
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
   const [detailPanelWidth, setDetailPanelWidth] = useState(50);
   const [isResizing, setIsResizing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [detailTab, setDetailTab] = useState<'keyinfo' | 'details'>('keyinfo');
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 20;
   const resizeStartX = useRef(0);
@@ -576,6 +702,36 @@ export function NetworkPanel() {
   const [isExplaining, setIsExplaining] = useState(false);
   const [explainError, setExplainError] = useState<string | undefined>();
   const [streamingText, setStreamingText] = useState<string>('');
+
+  // Webhook Copilot state
+  const [copilotNotification, setCopilotNotification] = useState<{
+    type: 'success' | 'error' | 'info';
+    message: string;
+  } | null>(null);
+  const [isCopilotChatOpen, setIsCopilotChatOpen] = useState(false);
+
+  // Auto-hide notification after 4 seconds
+  useEffect(() => {
+    if (copilotNotification) {
+      const timer = setTimeout(() => setCopilotNotification(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [copilotNotification]);
+
+  // Clear Copilot chat and notification when switching requests
+  useEffect(() => {
+    setCopilotNotification(null);
+    setIsCopilotChatOpen(false);
+  }, [selectedRequest?.id]);
+
+  // Check if AI is ready to use
+  const isAIReady = useMemo(() => {
+    return !!(
+      aiSettings.enabled &&
+      ((aiSettings.useGateway && aiSettings.gatewayApiKey) ||
+        (!aiSettings.useGateway && aiSettings.apiKey))
+    );
+  }, [aiSettings]);
 
   // Paginated requests with search filtering
   const paginatedRequests = useMemo(() => {
@@ -601,17 +757,11 @@ export function NetworkPanel() {
     };
   }, [networkRequests, searchQuery, currentPage, ITEMS_PER_PAGE]);
 
-  // Handle explain network request
+  // Handle explain network request - uses memory-enhanced explainer when Raindrop is configured
   const handleExplainRequest = useCallback(async () => {
     if (!selectedRequest) return;
 
-    // Check if AI is configured - get fresh state from store
-    const isAIReady = (
-      aiSettings.enabled &&
-      ((aiSettings.useGateway && aiSettings.gatewayApiKey) ||
-        (!aiSettings.useGateway && aiSettings.apiKey))
-    );
-
+    // Check if AI is configured
     if (!isAIReady) {
       console.log('[AI Network] AI not ready:', { enabled: aiSettings.enabled, useGateway: aiSettings.useGateway, hasGatewayKey: !!aiSettings.gatewayApiKey, hasApiKey: !!aiSettings.apiKey });
       setExplainError(
@@ -627,8 +777,6 @@ export function NetworkPanel() {
     setExplanation(undefined);
 
     try {
-      const explainer = createLogExplainer(aiSettings);
-      
       // Format network request as a log entry for explanation
       const requestLog = {
         level: selectedRequest.status >= 400 ? 'error' : selectedRequest.status >= 300 ? 'warn' : 'info',
@@ -642,6 +790,7 @@ export function NetworkPanel() {
             requestBody: selectedRequest.requestBody,
             responseBody: selectedRequest.responseBody,
             responseHeaders: selectedRequest.responseHeaders,
+            error: selectedRequest.error,
           }
         ],
         timestamp: selectedRequest.timestamp,
@@ -649,14 +798,29 @@ export function NetworkPanel() {
       
       console.log('[AI Network] Request log formatted:', requestLog);
       
-      // Stream the explanation
       let fullText = '';
       let chunkCount = 0;
-      for await (const chunk of explainer.streamExplanation(requestLog)) {
-        chunkCount++;
-        fullText += chunk;
-        setStreamingText(fullText);
-        console.log('[AI Network] Received chunk', chunkCount, '- total length:', fullText.length);
+
+      // Use memory-enhanced explainer if Raindrop is configured
+      if (isRaindropConfigured) {
+        const memoryExplainer = createMemoryEnhancedLogExplainer(aiSettings, raindropSettings);
+        
+        // Stream with memory context
+        for await (const chunk of memoryExplainer.streamExplanation(requestLog)) {
+          chunkCount++;
+          fullText += chunk;
+          setStreamingText(fullText);
+        }
+      } else {
+        // Use standard explainer
+        const explainer = createLogExplainer(aiSettings);
+        
+        for await (const chunk of explainer.streamExplanation(requestLog)) {
+          chunkCount++;
+          fullText += chunk;
+          setStreamingText(fullText);
+          console.log('[AI Network] Received chunk', chunkCount, '- total length:', fullText.length);
+        }
       }
 
       console.log('[AI Network] Streaming complete. Total text:', fullText.substring(0, 100) + '...');
@@ -677,7 +841,7 @@ export function NetworkPanel() {
       console.log('[AI Network] Cleaning up - setting isExplaining to false');
       setIsExplaining(false);
     }
-  }, [aiSettings, selectedRequest]);
+  }, [isAIReady, aiSettings, selectedRequest, isRaindropConfigured, raindropSettings]);
 
   // Clear explanation when request changes
   useEffect(() => {
@@ -686,6 +850,64 @@ export function NetworkPanel() {
     setStreamingText('');
     setIsExplaining(false);
   }, [selectedRequest?.id]);
+
+  /**
+   * Build the Copilot context object for the chat input
+   */
+  const buildCopilotContext = useCallback((): CopilotContext | null => {
+    if (!selectedRequest) return null;
+
+    const networkData: NetworkData = {
+      method: selectedRequest.method,
+      url: selectedRequest.url,
+      status: selectedRequest.status,
+      duration: selectedRequest.duration,
+      timestamp: selectedRequest.timestamp,
+      requestHeaders: selectedRequest.requestHeaders,
+      requestBody: selectedRequest.requestBody,
+      responseHeaders: selectedRequest.responseHeaders,
+      responseBody: selectedRequest.responseBody,
+      error: selectedRequest.error,
+      type: selectedRequest.type,
+      graphql: selectedRequest.graphql,
+    };
+
+    // Generate context for the chat
+    const { content: fullContext } = generateNetworkContext(networkData, 'copilot');
+
+    // Build preview
+    let preview = `${selectedRequest.method} ${selectedRequest.url}`;
+    if (selectedRequest.status) {
+      preview += ` → ${selectedRequest.status}`;
+    }
+    if (selectedRequest.error) {
+      preview += `\nError: ${selectedRequest.error}`;
+    }
+    if (preview.length > 200) {
+      preview = preview.slice(0, 200) + '...';
+    }
+
+    // Build title
+    const statusLabel = selectedRequest.status 
+      ? `${selectedRequest.status >= 400 ? '❌' : selectedRequest.status >= 300 ? '⚠️' : '✅'} ${selectedRequest.status}` 
+      : '⏳ Pending';
+    const title = `${selectedRequest.method} Request ${statusLabel}`;
+
+    return {
+      type: 'code',
+      title,
+      preview,
+      fullContext: explanation?.summary 
+        ? fullContext + '\n\n---\n\n**AI Analysis:**\n' + explanation.summary 
+        : fullContext,
+      metadata: {
+        level: selectedRequest.status >= 400 ? 'error' : selectedRequest.status >= 300 ? 'warn' : 'info',
+        file: new URL(selectedRequest.url, window.location.origin).pathname,
+        timestamp: selectedRequest.timestamp,
+        source: selectedRequest.url,
+      },
+    };
+  }, [selectedRequest, explanation]);
 
   // Reset to page 1 when search changes
   useEffect(() => {
@@ -912,47 +1134,62 @@ export function NetworkPanel() {
               title="Request Details"
               subtitle={`${selectedRequest.method} • ${selectedRequest.status || 'Pending'}`}
               headerActions={
-                <button
-                  onClick={handleExplainRequest}
-                  disabled={isExplaining}
-                  className="p-2 hover:bg-white dark:hover:bg-gray-800 rounded-lg transition-all hover:shadow-apple-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Explain with AI"
-                >
-                  <Sparkles className={cn(
-                    "w-4 h-4 text-purple-500 dark:text-purple-400",
-                    isExplaining && "animate-pulse"
-                  )} />
-                </button>
+                <div className="flex items-center gap-2">
+                  {/* AI Explain Button - Always visible */}
+                  {!explanation && !isExplaining && (
+                    <button
+                      onClick={handleExplainRequest}
+                      disabled={isExplaining}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all border hover:shadow-apple-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed",
+                        isRaindropConfigured 
+                          ? "bg-gradient-to-r from-cyan-500/10 to-blue-500/10 hover:from-cyan-500/20 hover:to-blue-500/20 text-cyan-600 dark:text-cyan-400 border-cyan-300 dark:border-cyan-700"
+                          : "bg-gradient-to-r from-purple-500/10 to-blue-500/10 hover:from-purple-500/20 hover:to-blue-500/20 text-purple-600 dark:text-purple-400 border-purple-300 dark:border-purple-700"
+                      )}
+                      title={isRaindropConfigured ? "Explain with AI + SmartMemory" : "Explain this request with AI"}
+                    >
+                      {isRaindropConfigured ? (
+                        <Brain className="w-3.5 h-3.5" />
+                      ) : (
+                        <Sparkles className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  )}
+                  {/* Ask Copilot Button */}
+                  <button
+                    onClick={() => setIsCopilotChatOpen(true)}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all border hover:shadow-apple-sm active:scale-95",
+                      "bg-gradient-to-r from-blue-500/10 to-purple-500/10 hover:from-blue-500/20 hover:to-purple-500/20",
+                      "text-blue-600 dark:text-blue-400 border-blue-300/50 dark:border-blue-700/50"
+                    )}
+                    title="Ask Copilot about this request"
+                  >
+                    <Zap className="w-3.5 h-3.5" />
+                  </button>
+                  {/* GitHub Issue Button */}
+                  <button
+                    onClick={() => githubSlideoutStore.open(selectedRequest)}
+                    className={cn(
+                      'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all border hover:shadow-apple-sm active:scale-95',
+                      selectedRequest?.status >= 400 || selectedRequest?.error
+                        ? 'bg-success/10 hover:bg-success/15 text-success border-success/20'
+                        : 'bg-primary/10 hover:bg-primary/15 text-primary border-primary/20'
+                    )}
+                    title="Create GitHub Issue from this request"
+                  >
+                    <Github className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               }
             >
               <MobileBottomSheetContent>
-                <BetterTabs
-                  tabs={[
-                    {
-                      id: 'keyinfo',
-                      label: 'Key Info',
-                      icon: <span className="text-base">📊</span>,
-                      content: <NetworkKeyInfo request={selectedRequest} allRequests={networkRequests} />
-                    },
-                    {
-                      id: 'details',
-                      label: 'Details',
-                      icon: <span className="text-base">🔍</span>,
-                      content: (
-                        <NetworkRequestDetails 
-                          request={selectedRequest}
-                          explanation={explanation}
-                          isExplaining={isExplaining}
-                          explainError={explainError}
-                          streamingText={streamingText}
-                        />
-                      )
-                    }
-                  ]}
-                  activeTab={detailTab}
-                  onTabChange={(tab) => setDetailTab(tab as 'keyinfo' | 'details')}
-                  variant="default"
-                  className="h-full"
+                <NetworkRequestDetails 
+                  request={selectedRequest}
+                  explanation={explanation}
+                  isExplaining={isExplaining}
+                  explainError={explainError}
+                  streamingText={streamingText}
                 />
               </MobileBottomSheetContent>
             </MobileBottomSheet>
@@ -985,63 +1222,96 @@ export function NetworkPanel() {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        onClick={handleExplainRequest}
-                        disabled={isExplaining}
-                        className="p-1.5 hover:bg-white dark:hover:bg-gray-800 rounded-lg transition-all hover:shadow-apple-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Explain with AI"
-                      >
-                        <Sparkles className={cn(
-                          "w-4 h-4 text-purple-500 dark:text-purple-400",
-                          isExplaining && "animate-pulse"
-                        )} />
-                      </button>
-                      <button
-                        onClick={() => setSelectedRequest(null)}
-                        className="p-1.5 hover:bg-white dark:hover:bg-gray-800 rounded-lg transition-all hover:shadow-apple-sm active:scale-95"
-                        title="Close Details"
-                      >
-                        <X className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => setSelectedRequest(null)}
+                      className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                      title="Close Details"
+                    >
+                      <X className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                    </button>
                   </div>
                 </div>
                 
-                {/* Enhanced Tabs */}
-                <BetterTabs
-                  tabs={[
-                    {
-                      id: 'keyinfo',
-                      label: 'Key Info',
-                      icon: <span className="text-base">📊</span>,
-                      content: <NetworkKeyInfo request={selectedRequest} allRequests={networkRequests} />
-                    },
-                    {
-                      id: 'details',
-                      label: 'Details',
-                      icon: <span className="text-base">🔍</span>,
-                      content: (
-                        <NetworkRequestDetails 
-                          request={selectedRequest}
-                          explanation={explanation}
-                          isExplaining={isExplaining}
-                          explainError={explainError}
-                          streamingText={streamingText}
-                        />
-                      )
-                    }
-                  ]}
-                  activeTab={detailTab}
-                  onTabChange={(tab) => setDetailTab(tab as 'keyinfo' | 'details')}
-                  variant="default"
-                  className="flex-1"
-                />
+                {/* Action Buttons */}
+                <div className="px-4 py-2 border-b border-border bg-muted/30">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {!explanation && !isExplaining && (
+                      <button
+                        onClick={handleExplainRequest}
+                        disabled={isExplaining}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors bg-primary hover:bg-primary/90 text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={isRaindropConfigured ? 'Explain with AI + Memory' : 'Explain with AI'}
+                      >
+                        <Brain className="w-3.5 h-3.5" />
+                        <span>Explain</span>
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setIsCopilotChatOpen(true)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors bg-secondary hover:bg-secondary/90 text-secondary-foreground"
+                      title="Ask Copilot"
+                    >
+                      <Zap className="w-3.5 h-3.5" />
+                      <span>Ask Copilot</span>
+                    </button>
+                    <NetworkContextDropdown request={selectedRequest} />
+                    <button
+                      onClick={() => githubSlideoutStore.open(selectedRequest)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors bg-muted hover:bg-accent text-muted-foreground hover:text-accent-foreground"
+                      title="Create GitHub Issue"
+                    >
+                      <Github className="w-3.5 h-3.5" />
+                      <span>Issue</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Request Details Content */}
+                <div className="flex-1 overflow-hidden">
+                  <NetworkRequestDetails 
+                    request={selectedRequest}
+                    explanation={explanation}
+                    isExplaining={isExplaining}
+                    explainError={explainError}
+                    streamingText={streamingText}
+                  />
+                </div>
               </div>
             </>
           )}
         </>
       )}
+
+      {/* GitHub Issue Slideout */}
+      <GitHubIssueSlideout
+        isOpen={githubSlideoutStore.isOpen}
+        onClose={() => githubSlideoutStore.close()}
+      />
+
+      {/* Copilot Chat Input Modal */}
+      {buildCopilotContext() && (
+        <CopilotChatInput
+          context={buildCopilotContext()!}
+          isOpen={isCopilotChatOpen}
+          onClose={() => setIsCopilotChatOpen(false)}
+          onSuccess={(requestId) => {
+            console.log('✅ Sent to Copilot:', requestId);
+            setCopilotNotification({
+              type: 'success',
+              message: '✓ Sent to VS Code! Check Copilot for results.',
+            });
+          }}
+          onFallback={(prompt) => {
+            console.log('📋 Copied to clipboard:', prompt.slice(0, 50) + '...');
+          }}
+        />
+      )}
+
+      {/* Copilot Notification Toast */}
+      <NotificationToast 
+        notification={copilotNotification} 
+        onClose={() => setCopilotNotification(null)} 
+      />
     </div>
   );
 }

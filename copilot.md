@@ -8,7 +8,7 @@
 
 ## Architecture in Motion
 The extension runs three coordinated contexts:
-1. **Page context hooks** instrument `console.*`, `fetch`, and XHR, redact payloads, and emit `window.postMessage` events.
+1. **Page context hooks** instrument `console.*`, `fetch`, and XHR, serialize payloads, and emit `window.postMessage` events.
 2. **Content script** injects hooks, batches events via `DEVCONSOLE_BATCH` config, initializes Autofill UI, and forwards messages to the background worker.
 3. **Service worker** (MV3) persists logs/network/settings through `StateManager` + `StorageService`, notifies DevTools via typed messaging, and fan-outs updates to Zustand stores consumed by the React panel.
 
@@ -16,7 +16,7 @@ The extension runs three coordinated contexts:
 ```
 Page Hooks  ──┐ (console/network payloads)
               │ window.postMessage
-Content Script ├─ batch/redact → chrome.runtime.sendMessage
+Content Script ├─ batch → chrome.runtime.sendMessage
               │
 Service Worker ── StateManager + StorageService
               │   ↓ DEVTOOLS_UPDATE / COMMAND messages
@@ -42,7 +42,7 @@ DevTools Bridge → Zustand Stores → React DevConsole Tabs
 ## Messaging & State Contracts
 - **One source of truth per payload**: Logs/network remain in the background; UI stores hold presentation-only state. When bridging, emit typed deltas (`DEVTOOLS_UPDATE`) instead of whole snapshots when possible.
 - **Batch aggressively**: Honor `MAX_BATCH_SIZE` & `BATCH_INTERVAL_MS` to avoid saturating the MV3 messaging quota. Never send unbatched bursts from content scripts.
-- **Serialization**: Use `serializeConsoleArguments` + `redactSensitiveData` before leaving the page context. Payloads must be JSON-serializable—no DOM nodes, functions, or circular refs.
+- **Serialization**: Use `serializeConsoleArguments` before leaving the page context. Payloads must be JSON-serializable—no DOM nodes, functions, or circular refs.
 - **StorageService**: Prefer `StorageService.setState` over direct `chrome.storage` writes to keep caching, debouncing, and error logging consistent.
 - **Cleanup**: When adding message handlers or listeners, mirror teardown paths (`chrome.runtime.onMessage.removeListener`, tab removal hooks) to avoid leaks after DevTools closes.
 
@@ -97,7 +97,7 @@ This repo aligns with the LinkVybe Premium Design System V2 described in `design
 
 ## Guardrails & Best Practices
 - Use `StorageService` + `extensionSettings` helpers instead of raw `chrome.storage` to keep caching/debouncing unified.
-- Maintain batching + redaction; never post raw request bodies or personal data through messaging.
+- Maintain batching for performance; all data is captured for debugging on the client machine.
 - Keep manifest permissions minimal and document any additions in `README.md` + `copilot.md`.
 - When touching AI output, ensure provider-agnostic interfaces and streaming UX stay intact—never hardcode API keys or sample secrets.
 - Lazy-load heavyweight modules (GraphiQL, Sandpack, AI markdown renderers) and memoize expensive selectors to keep DevTools responsive.

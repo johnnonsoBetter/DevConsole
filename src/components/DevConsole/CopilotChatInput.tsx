@@ -13,22 +13,22 @@
  * - Graceful fallback to clipboard
  */
 
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
-  AlertCircle,
-  ArrowUp,
-  CheckCircle2,
-  Clipboard,
-  Code2,
-  HelpCircle,
-  Lightbulb,
-  Loader2,
-  MessageSquare,
-  Sparkles,
-  Terminal,
-  Wrench,
-  X,
-  Zap,
+    AlertCircle,
+    ArrowUp,
+    CheckCircle2,
+    Clipboard,
+    Code2,
+    HelpCircle,
+    Lightbulb,
+    Loader2,
+    MessageSquare,
+    Sparkles,
+    Terminal,
+    Wrench,
+    X,
+    Zap,
 } from 'lucide-react';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { webhookCopilot } from '../../lib/webhookCopilot';
@@ -180,7 +180,7 @@ CopilotAvatar.displayName = 'CopilotAvatar';
 // CONNECTION STATUS
 // ============================================================================
 
-type ConnectionStatus = 'checking' | 'connected' | 'no-workspace' | 'disconnected';
+type ConnectionStatus = 'checking' | 'connected' | 'busy' | 'no-workspace' | 'disconnected';
 
 interface ConnectionIndicatorProps {
   status: ConnectionStatus;
@@ -200,6 +200,12 @@ const ConnectionIndicator = memo(({ status, workspaceName }: ConnectionIndicator
       text: workspaceName ? `Connected: ${workspaceName}` : 'VS Code Ready',
       className: 'text-green-400',
       iconClassName: '',
+    },
+    busy: {
+      icon: Loader2,
+      text: 'Copilot is busy...',
+      className: 'text-amber-400',
+      iconClassName: 'animate-spin',
     },
     'no-workspace': {
       icon: AlertCircle,
@@ -314,16 +320,20 @@ export const CopilotChatInput = memo(({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const { addAction, updateAction } = useCodeActionsStore();
 
-  // Check connection status on open
+  // Check connection status on open and poll for busy state changes
   useEffect(() => {
     if (!isOpen) return;
 
     let cancelled = false;
 
     const checkConnection = async () => {
-      setConnectionStatus('checking');
+      // Don't reset to 'checking' if already connected/busy (avoids UI flicker during polling)
+      if (connectionStatus !== 'connected' && connectionStatus !== 'busy') {
+        setConnectionStatus('checking');
+      }
+      
       try {
-        const { connected, workspaceReady, health } = await webhookCopilot.checkWorkspaceReady();
+        const { connected, workspaceReady, chatBusy, health } = await webhookCopilot.checkWorkspaceReady();
         
         if (cancelled) return;
         
@@ -331,6 +341,8 @@ export const CopilotChatInput = memo(({
           setConnectionStatus('disconnected');
         } else if (!workspaceReady) {
           setConnectionStatus('no-workspace');
+        } else if (chatBusy) {
+          setConnectionStatus('busy');
         } else {
           setConnectionStatus('connected');
           setWorkspaceName(health?.workspace?.folders?.[0]?.name);
@@ -342,13 +354,20 @@ export const CopilotChatInput = memo(({
       }
     };
 
+    // Initial check
     checkConnection();
+    
+    // Poll every 2 seconds while open to catch busy → ready transitions
+    const pollInterval = setInterval(checkConnection, 2000);
     
     // Focus input when opened
     setTimeout(() => inputRef.current?.focus(), 150);
 
-    return () => { cancelled = true; };
-  }, [isOpen]);
+    return () => { 
+      cancelled = true; 
+      clearInterval(pollInterval);
+    };
+  }, [isOpen, connectionStatus]);
 
   // Build the full prompt with context (for clipboard fallback & display)
   const buildFullPrompt = useCallback((userMessage: string): string => {
@@ -431,6 +450,52 @@ export const CopilotChatInput = memo(({
         return;
       }
 
+      // If Copilot is busy, show message and wait
+      if (connectionStatus === 'busy') {
+        setNotification({
+          type: 'info',
+          message: '⏳ Copilot is busy. Waiting for it to be ready...',
+        });
+        
+        // Poll for readiness (max 15 seconds)
+        let attempts = 0;
+        const maxAttempts = 15;
+        
+        while (attempts < maxAttempts) {
+          await new Promise(r => setTimeout(r, 1000));
+          const { ready, chatBusy } = await webhookCopilot.isReady();
+          
+          if (ready && !chatBusy) {
+            setConnectionStatus('connected');
+            setNotification(null);
+            break;
+          }
+          attempts++;
+        }
+        
+        if (attempts >= maxAttempts) {
+          // Still busy after waiting, copy to clipboard
+          const copied = await copyToClipboard(fullPrompt);
+          
+          updateAction(actionId, {
+            status: 'copied_fallback',
+            error: 'Copilot busy timeout',
+            completedAt: Date.now(),
+          });
+          
+          setNotification({
+            type: 'info',
+            message: copied 
+              ? '📋 Copilot still busy. Copied to clipboard!' 
+              : 'Copilot is busy. Please try again later.',
+          });
+          
+          if (copied) onFallback?.(fullPrompt);
+          setIsSending(false);
+          return;
+        }
+      }
+
       // Send to webhook - use the FULL prompt with embedded context
       // The extension's /webhook endpoint expects the prompt field to contain everything
       const response = await webhookCopilot.sendPrompt(fullPrompt, {
@@ -461,11 +526,11 @@ export const CopilotChatInput = memo(({
           });
         }
       } else {
-        // Success!
+        // Success! Note: Response streams to VS Code Chat, not back here
         const isQueued = response.status === 'queued';
         
         updateAction(actionId, {
-          status: isQueued ? 'queued' : 'processing',
+          status: isQueued ? 'queued' : 'sent_to_vscode',
           requestId: response.requestId,
           queuePosition: response.queue?.position,
         });
@@ -473,8 +538,8 @@ export const CopilotChatInput = memo(({
         setNotification({
           type: 'success',
           message: isQueued
-            ? `✓ Queued (#${response.queue?.position})`
-            : '✓ Sent to Copilot!',
+            ? `✓ Queued (#${response.queue?.position}) - Check VS Code!`
+            : '✓ Sent! Check VS Code for Copilot\'s response',
         });
         
         onSuccess?.(response.requestId || '');
@@ -482,7 +547,7 @@ export const CopilotChatInput = memo(({
         setTimeout(() => {
           onClose();
           setUserPrompt('');
-        }, 1500);
+        }, 2000); // Slightly longer to read the message
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';

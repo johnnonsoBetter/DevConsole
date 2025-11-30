@@ -9,7 +9,8 @@ export type CodeActionStatus =
   | "queued"
   | "sending"
   | "processing"
-  | "completed"
+  | "sent_to_vscode" // Successfully sent - user should check VS Code
+  | "completed" // Legacy - kept for backwards compatibility
   | "failed"
   | "copied_fallback";
 

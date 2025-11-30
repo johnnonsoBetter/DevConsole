@@ -225,7 +225,7 @@ npm run type-check
 
 ## Security
 
-- Redact sensitive data (passwords, tokens)
+- All data captured for local debugging (no redaction - this is a client-side debugging tool)
 - Validate message sources
 - Use Content Security Policy
 - Limit permissions to necessary APIs

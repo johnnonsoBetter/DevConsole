@@ -62,12 +62,19 @@ export interface WorkspaceHealth {
   message: string;
 }
 
+export interface ChatHealth {
+  busy: boolean;
+  currentRequestId: string | null;
+  lastActivity: number;
+}
+
 export interface ServerHealth {
   status: "ok" | "degraded" | "offline";
   timestamp: number;
   version: string;
   port?: number;
   workspace?: WorkspaceHealth;
+  chat?: ChatHealth;
   error?: string;
 }
 
@@ -172,7 +179,7 @@ export class WebhookCopilotService {
   async sendPrompt(
     prompt: string,
     context?: {
-      type?: 'log' | 'note' | 'code' | 'custom';
+      type?: "log" | "note" | "code" | "custom";
       log?: string;
       file?: string;
       line?: number;
@@ -351,22 +358,34 @@ export class WebhookCopilotService {
   async checkWorkspaceReady(): Promise<{
     connected: boolean;
     workspaceReady: boolean;
+    chatBusy: boolean;
     health: ServerHealth | null;
   }> {
     try {
       const health = await this.getHealth();
 
       if (!health) {
-        return { connected: false, workspaceReady: false, health: null };
+        return {
+          connected: false,
+          workspaceReady: false,
+          chatBusy: false,
+          health: null,
+        };
       }
 
       return {
         connected: true,
         workspaceReady: health.workspace?.ready ?? false,
+        chatBusy: health.chat?.busy ?? false,
         health,
       };
     } catch {
-      return { connected: false, workspaceReady: false, health: null };
+      return {
+        connected: false,
+        workspaceReady: false,
+        chatBusy: false,
+        health: null,
+      };
     }
   }
 
@@ -427,11 +446,108 @@ export class WebhookCopilotService {
   }
 
   /**
-   * Check if server is currently processing a task
+   * Check if server is currently processing a task (queue-based)
    */
   async isServerBusy(): Promise<boolean> {
     const queueStatus = await this.getQueueStatus();
     return queueStatus?.isProcessing ?? false;
+  }
+
+  /**
+   * Check if Copilot chat is currently busy (responding to a request)
+   * This is the preferred method to check before sending new requests
+   */
+  async isChatBusy(): Promise<boolean> {
+    try {
+      const health = await this.getHealth();
+      return health?.chat?.busy ?? false;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Check if ready to send a new request (workspace ready AND chat not busy)
+   * Includes stuck state detection - if busy for >60s, treats as not busy
+   */
+  async isReady(): Promise<{
+    ready: boolean;
+    workspaceReady: boolean;
+    chatBusy: boolean;
+    stuckDetected: boolean;
+    reason?: string;
+  }> {
+    try {
+      const health = await this.getHealth();
+
+      if (!health) {
+        return {
+          ready: false,
+          workspaceReady: false,
+          chatBusy: false,
+          stuckDetected: false,
+          reason: "VS Code not connected",
+        };
+      }
+
+      if (health.status !== "ok") {
+        return {
+          ready: false,
+          workspaceReady: false,
+          chatBusy: false,
+          stuckDetected: false,
+          reason: "VS Code not ready",
+        };
+      }
+
+      const workspaceReady = health.workspace?.ready ?? false;
+      let chatBusy = health.chat?.busy ?? false;
+      let stuckDetected = false;
+
+      // Stuck state detection: if busy but no activity for >60s, assume stuck
+      if (chatBusy && health.chat?.lastActivity) {
+        const stuckThreshold = 60000; // 60 seconds
+        const timeSinceActivity = Date.now() - health.chat.lastActivity;
+
+        if (timeSinceActivity > stuckThreshold) {
+          console.warn(
+            `[WebhookCopilot] Chat busy state appears stuck (${Math.round(timeSinceActivity / 1000)}s since last activity)`
+          );
+          chatBusy = false; // Treat as not busy
+          stuckDetected = true;
+        }
+      }
+
+      if (!workspaceReady) {
+        return {
+          ready: false,
+          workspaceReady,
+          chatBusy,
+          stuckDetected,
+          reason: "No workspace open in VS Code",
+        };
+      }
+
+      if (chatBusy) {
+        return {
+          ready: false,
+          workspaceReady,
+          chatBusy,
+          stuckDetected,
+          reason: "Copilot is busy processing a request",
+        };
+      }
+
+      return { ready: true, workspaceReady, chatBusy, stuckDetected };
+    } catch {
+      return {
+        ready: false,
+        workspaceReady: false,
+        chatBusy: false,
+        stuckDetected: false,
+        reason: "Connection error",
+      };
+    }
   }
 
   /**
@@ -507,8 +623,8 @@ export class WebhookCopilotService {
         // This can happen when the extension was restarted
         return {
           requestId,
-          status: 'failed' as const,
-          error: 'Request not found - extension may have been restarted',
+          status: "failed" as const,
+          error: "Request not found - extension may have been restarted",
         };
       }
 

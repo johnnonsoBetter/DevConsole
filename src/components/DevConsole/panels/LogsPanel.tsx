@@ -3,7 +3,7 @@
  * Displays captured console logs with filtering and details panel
  */
 
-import { Brain, Check, ChevronDown, ClipboardCopy, Code2, Download, Github, Search, Sparkles, Trash2, Wrench, X, Zap } from 'lucide-react';
+import { Brain, Code2, Github, Search, Sparkles, Trash2, Wrench, X, Zap } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useIsMobile } from '../../../hooks/useMediaQuery';
 import { useRaindropSettings } from '../../../hooks/useRaindropSettings';
@@ -11,10 +11,7 @@ import { createLogExplainer } from '../../../lib/ai/services/logExplainer';
 import { createMemoryEnhancedLogExplainer } from '../../../lib/ai/services/memoryEnhancedLogExplainer';
 import {
   copyLogContext,
-  downloadLogContext,
   generateLogContext,
-  getFormatOptions,
-  type ContextFormat,
   type LogData,
 } from '../../../lib/devConsole/logContextGenerator';
 import { cn } from '../../../utils';
@@ -83,127 +80,6 @@ export interface GitHubConfig {
   username: string;
   repo: string;
   token: string;
-}
-
-// ============================================================================
-// LOG ACTION BUTTON COMPONENT
-// ============================================================================
-
-interface LogActionButtonProps {
-  log: any;
-  action: 'work' | 'context';
-}
-
-/**
- * Reusable action button for log operations
- * - work: Copies AI-optimized prompt for Copilot
- * - context: Shows dropdown to export in various formats
- */
-function LogActionButton({ log, action }: LogActionButtonProps) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [copySuccess, setCopySuccess] = useState<string | null>(null);
-  
-  const formatOptions = getFormatOptions();
-
-  const logData: LogData = useMemo(() => ({
-    level: log.level,
-    message: log.message,
-    args: log.args || [],
-    stack: log.stack,
-    source: log.source,
-    timestamp: log.timestamp,
-    context: log.context,
-  }), [log]);
-
-  const handleWorkOnLog = useCallback(async () => {
-    const success = await copyLogContext(logData, 'copilot');
-    if (success) {
-      setCopySuccess('copilot');
-      setTimeout(() => setCopySuccess(null), 2000);
-    }
-  }, [logData]);
-
-  const handleCopy = useCallback(async (format: ContextFormat) => {
-    const success = await copyLogContext(logData, format);
-    if (success) {
-      setCopySuccess(format);
-      setTimeout(() => setCopySuccess(null), 2000);
-    }
-    setMenuOpen(false);
-  }, [logData]);
-
-  const handleDownload = useCallback((format: ContextFormat) => {
-    downloadLogContext(logData, format);
-    setMenuOpen(false);
-  }, [logData]);
-
-  if (action === 'work') {
-    return (
-      <button
-        onClick={handleWorkOnLog}
-        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium transition-colors bg-emerald-600 hover:bg-emerald-700 text-white"
-        title="Copy AI prompt for Copilot"
-      >
-        {copySuccess === 'copilot' ? (
-          <>
-            <Check className="w-3.5 h-3.5" />
-            <span>Copied</span>
-          </>
-        ) : (
-          <>
-            <Wrench className="w-3.5 h-3.5" />
-            <span>Work</span>
-          </>
-        )}
-      </button>
-    );
-  }
-
-  return (
-    <div className="relative">
-      <button
-        onClick={() => setMenuOpen(!menuOpen)}
-        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium transition-colors bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
-        title="Export context"
-      >
-        <Code2 className="w-3.5 h-3.5" />
-        <span>Context</span>
-        <ChevronDown className={cn('w-3 h-3 transition-transform', menuOpen && 'rotate-180')} />
-      </button>
-
-      {menuOpen && (
-        <>
-          <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-          <div className="absolute right-0 top-full mt-1 w-48 z-20 bg-white dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-700 shadow-lg py-1">
-            <div className="px-2 py-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Copy</div>
-            {formatOptions.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => handleCopy(opt.value)}
-                className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-left hover:bg-gray-100 dark:hover:bg-gray-800"
-              >
-                <ClipboardCopy className="w-3 h-3 text-gray-400" />
-                <span className="text-gray-700 dark:text-gray-300">{opt.label}</span>
-                {copySuccess === opt.value && <Check className="w-3 h-3 text-green-500 ml-auto" />}
-              </button>
-            ))}
-            <div className="border-t border-gray-100 dark:border-gray-800 my-1" />
-            <div className="px-2 py-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Download</div>
-            {formatOptions.slice(0, 4).map((opt) => (
-              <button
-                key={`dl-${opt.value}`}
-                onClick={() => handleDownload(opt.value)}
-                className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-left hover:bg-gray-100 dark:hover:bg-gray-800"
-              >
-                <Download className="w-3 h-3 text-gray-400" />
-                <span className="text-gray-700 dark:text-gray-300">{opt.label}</span>
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  );
 }
 
 // ============================================================================
@@ -762,7 +638,7 @@ export function LogsPanel({ githubConfig }: LogsPanelProps) {
 
               <div className="flex flex-col" style={{ width: `${detailPanelWidth}%` }}>
                 <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30 shrink-0">
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center justify-between">
                     <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
                       Log Details
                     </h3>
@@ -774,59 +650,78 @@ export function LogsPanel({ githubConfig }: LogsPanelProps) {
                       <X className="w-4 h-4 text-gray-500 dark:text-gray-400" />
                     </button>
                   </div>
-
-                  {/* Action Buttons - Clean flat design */}
+                </div>
+                {/* Action Buttons */}
+                <div className="px-4 py-2 border-b border-border bg-muted/30">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    {/* AI Explain Button */}
                     {!explanation && !isExplaining && (
                       <button
                         onClick={handleExplainLog}
                         disabled={isExplaining}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium transition-colors bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                        title={isRaindropConfigured ? "Explain with AI + SmartMemory" : "Explain this log with AI"}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors bg-primary hover:bg-primary/90 text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={isRaindropConfigured ? 'Explain with AI + Memory' : 'Explain with AI'}
                       >
                         <Brain className="w-3.5 h-3.5" />
                         <span>Explain</span>
                       </button>
                     )}
-                    
-                    {/* Ask Copilot Button */}
                     <button
                       onClick={() => setIsCopilotChatOpen(true)}
-                      className={cn(
-                        "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium transition-all",
-                        "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700",
-                        "text-white shadow-sm hover:shadow-md active:scale-95"
-                      )}
-                      title="Ask Copilot about this log"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors bg-secondary hover:bg-secondary/90 text-secondary-foreground"
+                      title="Ask Copilot"
                     >
                       <Zap className="w-3.5 h-3.5" />
                       <span>Ask Copilot</span>
                     </button>
-                    
-                    {/* Work on Log Button */}
-                    <LogActionButton 
-                      log={selectedLog} 
-                      action="work" 
-                    />
-                    
-                    {/* Context Export Button */}
-                    <LogActionButton 
-                      log={selectedLog} 
-                      action="context" 
-                    />
-                    
-                    {/* Create Issue Button */}
+                    <button
+                      onClick={async () => {
+                        const logData: LogData = {
+                          level: selectedLog.level,
+                          message: selectedLog.message,
+                          args: selectedLog.args || [],
+                          stack: selectedLog.stack,
+                          source: selectedLog.source,
+                          timestamp: selectedLog.timestamp,
+                          context: selectedLog.context,
+                        };
+                        await copyLogContext(logData, 'copilot');
+                      }}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors bg-success hover:bg-success/90 text-success-foreground"
+                      title="Copy for Copilot"
+                    >
+                      <Wrench className="w-3.5 h-3.5" />
+                      <span>Work</span>
+                    </button>
+                    <button
+                      onClick={async () => {
+                        const logData: LogData = {
+                          level: selectedLog.level,
+                          message: selectedLog.message,
+                          args: selectedLog.args || [],
+                          stack: selectedLog.stack,
+                          source: selectedLog.source,
+                          timestamp: selectedLog.timestamp,
+                          context: selectedLog.context,
+                        };
+                        await copyLogContext(logData, 'markdown');
+                      }}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors bg-muted hover:bg-accent text-muted-foreground hover:text-accent-foreground"
+                      title="Copy as Markdown"
+                    >
+                      <Code2 className="w-3.5 h-3.5" />
+                      <span>Context</span>
+                    </button>
                     <button
                       onClick={() => githubSlideoutStore.open(selectedLog)}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium transition-colors bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
-                      title="Create GitHub Issue from this log"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors bg-muted hover:bg-accent text-muted-foreground hover:text-accent-foreground"
+                      title="Create GitHub Issue"
                     >
                       <Github className="w-3.5 h-3.5" />
                       <span>Issue</span>
                     </button>
                   </div>
                 </div>
+
                 <div className="flex-1 overflow-auto p-4">
                   <LogDetailsContent 
                     selectedLog={selectedLog}

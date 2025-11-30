@@ -65,7 +65,7 @@
 - Always run `npm install` after pulling dependency changes, and run `npm run build` before validating the Chrome extension.
 - Keep instructions/documentation (`README`, `ARCHITECTURE`, `AI_*`, `SETTINGS_*`, `Input.md`) in sync with behavior changes.
 - Use `StorageService` instead of raw `chrome.storage` for persistence (handles caching/debouncing).
-- Preserve batching/redaction logic in `src/content/index.ts` when modifying message relay.
+- Preserve batching logic in `src/content/index.ts` when modifying message relay (no redaction - all data captured for debugging).
 - When touching manifest permissions or Chrome APIs, document the rationale and update onboarding docs.
 - Keep AI secrets and Unsplash keys user-supplied; never hardcode secrets or sample keys.
 - Favor `lucide-react` icons, Tailwind utility classes, and existing component patterns for consistency.

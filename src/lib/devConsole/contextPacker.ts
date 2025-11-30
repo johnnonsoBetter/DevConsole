@@ -1,10 +1,9 @@
-import html2canvas from "html2canvas";
-import type { LogEntry, NetworkRequest } from "../../utils/stores/devConsole";
-
 // ============================================================================
 // CONTEXT PACKER
 // Captures screenshot + app context for bug reports
 // ============================================================================
+
+import { LogEntry, NetworkRequest } from "@/utils/stores";
 
 export interface ContextPack {
   timestamp: string;
@@ -66,7 +65,7 @@ async function captureScreenshot(): Promise<string> {
     //   windowHeight: window.innerHeight,
     // });
     // return canvas.toDataURL("image/png");
-    return ''
+    return "";
   } catch (error) {
     console.error("Screenshot capture failed:", error);
     return "";
@@ -77,7 +76,9 @@ async function captureScreenshot(): Promise<string> {
  * Get current route information
  */
 function getCurrentRoute(): string {
-  return window.location.pathname + window.location.search + window.location.hash;
+  return (
+    window.location.pathname + window.location.search + window.location.hash
+  );
 }
 
 /**
@@ -89,11 +90,15 @@ async function getStoreSnapshot(): Promise<Record<string, any>> {
 
     // Get DevConsole state from chrome.storage
     try {
-      const result = await chrome.storage.local.get(['devConsole_logs', 'devConsole_networkRequests', 'devConsole_state']);
+      const result = await chrome.storage.local.get([
+        "devConsole_logs",
+        "devConsole_networkRequests",
+        "devConsole_state",
+      ]);
       const logs = result.devConsole_logs || [];
       const networkRequests = result.devConsole_networkRequests || [];
       const state = result.devConsole_state || {};
-      
+
       stores.devConsole = {
         isOpen: state.isOpen,
         activeTab: state.activeTab,
@@ -102,7 +107,7 @@ async function getStoreSnapshot(): Promise<Record<string, any>> {
         errorCount: state.unreadErrorCount || 0,
       };
     } catch (error) {
-      console.warn('[DevConsole] Could not retrieve DevConsole state:', error);
+      console.warn("[DevConsole] Could not retrieve DevConsole state:", error);
     }
 
     // Attempt to get other stores from window
@@ -111,14 +116,14 @@ async function getStoreSnapshot(): Promise<Record<string, any>> {
       if (appStore) {
         stores.app = redactSensitiveData(appStore.getState());
       }
-    } catch { }
+    } catch {}
 
     try {
       const userStore = (window as any).__USER_STORE__;
       if (userStore) {
         stores.user = redactSensitiveData(userStore.getState());
       }
-    } catch { }
+    } catch {}
 
     return stores;
   } catch (error) {
@@ -144,19 +149,28 @@ export async function createContextPack(options?: {
   // Retrieve logs and network requests from chrome.storage
   let logs: LogEntry[] = [];
   let networkRequests: NetworkRequest[] = [];
-  
+
   try {
-    const result = await chrome.storage.local.get(['devConsole_logs', 'devConsole_networkRequests']);
+    const result = await chrome.storage.local.get([
+      "devConsole_logs",
+      "devConsole_networkRequests",
+    ]);
     logs = result.devConsole_logs || [];
     networkRequests = result.devConsole_networkRequests || [];
   } catch (error) {
-    console.warn('[DevConsole] Could not retrieve logs and network requests:', error);
+    console.warn(
+      "[DevConsole] Could not retrieve logs and network requests:",
+      error
+    );
   }
 
   // Get last N events (prioritize errors and warnings)
   const lastEvents = logs
     .slice(-100)
-    .filter((log) => log.level === "error" || log.level === "warn" || log.level === "info")
+    .filter(
+      (log) =>
+        log.level === "error" || log.level === "warn" || log.level === "info"
+    )
     .slice(-eventCount);
 
   // Get recent network requests (prioritize errors)
@@ -164,7 +178,7 @@ export async function createContextPack(options?: {
     .slice(-50)
     .filter((req) => Number(req.status) >= 400 || Number(req.duration) > 5000)
     .concat(networkRequests.slice(-networkCount))
-    .slice(-networkCount) 
+    .slice(-networkCount);
 
   const contextPack: ContextPack = {
     timestamp: new Date().toISOString(),
@@ -205,7 +219,9 @@ export function exportContextPack(contextPack: ContextPack) {
 export async function copyContextPackToClipboard(contextPack: ContextPack) {
   const packWithoutScreenshot = {
     ...contextPack,
-    screenshot: contextPack.screenshot ? "[Screenshot captured]" : "[No screenshot]",
+    screenshot: contextPack.screenshot
+      ? "[Screenshot captured]"
+      : "[No screenshot]",
   };
 
   const markdown = generateMarkdownReport(packWithoutScreenshot);
@@ -217,15 +233,15 @@ export async function copyContextPackToClipboard(contextPack: ContextPack) {
     console.error("Failed to copy to clipboard:", error);
     // Fallback method for clipboard access
     try {
-      const textArea = document.createElement('textarea');
+      const textArea = document.createElement("textarea");
       textArea.value = markdown;
-      textArea.style.position = 'fixed';
-      textArea.style.left = '-999999px';
-      textArea.style.top = '-999999px';
+      textArea.style.position = "fixed";
+      textArea.style.left = "-999999px";
+      textArea.style.top = "-999999px";
       document.body.appendChild(textArea);
       textArea.focus();
       textArea.select();
-      const successful = document.execCommand('copy');
+      const successful = document.execCommand("copy");
       document.body.removeChild(textArea);
       return successful;
     } catch (fallbackError) {
@@ -239,8 +255,15 @@ export async function copyContextPackToClipboard(contextPack: ContextPack) {
  * Generate markdown report from context pack
  */
 function generateMarkdownReport(contextPack: Partial<ContextPack>): string {
-  const { timestamp, route, lastEvents, networkSnapshot, storeSnapshot, userAgent, viewport } =
-    contextPack;
+  const {
+    timestamp,
+    route,
+    lastEvents,
+    networkSnapshot,
+    storeSnapshot,
+    userAgent,
+    viewport,
+  } = contextPack;
 
   let markdown = `# Bug Report Context\n\n`;
   markdown += `**Generated:** ${timestamp}\n`;
@@ -287,7 +310,7 @@ function generateMarkdownReport(contextPack: Partial<ContextPack>): string {
 /**
  * Generate shareable link (placeholder - requires backend)
  */
-export async function generateShareableLink(contextPack: ContextPack): Promise<string> {
+export async function generateShareableLink(): Promise<string> {
   // This would POST to your backend API to store the context pack
   // and return a shareable URL
   // For now, return a placeholder
@@ -298,16 +321,22 @@ export async function generateShareableLink(contextPack: ContextPack): Promise<s
 /**
  * Generate GitHub-ready issue markdown
  */
-export function generateGitHubIssueMarkdown(contextPack: Partial<ContextPack>, options?: {
-  title?: string;
-  description?: string;
-}): { title: string; body: string } {
-  const { timestamp, route, lastEvents, networkSnapshot, userAgent, viewport } = contextPack;
+export function generateGitHubIssueMarkdown(
+  contextPack: Partial<ContextPack>,
+  options?: {
+    title?: string;
+    description?: string;
+  }
+): { title: string; body: string } {
+  const { timestamp, route, lastEvents, networkSnapshot, userAgent, viewport } =
+    contextPack;
 
-  const title = options?.title || `Bug Report: Issue on ${route || 'Unknown Route'}`;
+  const title =
+    options?.title || `Bug Report: Issue on ${route || "Unknown Route"}`;
 
   let body = `## Description\n\n`;
-  body += options?.description || '_An issue was detected in the application._\n\n';
+  body +=
+    options?.description || "_An issue was detected in the application._\n\n";
 
   body += `## Environment\n\n`;
   body += `- **Timestamp:** ${timestamp}\n`;
@@ -316,7 +345,7 @@ export function generateGitHubIssueMarkdown(contextPack: Partial<ContextPack>, o
   body += `- **Viewport:** ${viewport?.width}x${viewport?.height}\n\n`;
 
   // Recent Errors
-  const errors = lastEvents?.filter(e => e.level === 'error') || [];
+  const errors = lastEvents?.filter((e) => e.level === "error") || [];
   if (errors.length > 0) {
     body += `## Recent Errors (${errors.length})\n\n`;
     errors.slice(-5).forEach((error, idx) => {
@@ -331,7 +360,8 @@ export function generateGitHubIssueMarkdown(contextPack: Partial<ContextPack>, o
   }
 
   // Failed Network Requests
-  const failedRequests = networkSnapshot?.filter(r => Number(r.status) >= 400) || [];
+  const failedRequests =
+    networkSnapshot?.filter((r) => Number(r.status) >= 400) || [];
   if (failedRequests.length > 0) {
     body += `## Failed Network Requests (${failedRequests.length})\n\n`;
     body += `| Method | Endpoint | Status | Duration |\n`;
@@ -350,7 +380,7 @@ export function generateGitHubIssueMarkdown(contextPack: Partial<ContextPack>, o
     body += `|------|-------|----------|\n`;
     lastEvents.slice(-10).forEach((event) => {
       const time = new Date(event.timestamp).toLocaleTimeString();
-      const message = event.message.slice(0, 100).replace(/\|/g, '\\|');
+      const message = event.message.slice(0, 100).replace(/\|/g, "\\|");
       body += `| ${time} | \`${event.level}\` | ${message} |\n`;
     });
     body += `\n</details>\n\n`;

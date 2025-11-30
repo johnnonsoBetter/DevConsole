@@ -5,25 +5,25 @@
  */
 
 import {
-    AlertCircle,
-    Check,
-    Clipboard,
-    Clock,
-    Code2,
-    Loader2,
-    RefreshCw,
-    Send,
-    StickyNote,
-    Terminal,
-    Trash2,
-    X,
+  AlertCircle,
+  Check,
+  Clipboard,
+  Clock,
+  Code2,
+  Loader2,
+  RefreshCw,
+  Send,
+  StickyNote,
+  Terminal,
+  Trash2,
+  X,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { webhookCopilot } from '../../../lib/webhookCopilot/webhookService';
 import {
-    CodeAction,
-    CodeActionStatus,
-    useCodeActionsStore,
+  CodeAction,
+  CodeActionStatus,
+  useCodeActionsStore,
 } from '../../../utils/stores/codeActions';
 
 // ============================================================================
@@ -55,6 +55,7 @@ function getStatusIcon(status: CodeActionStatus, queuePosition?: number) {
     case 'sending':
     case 'processing':
       return <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />;
+    case 'sent_to_vscode':
     case 'completed':
       return <Check className="w-4 h-4 text-green-500" />;
     case 'failed':
@@ -71,7 +72,8 @@ function getStatusLabel(status: CodeActionStatus, queuePosition?: number): strin
     case 'queued': return queuePosition ? `Queued #${queuePosition}` : 'Queued';
     case 'sending': return 'Sending...';
     case 'processing': return 'Processing...';
-    case 'completed': return 'Done';
+    case 'sent_to_vscode': return 'In VS Code';
+    case 'completed': return 'Done';  // Legacy
     case 'failed': return 'Failed';
     case 'copied_fallback': return 'Copied';
     default: return status;
@@ -107,6 +109,7 @@ function ActionItem({ action, onRetry, onCopy, onRemove }: ActionItemProps) {
     queued: 'bg-orange-50 dark:bg-orange-900/20',
     sending: 'bg-blue-50 dark:bg-blue-900/20',
     processing: 'bg-blue-50 dark:bg-blue-900/20',
+    sent_to_vscode: 'bg-green-50 dark:bg-green-900/20',
     completed: 'bg-green-50 dark:bg-green-900/20',
     failed: 'bg-red-50 dark:bg-red-900/20',
     copied_fallback: 'bg-amber-50 dark:bg-amber-900/20',
