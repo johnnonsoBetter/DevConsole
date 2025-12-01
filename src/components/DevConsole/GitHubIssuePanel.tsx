@@ -2,7 +2,7 @@
 import { useGitHubIssueSlideoutStore } from "@/utils/stores";
 import DOMPurify from "dompurify";
 import { useState } from "react";
-import { AlertCircle, CheckCircle, Code, Eye, Github, Image as ImageIcon, Loader, Send, Settings } from "lucide-react";
+import { AlertCircle, CheckCircle, Code, Eye, Github, Loader, Send, Settings } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useGitHubSettings } from "../../hooks/useGitHubSettings";
@@ -326,7 +326,7 @@ export function GitHubIssuePanel({ onOpenSettings }: { onOpenSettings: () => voi
               <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">
                 {title || "Issue Title"}
               </h1>
-              <div className="prose prose-sm dark:prose-invert max-w-none">
+              <div className="prose prose-sm dark:prose-invert max-w-none overflow-hidden break-words [&_pre]:overflow-x-auto [&_code]:break-all [&_a]:break-all">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
                   {sanitizedMarkdown || "*No content*"}
                 </ReactMarkdown>

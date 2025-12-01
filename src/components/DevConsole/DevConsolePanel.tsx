@@ -5,27 +5,27 @@
  */
 
 import {
-  Activity,
-  BookOpen,
-  Download,
-  Github,
-  Info,
-  // Monitor, // TODO: Re-enable when Terminal Stream API is ready
-  Network,
-  RefreshCw,
-  Send,
-  Settings,
-  Terminal,
-  Zap
+    Activity,
+    BookOpen,
+    Download,
+    Github,
+    Info,
+    // Monitor, // TODO: Re-enable when Terminal Stream API is ready
+    Network,
+    RefreshCw,
+    Send,
+    Settings,
+    Terminal,
+    Zap
 } from 'lucide-react';
 import { lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  copyContextPackToClipboard,
-  createContextPack,
-  exportContextPack,
+    copyContextPackToClipboard,
+    createContextPack,
+    exportContextPack,
 } from '../../lib/devConsole/contextPacker';
 import {
-  useDevConsoleStore
+    useDevConsoleStore
 } from '../../utils/stores/devConsole';
 const GraphQLExplorer = lazy(() => import('../DevConsole/GraphQLExplorerV2').then(module => ({default: module.GraphQLExplorerV2})));
 

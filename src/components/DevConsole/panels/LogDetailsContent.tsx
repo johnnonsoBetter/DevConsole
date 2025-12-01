@@ -172,8 +172,8 @@ export function LogDetailsContent({
         <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">
           Message
         </h4>
-        <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-          <p className="text-sm font-mono text-gray-900 dark:text-gray-100 whitespace-pre-wrap">
+        <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <p className="text-sm font-mono text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words overflow-wrap-anywhere">
             {selectedLog.message}
           </p>
         </div>
@@ -219,27 +219,27 @@ export function LogDetailsContent({
           <span className="text-xs">{expandedSections.metadata ? '▼' : '▶'}</span>
         </button>
         {expandedSections.metadata && (
-          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 space-y-2">
-            <div className="flex justify-between text-xs">
-              <span className="text-gray-500 dark:text-gray-400">Timestamp:</span>
-              <span className="text-gray-900 dark:text-gray-100 font-mono">
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 space-y-2 overflow-hidden">
+            <div className="flex justify-between text-xs gap-2">
+              <span className="text-gray-500 dark:text-gray-400 shrink-0">Timestamp:</span>
+              <span className="text-gray-900 dark:text-gray-100 font-mono truncate">
                 {new Date(selectedLog.timestamp).toISOString()}
               </span>
             </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-gray-500 dark:text-gray-400">Level:</span>
+            <div className="flex justify-between text-xs gap-2">
+              <span className="text-gray-500 dark:text-gray-400 shrink-0">Level:</span>
               <LogLevelChip level={selectedLog.level} />
             </div>
             {selectedLog.source && (
               <>
-                <div className="flex justify-between text-xs">
-                  <span className="text-gray-500 dark:text-gray-400">File:</span>
-                  <span className="text-gray-900 dark:text-gray-100 font-mono">
+                <div className="flex justify-between text-xs gap-2">
+                  <span className="text-gray-500 dark:text-gray-400 shrink-0">File:</span>
+                  <span className="text-gray-900 dark:text-gray-100 font-mono truncate" title={selectedLog.source.file}>
                     {selectedLog.source.file}
                   </span>
                 </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-gray-500 dark:text-gray-400">Line:</span>
+                <div className="flex justify-between text-xs gap-2">
+                  <span className="text-gray-500 dark:text-gray-400 shrink-0">Line:</span>
                   <span className="text-gray-900 dark:text-gray-100 font-mono">
                     {selectedLog.source.line}
                   </span>

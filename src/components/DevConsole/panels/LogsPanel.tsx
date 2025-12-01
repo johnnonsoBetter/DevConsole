@@ -3,7 +3,7 @@
  * Displays captured console logs with filtering and details panel
  */
 
-import { Brain, Code2, Github, Search, Sparkles, Trash2, Wrench, X, Zap } from 'lucide-react';
+import { Brain, Check, ChevronDown, ClipboardCopy, Code2, Download, Github, Search, Sparkles, Trash2, X, Zap } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useIsMobile } from '../../../hooks/useMediaQuery';
 import { useRaindropSettings } from '../../../hooks/useRaindropSettings';
@@ -11,7 +11,10 @@ import { createLogExplainer } from '../../../lib/ai/services/logExplainer';
 import { createMemoryEnhancedLogExplainer } from '../../../lib/ai/services/memoryEnhancedLogExplainer';
 import {
   copyLogContext,
+  downloadLogContext,
   generateLogContext,
+  getFormatOptions,
+  type ContextFormat,
   type LogData,
 } from '../../../lib/devConsole/logContextGenerator';
 import { cn } from '../../../utils';
@@ -83,6 +86,95 @@ export interface GitHubConfig {
 }
 
 // ============================================================================
+// LOG CONTEXT DROPDOWN COMPONENT
+// ============================================================================
+
+interface LogContextDropdownProps {
+  log: any;
+}
+
+/**
+ * Dropdown button for exporting log context in various formats
+ * Similar to NetworkContextDropdown but for log entries
+ */
+function LogContextDropdown({ log }: LogContextDropdownProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [copySuccess, setCopySuccess] = useState<string | null>(null);
+  
+  const formatOptions = getFormatOptions();
+
+  const logData: LogData = useMemo(() => ({
+    level: log.level,
+    message: log.message,
+    args: log.args || [],
+    stack: log.stack,
+    source: log.source,
+    timestamp: log.timestamp,
+    context: log.context,
+  }), [log]);
+
+  const handleCopy = useCallback(async (format: ContextFormat) => {
+    const success = await copyLogContext(logData, format);
+    if (success) {
+      setCopySuccess(format);
+      setTimeout(() => setCopySuccess(null), 2000);
+    }
+    setMenuOpen(false);
+  }, [logData]);
+
+  const handleDownload = useCallback((format: ContextFormat) => {
+    downloadLogContext(logData, format);
+    setMenuOpen(false);
+  }, [logData]);
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setMenuOpen(!menuOpen)}
+        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors bg-muted hover:bg-accent text-muted-foreground hover:text-accent-foreground"
+        title="Export context"
+      >
+        <Code2 className="w-3.5 h-3.5" />
+        <span>Context</span>
+        <ChevronDown className={cn('w-3 h-3 transition-transform', menuOpen && 'rotate-180')} />
+      </button>
+
+      {menuOpen && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+          <div className="absolute right-0 top-full mt-1 w-48 z-20 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 shadow-lg py-1">
+            <div className="px-2 py-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Copy</div>
+            {formatOptions.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => handleCopy(opt.value)}
+                className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-left hover:bg-gray-100 dark:hover:bg-gray-800"
+              >
+                <ClipboardCopy className="w-3 h-3 text-gray-400" />
+                <span className="flex-1 text-gray-700 dark:text-gray-300">{opt.label}</span>
+                {copySuccess === opt.value && <Check className="w-3 h-3 text-green-500" />}
+              </button>
+            ))}
+            <div className="border-t border-gray-100 dark:border-gray-800 my-1" />
+            <div className="px-2 py-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Download</div>
+            {formatOptions.slice(0, 4).map((opt) => (
+              <button
+                key={`dl-${opt.value}`}
+                onClick={() => handleDownload(opt.value)}
+                className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-left hover:bg-gray-100 dark:hover:bg-gray-800"
+              >
+                <Download className="w-3 h-3 text-gray-400" />
+                <span className="text-gray-700 dark:text-gray-300">{opt.label}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
 // LOG ROW COMPONENT
 // ============================================================================
 
@@ -98,20 +190,12 @@ interface LogRowProps {
  * Only re-renders when log or selection state changes
  */
 const LogRow = memo(({ log, isSelected, onSelect, style }: LogRowProps) => {
-  // Format source for better readability
-  const formattedSource = useMemo(() => {
-    if (!log.source?.file) return null;
-    // Extract just the filename
-    const filename = log.source.file.split('/').pop()?.split('?')[0] || log.source.file;
-    return `${filename}:${log.source.line || ''}`;
-  }, [log.source]);
-
   return (
     <div
       style={style}
       onClick={() => onSelect(log)}
       className={cn(
-        'border-b border-gray-100 dark:border-gray-800 cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50 grid grid-cols-[80px_1fr_128px_128px] sm:grid-cols-[80px_1fr_128px_128px] md:grid-cols-[80px_1fr_128px_128px] items-center',
+        'border-b border-gray-100 dark:border-gray-800 cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50 grid grid-cols-[80px_1fr_100px] sm:grid-cols-[80px_1fr_128px] items-center',
         isSelected && 'bg-primary/5'
       )}
     >
@@ -167,18 +251,6 @@ const LogRow = memo(({ log, isSelected, onSelect, style }: LogRowProps) => {
           {humanizeTime(log.timestamp)}
         </span>
       </div>
-
-      {/* Source - Secondary info (hidden on small screens) */}
-      <div className="px-3 sm:px-4 py-3 hidden md:block">
-        {formattedSource && (
-          <span 
-            className="text-xs text-gray-400 font-mono hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-            title={log.source?.file}
-          >
-            {formattedSource}
-          </span>
-        )}
-      </div>
     </div>
   );
 });
@@ -198,6 +270,8 @@ export function LogsPanel({ githubConfig }: LogsPanelProps) {
   const [selectedLog, setSelectedLog] = useState<any>(null);
   const [detailPanelWidth, setDetailPanelWidth] = useState(50);
   const [isResizing, setIsResizing] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 20;
   const resizeStartX = useRef(0);
   const resizeStartWidth = useRef(0);
   const isMobile = useIsMobile();
@@ -229,8 +303,54 @@ export function LogsPanel({ githubConfig }: LogsPanelProps) {
     setIsCopilotChatOpen(false);
   }, [selectedLog?.id]);
 
-  // Show only the most recent 10 logs for better performance and UX
-  const recentLogs = useMemo(() => logs.slice(0, 10), [logs]);
+  // Paginated logs with search filtering
+  const paginatedLogs = useMemo(() => {
+    let filtered = logs;
+    
+    // Apply search filter
+    if (search) {
+      const query = search.toLowerCase();
+      filtered = filtered.filter(log => 
+        log.message.toLowerCase().includes(query) ||
+        log.level.toLowerCase().includes(query)
+      );
+    }
+    
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    const end = start + ITEMS_PER_PAGE;
+    
+    return {
+      items: filtered.slice(start, end),
+      total: filtered.length,
+      totalPages: Math.ceil(filtered.length / ITEMS_PER_PAGE)
+    };
+  }, [logs, search, currentPage, ITEMS_PER_PAGE]);
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search]);
+
+  // Keyboard shortcuts for pagination
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      // Only handle if not typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      
+      if (e.ctrlKey && e.key === 'ArrowLeft') {
+        e.preventDefault();
+        setCurrentPage(p => Math.max(1, p - 1));
+      } else if (e.ctrlKey && e.key === 'ArrowRight') {
+        e.preventDefault();
+        setCurrentPage(p => Math.min(paginatedLogs.totalPages, p + 1));
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [paginatedLogs.totalPages]);
 
   // Check if AI is ready to use
   const isAIReady = useMemo(() => {
@@ -506,15 +626,15 @@ export function LogsPanel({ githubConfig }: LogsPanelProps) {
           </div>
         </div>
 
-        {/* Table - Simple List (First 10 Logs) */}
+        {/* Table - Paginated List */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          {recentLogs.length === 0 ? (
+          {paginatedLogs.items.length === 0 ? (
             <EmptyStateHelper type="logs" />
           ) : (
             <>
               {/* Table Header */}
               <div className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
-                <div className="grid grid-cols-[80px_1fr_128px_128px] sm:grid-cols-[80px_1fr_128px_128px] md:grid-cols-[80px_1fr_128px_128px] text-left text-sm">
+                <div className="grid grid-cols-[80px_1fr_100px] sm:grid-cols-[80px_1fr_128px] text-left text-sm">
                   <div className="px-3 sm:px-4 py-2 font-medium text-gray-700 dark:text-gray-300">
                     Level
                   </div>
@@ -524,15 +644,12 @@ export function LogsPanel({ githubConfig }: LogsPanelProps) {
                   <div className="px-3 sm:px-4 py-2 font-medium text-gray-700 dark:text-gray-300 hidden sm:block">
                     Time
                   </div>
-                  <div className="px-3 sm:px-4 py-2 font-medium text-gray-700 dark:text-gray-300 hidden md:block">
-                    Source
-                  </div>
                 </div>
               </div>
 
-              {/* Simple List - First 10 Logs */}
+              {/* Paginated List */}
               <div className="flex-1 overflow-auto">
-                {recentLogs.map((log) => (
+                {paginatedLogs.items.map((log) => (
                   <LogRow
                     key={log.id}
                     log={log}
@@ -542,6 +659,38 @@ export function LogsPanel({ githubConfig }: LogsPanelProps) {
                   />
                 ))}
               </div>
+              
+              {/* Pagination Controls */}
+              {paginatedLogs.totalPages > 1 && (
+                <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500 dark:text-gray-400">
+                      Showing {((currentPage - 1) * ITEMS_PER_PAGE) + 1}-{Math.min(currentPage * ITEMS_PER_PAGE, paginatedLogs.total)} of {paginatedLogs.total}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        className="px-2 py-1 rounded bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors"
+                        title="Previous page (Ctrl+←)"
+                      >
+                        ←
+                      </button>
+                      <span className="text-gray-700 dark:text-gray-300 font-medium">
+                        {currentPage} / {paginatedLogs.totalPages}
+                      </span>
+                      <button
+                        onClick={() => setCurrentPage(p => Math.min(paginatedLogs.totalPages, p + 1))}
+                        disabled={currentPage === paginatedLogs.totalPages}
+                        className="px-2 py-1 rounded bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors"
+                        title="Next page (Ctrl+→)"
+                      >
+                        →
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>
@@ -673,44 +822,7 @@ export function LogsPanel({ githubConfig }: LogsPanelProps) {
                       <Zap className="w-3.5 h-3.5" />
                       <span>Ask Copilot</span>
                     </button>
-                    <button
-                      onClick={async () => {
-                        const logData: LogData = {
-                          level: selectedLog.level,
-                          message: selectedLog.message,
-                          args: selectedLog.args || [],
-                          stack: selectedLog.stack,
-                          source: selectedLog.source,
-                          timestamp: selectedLog.timestamp,
-                          context: selectedLog.context,
-                        };
-                        await copyLogContext(logData, 'copilot');
-                      }}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors bg-success hover:bg-success/90 text-success-foreground"
-                      title="Copy for Copilot"
-                    >
-                      <Wrench className="w-3.5 h-3.5" />
-                      <span>Work</span>
-                    </button>
-                    <button
-                      onClick={async () => {
-                        const logData: LogData = {
-                          level: selectedLog.level,
-                          message: selectedLog.message,
-                          args: selectedLog.args || [],
-                          stack: selectedLog.stack,
-                          source: selectedLog.source,
-                          timestamp: selectedLog.timestamp,
-                          context: selectedLog.context,
-                        };
-                        await copyLogContext(logData, 'markdown');
-                      }}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors bg-muted hover:bg-accent text-muted-foreground hover:text-accent-foreground"
-                      title="Copy as Markdown"
-                    >
-                      <Code2 className="w-3.5 h-3.5" />
-                      <span>Context</span>
-                    </button>
+                    <LogContextDropdown log={selectedLog} />
                     <button
                       onClick={() => githubSlideoutStore.open(selectedLog)}
                       className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors bg-muted hover:bg-accent text-muted-foreground hover:text-accent-foreground"
