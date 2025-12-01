@@ -147,29 +147,6 @@ function setupMessageRelay() {
       transformedData = data;
     }
 
-    // Enhanced redaction for sensitive data
-    if (data.type === "DEVCONSOLE_NETWORK") {
-      if (
-        transformedData.payload.requestBody &&
-        typeof transformedData.payload.requestBody === "object"
-      ) {
-        redactSensitiveData(transformedData.payload.requestBody);
-      }
-      if (
-        transformedData.payload.responseBody &&
-        typeof transformedData.payload.responseBody === "object"
-      ) {
-        redactSensitiveData(transformedData.payload.responseBody);
-      }
-      // Redact sensitive headers
-      if (transformedData.payload.requestHeaders) {
-        redactSensitiveHeaders(transformedData.payload.requestHeaders);
-      }
-      if (transformedData.payload.responseHeaders) {
-        redactSensitiveHeaders(transformedData.payload.responseHeaders);
-      }
-    }
-
     // Estimate message size
     const messageSize = estimateMessageSize(transformedData);
 
@@ -332,93 +309,6 @@ function setupMessageRelay() {
       batchTimer = window.setTimeout(() => {
         flushMessageBuffer();
       }, BATCH_INTERVAL_MS);
-    }
-  }
-
-  /**
-   * Enhanced redaction for sensitive field values
-   */
-  function redactSensitiveData(obj: any) {
-    try {
-      // Expanded pattern to catch more sensitive data
-      const suspiciousPattern =
-        /pass(word)?|pwd|token|secret|auth|cookie|authorization|bearer|api[_-]?key|private[_-]?key|access[_-]?key|client[_-]?secret|session|ssn|social[_-]?security|credit[_-]?card|card[_-]?number|cvv|pin|account[_-]?number|routing[_-]?number/i;
-
-      // Patterns for values that look sensitive (regardless of key name)
-      const sensitiveValuePatterns = [
-        /^[A-Za-z0-9_-]{20,}$/, // Long alphanumeric strings (likely tokens)
-        /^sk_[a-z]+_[A-Za-z0-9]{20,}$/, // Stripe-like secret keys
-        /^ey[A-Za-z0-9_-]+\.ey[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/, // JWT tokens
-        /^ghp_[A-Za-z0-9]{36}$/, // GitHub personal access tokens
-        /^xox[bp]-[A-Za-z0-9-]+$/, // Slack tokens
-      ];
-
-      function walkObject(o: any, depth = 0) {
-        // Prevent infinite recursion
-        if (depth > 10 || !o || typeof o !== "object") return;
-
-        for (const key of Object.keys(o)) {
-          try {
-            const value = o[key];
-
-            // Check key name
-            if (suspiciousPattern.test(key)) {
-              o[key] = "[REDACTED]";
-              continue;
-            }
-
-            // Check value patterns for strings
-            if (typeof value === "string" && value.length > 15) {
-              for (const pattern of sensitiveValuePatterns) {
-                if (pattern.test(value)) {
-                  o[key] = "[REDACTED]";
-                  break;
-                }
-              }
-            }
-
-            // Recurse for nested objects
-            if (typeof value === "object" && value !== null) {
-              walkObject(value, depth + 1);
-            }
-          } catch (e) {
-            // Ignore property access errors
-          }
-        }
-      }
-
-      walkObject(obj);
-    } catch (e) {
-      // Ignore redaction errors
-    }
-  }
-
-  /**
-   * Redact sensitive headers (Authorization, Cookie, etc.)
-   */
-  function redactSensitiveHeaders(headers: Record<string, any>) {
-    try {
-      const sensitiveHeaders = [
-        "authorization",
-        "cookie",
-        "set-cookie",
-        "x-api-key",
-        "x-auth-token",
-        "x-csrf-token",
-        "x-access-token",
-        "api-key",
-        "apikey",
-        "auth-token",
-      ];
-
-      for (const key of Object.keys(headers)) {
-        const lowerKey = key.toLowerCase();
-        if (sensitiveHeaders.includes(lowerKey)) {
-          headers[key] = "[REDACTED]";
-        }
-      }
-    } catch (e) {
-      // Ignore redaction errors
     }
   }
 

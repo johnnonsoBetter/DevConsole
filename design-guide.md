@@ -1,6 +1,6 @@
 Clear UI Design Guide for Maximum Professional UI Development
 
-This guide transforms the LinkVybe Premium Design System V2 into a high-clarity, professional UI development manual specifically tailored for agent-focused applications.
+This guide transforms the Devconsole Premium Design System V2 into a high-clarity, professional UI development manual specifically tailored for agent-focused applications.
 
 ---
 

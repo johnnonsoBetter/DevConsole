@@ -54,13 +54,17 @@ export function analyzeError(error: Error): ErrorInsight {
         `Ensure the dependency is installed (check package.json)`,
       ],
       severity: "high",
-      docsUrl: "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Errors/Not_defined",
+      docsUrl:
+        "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Errors/Not_defined",
     };
   }
 
   // TypeError patterns
   if (name === "TypeError") {
-    if (message.includes("cannot read propert") || message.includes("cannot read properties of")) {
+    if (
+      message.includes("cannot read propert") ||
+      message.includes("cannot read properties of")
+    ) {
       return {
         category: "TypeError",
         title: "Null/Undefined Property Access",
@@ -72,7 +76,8 @@ export function analyzeError(error: Error): ErrorInsight {
           "Use default values or fallbacks",
         ],
         severity: "high",
-        docsUrl: "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Errors/Cant_access_property",
+        docsUrl:
+          "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Errors/Cant_access_property",
       };
     }
 
@@ -109,7 +114,11 @@ export function analyzeError(error: Error): ErrorInsight {
   }
 
   // Network/API errors
-  if (message.includes("fetch") || message.includes("network") || message.includes("request")) {
+  if (
+    message.includes("fetch") ||
+    message.includes("network") ||
+    message.includes("request")
+  ) {
     return {
       category: "NetworkError",
       title: "Network Request Failed",
@@ -147,17 +156,17 @@ export function analyzeError(error: Error): ErrorInsight {
  */
 async function urlToAbsolutePath(urlPath: string): Promise<string> {
   // Remove protocol and domain
-  let path = urlPath.replace(/^https?:\/\/[^/]+/, '');
+  let path = urlPath.replace(/^https?:\/\/[^/]+/, "");
 
   // Remove query params and hash
-  path = path.split('?')[0].split('#')[0];
+  path = path.split("?")[0].split("#")[0];
 
   // Extract workspace root from the URL path itself
-  // Look for patterns like: /@fs/Users/chinonsojohn/linkvybe/linkvybe/web/...
+  // Look for patterns like: /@fs/Users/chinonsojohn/Devconsole/Devconsole/web/...
   const fsMatch = path.match(/\/@fs(\/[^?]+)/);
   if (fsMatch) {
     // Already has full absolute path
-    return fsMatch[1].split('?')[0];
+    return fsMatch[1].split("?")[0];
   }
 
   // For development URLs without @fs prefix, try to reconstruct the path
@@ -165,7 +174,7 @@ async function urlToAbsolutePath(urlPath: string): Promise<string> {
   const workspaceRoot = await getWorkspaceRoot();
 
   // If path starts with /src, it's a web file
-  if (path.startsWith('/src/')) {
+  if (path.startsWith("/src/")) {
     return `${workspaceRoot}/web${path}`;
   }
 
@@ -175,7 +184,7 @@ async function urlToAbsolutePath(urlPath: string): Promise<string> {
   }
 
   // Otherwise assume it's relative to web/src
-  return `${workspaceRoot}/web/src${path.startsWith('/') ? path : '/' + path}`;
+  return `${workspaceRoot}/web/src${path.startsWith("/") ? path : "/" + path}`;
 }
 
 /**
@@ -186,10 +195,10 @@ async function getWorkspaceRoot(): Promise<string> {
   // Try to extract from error stack traces that might contain @fs paths
   try {
     const error = new Error();
-    const stack = error.stack || '';
+    const stack = error.stack || "";
     const fsMatch = stack.match(/\/@fs(\/[^/]+\/[^/]+\/[^/]+\/[^/]+)/);
     if (fsMatch) {
-      // Extract something like /Users/chinonsojohn/linkvybe/linkvybe
+      // Extract something like /Users/chinonsojohn/Devconsole/Devconsole
       return fsMatch[1];
     }
   } catch (e) {
@@ -198,9 +207,9 @@ async function getWorkspaceRoot(): Promise<string> {
 
   // Fallback: Allow user to configure via chrome.storage
   try {
-    const result = await chrome.storage.local.get('devConsole:workspaceRoot');
-    if (result['devConsole:workspaceRoot']) {
-      return result['devConsole:workspaceRoot'];
+    const result = await chrome.storage.local.get("devConsole:workspaceRoot");
+    if (result["devConsole:workspaceRoot"]) {
+      return result["devConsole:workspaceRoot"];
     }
   } catch (e) {
     // Ignore
@@ -208,10 +217,12 @@ async function getWorkspaceRoot(): Promise<string> {
 
   // Ultimate fallback - user will need to configure this
   // For now, return empty string and rely on @fs paths
-  return '';
+  return "";
 }
 
-export async function parseStackTrace(stack: string): Promise<ParsedStackFrame[]> {
+export async function parseStackTrace(
+  stack: string
+): Promise<ParsedStackFrame[]> {
   if (!stack) return [];
 
   const frames: ParsedStackFrame[] = [];
@@ -227,7 +238,8 @@ export async function parseStackTrace(stack: string): Promise<ParsedStackFrame[]
     const [, functionName, fullPath, lineStr, columnStr] = match;
     const file = fullPath.split("/").pop() || fullPath;
     const isNodeModules = fullPath.includes("node_modules");
-    const isUserCode = !isNodeModules && !fullPath.includes("vite") && !fullPath.includes("@fs");
+    const isUserCode =
+      !isNodeModules && !fullPath.includes("vite") && !fullPath.includes("@fs");
 
     // Convert URL to absolute file path
     const absolutePath = await urlToAbsolutePath(fullPath);
@@ -249,7 +261,9 @@ export async function parseStackTrace(stack: string): Promise<ParsedStackFrame[]
 /**
  * Group consecutive React internal frames
  */
-export function groupStackFrames(frames: ParsedStackFrame[]): Array<ParsedStackFrame | ParsedStackFrame[]> {
+export function groupStackFrames(
+  frames: ParsedStackFrame[]
+): Array<ParsedStackFrame | ParsedStackFrame[]> {
   const grouped: Array<ParsedStackFrame | ParsedStackFrame[]> = [];
   let reactInternals: ParsedStackFrame[] = [];
 
@@ -326,12 +340,16 @@ function getBrowserInfo(): string {
 /**
  * Generate VS Code URI for opening files
  */
-export async function generateVSCodeUri(filePath: string, line?: number, column?: number): Promise<string> {
+export async function generateVSCodeUri(
+  filePath: string,
+  line?: number,
+  column?: number
+): Promise<string> {
   // Ensure we have an absolute path
   let absolutePath = filePath;
 
   // If it's a URL, convert it first
-  if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+  if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
     absolutePath = await urlToAbsolutePath(filePath);
   }
 

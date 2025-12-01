@@ -25,11 +25,41 @@ interface StickyNoteProps {
 }
 
 const STICKY_COLORS = [
-  { name: 'yellow', bg: 'bg-yellow-100', border: 'border-yellow-300', text: 'text-gray-900' },
-  { name: 'pink', bg: 'bg-pink-100', border: 'border-pink-300', text: 'text-gray-900' },
-  { name: 'blue', bg: 'bg-blue-100', border: 'border-blue-300', text: 'text-gray-900' },
-  { name: 'green', bg: 'bg-green-100', border: 'border-green-300', text: 'text-gray-900' },
-  { name: 'purple', bg: 'bg-purple-100', border: 'border-purple-300', text: 'text-gray-900' },
+  { 
+    name: 'yellow', 
+    bg: 'bg-yellow-100 dark:bg-amber-950', 
+    border: 'border-yellow-300 dark:border-amber-700', 
+    text: 'text-gray-900 dark:text-amber-100',
+    swatch: 'bg-yellow-400 dark:bg-amber-500'
+  },
+  { 
+    name: 'pink', 
+    bg: 'bg-pink-100 dark:bg-pink-950', 
+    border: 'border-pink-300 dark:border-pink-700', 
+    text: 'text-gray-900 dark:text-pink-100',
+    swatch: 'bg-pink-400 dark:bg-pink-500'
+  },
+  { 
+    name: 'blue', 
+    bg: 'bg-blue-100 dark:bg-blue-950', 
+    border: 'border-blue-300 dark:border-blue-700', 
+    text: 'text-gray-900 dark:text-blue-100',
+    swatch: 'bg-blue-400 dark:bg-blue-500'
+  },
+  { 
+    name: 'green', 
+    bg: 'bg-green-100 dark:bg-emerald-950', 
+    border: 'border-green-300 dark:border-emerald-700', 
+    text: 'text-gray-900 dark:text-emerald-100',
+    swatch: 'bg-green-400 dark:bg-emerald-500'
+  },
+  { 
+    name: 'purple', 
+    bg: 'bg-purple-100 dark:bg-purple-950', 
+    border: 'border-purple-300 dark:border-purple-700', 
+    text: 'text-gray-900 dark:text-purple-100',
+    swatch: 'bg-purple-400 dark:bg-purple-500'
+  },
 ];
 
 // ============================================================================
@@ -316,10 +346,10 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
       <div
         ref={setNodeRef}
         className={cn(
-          'fixed z-50 shadow-2xl rounded-full transition-all cursor-pointer hover:scale-110',
+          'fixed z-50 shadow-lg rounded-full transition-all cursor-pointer hover:scale-110',
           colorConfig.bg,
           colorConfig.border,
-          'border-2 w-16 h-16 flex items-center justify-center',
+          'border w-14 h-14 flex items-center justify-center',
           isDragging && 'scale-105'
         )}
         style={{
@@ -332,9 +362,9 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
         title={`${generateTitle(content)} - Click to restore`}
       >
         <div className="flex flex-col items-center justify-center">
-          <Pin className={cn('w-6 h-6', isPinned && 'fill-current text-red-500')} />
+          <Pin className={cn('w-5 h-5', colorConfig.text, isPinned && 'fill-current text-red-500 dark:text-red-400')} />
           {screenshot && (
-            <Camera className="w-3 h-3 absolute bottom-2 right-2" />
+            <Camera className={cn('w-3 h-3 absolute bottom-2 right-2', colorConfig.text)} />
           )}
         </div>
       </div>
@@ -345,11 +375,11 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
     <div
       ref={setNodeRef}
       className={cn(
-        'fixed z-50 shadow-2xl rounded-lg overflow-hidden transition-all',
+        'fixed z-50 shadow-xl rounded-xl overflow-hidden transition-all',
         colorConfig.bg,
         colorConfig.border,
-        'border-2',
-        isDragging && 'scale-105',
+        'border',
+        isDragging && 'scale-[1.02] shadow-2xl',
         isExpanded ? 'w-[500px] h-[600px]' : 'w-[320px] h-[380px]'
       )}
       style={{
@@ -403,9 +433,9 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
       {/* Header - Drag Handle */}
       <div
         className={cn(
-          'flex items-center justify-between p-3 border-b-2',
+          'flex items-center justify-between p-3 border-b',
           colorConfig.border,
-          'bg-gradient-to-b from-white/40 to-transparent dark:from-black/20',
+          'bg-white/30 dark:bg-white/5',
           isDragging ? 'cursor-grabbing' : 'cursor-grab'
         )}
         {...listeners}
@@ -418,8 +448,8 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
             }}
             onMouseDown={(e) => e.stopPropagation()}
             className={cn(
-              'p-1.5 rounded hover:bg-white/50 dark:hover:bg-gray-700/50 transition-colors flex items-center justify-center',
-              isPinned && 'text-red-500'
+              'p-1.5 rounded-md hover:bg-white/50 dark:hover:bg-white/10 transition-colors flex items-center justify-center',
+              isPinned ? 'text-red-500 dark:text-red-400' : colorConfig.text
             )}
             title={isPinned ? 'Unpin' : 'Pin'}
           >
@@ -427,7 +457,7 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
           </button>
 
           {isSaving && (
-            <span className="text-xs text-gray-500 animate-pulse">Saving...</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400 animate-pulse">Saving...</span>
           )}
         </div>
 
@@ -440,7 +470,8 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
             onMouseDown={(e) => e.stopPropagation()}
             disabled={isCapturing}
             className={cn(
-              'p-1.5 rounded hover:bg-white/50 dark:hover:bg-gray-700/50 transition-colors flex items-center justify-center',
+              'p-1.5 rounded-md hover:bg-white/50 dark:hover:bg-white/10 transition-colors flex items-center justify-center',
+              colorConfig.text,
               isCapturing && 'opacity-50 cursor-wait'
             )}
             title="Capture Screenshot"
@@ -454,7 +485,10 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
               setIsExpanded((prev) => !prev);
             }}
             onMouseDown={(e) => e.stopPropagation()}
-            className="p-1.5 rounded hover:bg-white/50 dark:hover:bg-gray-700/50 transition-colors flex items-center justify-center"
+            className={cn(
+              'p-1.5 rounded-md hover:bg-white/50 dark:hover:bg-white/10 transition-colors flex items-center justify-center',
+              colorConfig.text
+            )}
             title={isExpanded ? 'Compact View' : 'Expand View'}
           >
             {isExpanded ? (
@@ -470,7 +504,10 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
               setIsMinimized((prev) => !prev);
             }}
             onMouseDown={(e) => e.stopPropagation()}
-            className="p-1.5 rounded hover:bg-white/50 dark:hover:bg-gray-700/50 transition-colors flex items-center justify-center"
+            className={cn(
+              'p-1.5 rounded-md hover:bg-white/50 dark:hover:bg-white/10 transition-colors flex items-center justify-center',
+              colorConfig.text
+            )}
             title={isMinimized ? 'Restore' : 'Minimize to Title Bar'}
           >
             <Minus className="w-4 h-4" />
@@ -482,10 +519,10 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
               handleDelete();
             }}
             onMouseDown={(e) => e.stopPropagation()}
-            className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/50 hover:text-red-600 dark:hover:text-red-400 transition-colors flex items-center justify-center"
+            className="p-1.5 rounded-md hover:bg-red-100 dark:hover:bg-red-500/20 hover:text-red-600 dark:hover:text-red-400 transition-colors flex items-center justify-center"
             title="Delete"
           >
-            <Trash2 className="w-4 h-4" />
+            <Trash2 className={cn('w-4 h-4', colorConfig.text)} />
           </button>
 
           <button
@@ -494,7 +531,10 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
               onClose();
             }}
             onMouseDown={(e) => e.stopPropagation()}
-            className="p-1.5 rounded hover:bg-white/50 dark:hover:bg-gray-700/50 transition-colors flex items-center justify-center"
+            className={cn(
+              'p-1.5 rounded-md hover:bg-white/50 dark:hover:bg-white/10 transition-colors flex items-center justify-center',
+              colorConfig.text
+            )}
             title="Close"
           >
             <X className="w-4 h-4" />
@@ -512,17 +552,17 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
           }}
           onMouseDown={(e) => e.stopPropagation()}
           className={cn(
-            'p-2.5 rounded-lg transition-all duration-200',
-            'bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm',
-            'border-2 border-gray-300 dark:border-gray-600',
-            'hover:border-success hover:bg-success/10 hover:scale-110',
+            'p-2.5 rounded-xl transition-all duration-200',
+            'bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm',
+            'border border-gray-200 dark:border-gray-600/50',
+            'hover:border-success hover:bg-success/10 dark:hover:bg-success/20 hover:scale-105',
             'active:scale-95',
-            'shadow-lg hover:shadow-xl',
+            'shadow-md hover:shadow-lg',
             'group'
           )}
           title="Convert to GitHub Issue"
         >
-          <Github className="w-5 h-5 text-gray-700 dark:text-gray-300 group-hover:text-success transition-colors" />
+          <Github className="w-4 h-4 text-gray-600 dark:text-gray-300 group-hover:text-success transition-colors" />
         </button>
 
         {/* Ask Copilot Button */}
@@ -533,17 +573,17 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
           }}
           onMouseDown={(e) => e.stopPropagation()}
           className={cn(
-            'p-2.5 rounded-lg transition-all duration-200',
-            'bg-gradient-to-r from-blue-500/90 to-purple-500/90 backdrop-blur-sm',
-            'border-2 border-blue-400/50 dark:border-purple-500/50',
-            'hover:from-blue-600 hover:to-purple-600 hover:scale-110',
+            'p-2.5 rounded-xl transition-all duration-200',
+            'bg-gradient-to-br from-blue-500 to-purple-600 dark:from-blue-600 dark:to-purple-700',
+            'border border-blue-400/30 dark:border-purple-500/30',
+            'hover:from-blue-600 hover:to-purple-700 hover:scale-105',
             'active:scale-95',
-            'shadow-lg hover:shadow-xl',
+            'shadow-md hover:shadow-lg',
             'group'
           )}
           title="Ask Copilot about this note"
         >
-          <Zap className="w-5 h-5 text-white" />
+          <Zap className="w-4 h-4 text-white" />
         </button>
       </div>
 
@@ -558,7 +598,7 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
               <img
                 src={screenshot}
                 alt="Screenshot"
-                className="w-full h-24 object-cover rounded border-2 border-gray-300 dark:border-gray-600 cursor-pointer hover:opacity-90 transition-opacity"
+                className="w-full h-24 object-cover rounded-lg border border-gray-300/50 dark:border-gray-600/50 cursor-pointer hover:opacity-90 transition-opacity"
                 onClick={(e) => {
                   e.stopPropagation();
                   // Open in new tab for full view
@@ -574,13 +614,13 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
                   e.stopPropagation();
                   handleRemoveScreenshot();
                 }}
-                className="absolute top-1 right-1 p-0.5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                className="absolute top-1.5 right-1.5 p-1 bg-red-500 dark:bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 dark:hover:bg-red-500"
                 title="Remove screenshot"
                 onMouseDown={(e) => e.stopPropagation()}
               >
                 <X className="w-3 h-3" />
               </button>
-              <div className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-black/60 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="absolute bottom-1.5 left-1.5 px-2 py-1 bg-black/70 text-white text-[10px] rounded-md opacity-0 group-hover:opacity-100 transition-opacity">
                 Click to view full size
               </div>
             </div>
@@ -595,7 +635,8 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
             className={cn(
               'flex-1 w-full px-2 py-1 bg-transparent border-none outline-none resize-none',
               colorConfig.text,
-              'placeholder:text-gray-500 dark:placeholder:text-gray-400'
+              'placeholder:text-gray-500/70 dark:placeholder:text-gray-400/70',
+              'leading-relaxed'
             )}
             onClick={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
@@ -605,8 +646,8 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
       </div>
 
       {/* Footer with color picker */}
-      <div className={cn('p-3 border-t-2', colorConfig.border, 'bg-gradient-to-t from-white/40 dark:from-black/20 to-transparent')}>
-        <div className="flex items-center justify-center gap-2">
+      <div className={cn('p-3 border-t', colorConfig.border, 'bg-white/20 dark:bg-white/5')}>
+        <div className="flex items-center justify-center gap-3">
           {STICKY_COLORS.map((color) => (
             <button
               key={color.name}
@@ -616,10 +657,10 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
               }}
               onMouseDown={(e) => e.stopPropagation()}
               className={cn(
-                'w-8 h-8 rounded-full border-2 transition-all hover:scale-110 flex items-center justify-center',
-                color.bg,
-                color.border,
-                selectedColor === color.name && 'ring-2 ring-gray-600 dark:ring-gray-400 ring-offset-1 dark:ring-offset-gray-800'
+                'w-7 h-7 rounded-full border transition-all hover:scale-110 flex items-center justify-center',
+                color.swatch,
+                'border-gray-300/50 dark:border-gray-500/50',
+                selectedColor === color.name && 'ring-2 ring-primary ring-offset-2 dark:ring-offset-gray-900 scale-110'
               )}
               title={`Change to ${color.name}`}
             />

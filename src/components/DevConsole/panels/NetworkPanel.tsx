@@ -532,12 +532,6 @@ function NetworkRequestDetails({
           </button>
           {expandedSections.requestBody && (
             <div>
-              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-2 mb-2">
-                <p className="text-xs text-yellow-800 dark:text-yellow-300 flex items-center gap-1">
-                  <span>⚠️</span>
-                  <span>May contain sensitive data (API keys, credentials)</span>
-                </p>
-              </div>
               <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
                 <LazyReactJson data={request.requestBody} isDarkMode={isDarkMode} name="body" />
               </div>
@@ -601,12 +595,6 @@ function NetworkRequestDetails({
           </button>
           {expandedSections.responseBody && (
             <div>
-              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-2 mb-2">
-                <p className="text-xs text-yellow-800 dark:text-yellow-300 flex items-center gap-1">
-                  <span>⚠️</span>
-                  <span>May contain sensitive data</span>
-                </p>
-              </div>
               <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 max-h-96 overflow-auto">
                 <LazyReactJson data={request.responseBody} isDarkMode={isDarkMode} name="response" />
               </div>

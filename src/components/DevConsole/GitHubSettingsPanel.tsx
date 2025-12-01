@@ -290,7 +290,7 @@ export function GitHubSettingsPanel() {
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   Create a token at:{" "}
                   <a
-                    href="https://github.com/settings/tokens/new?scopes=repo&description=LinkVybe%20DevConsole"
+                    href="https://github.com/settings/tokens/new?scopes=repo&description=Devconsole%20DevConsole"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-primary hover:underline"
@@ -402,7 +402,7 @@ export function GitHubSettingsPanel() {
             <ol className="text-xs text-gray-700 dark:text-gray-300 space-y-1 list-decimal list-inside">
               <li>Go to GitHub Settings → Developer settings → Personal access tokens</li>
               <li>Click "Generate new token" (classic)</li>
-              <li>Give it a descriptive name (e.g., "LinkVybe DevConsole")</li>
+              <li>Give it a descriptive name (e.g., "Devconsole DevConsole")</li>
               <li>Select the <code className="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">repo</code> scope</li>
               <li>Click "Generate token" and copy it immediately</li>
               <li>Paste the token here and save your settings</li>

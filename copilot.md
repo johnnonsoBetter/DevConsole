@@ -46,8 +46,8 @@ DevTools Bridge → Zustand Stores → React DevConsole Tabs
 - **StorageService**: Prefer `StorageService.setState` over direct `chrome.storage` writes to keep caching, debouncing, and error logging consistent.
 - **Cleanup**: When adding message handlers or listeners, mirror teardown paths (`chrome.runtime.onMessage.removeListener`, tab removal hooks) to avoid leaks after DevTools closes.
 
-## UI & Design System Essentials (LinkVybe Premium V2)
-This repo aligns with the LinkVybe Premium Design System V2 described in `design-guide.md`. Treat these rules as non-negotiable:
+## UI & Design System Essentials (Devconsole Premium V2)
+This repo aligns with the Devconsole Premium Design System V2 described in `design-guide.md`. Treat these rules as non-negotiable:
 
 ### Palette & Semantics
 - **Color tokens**: `--primary` (Purple hsl(262,83%,58%)/dark hsl(262,80%,65%)), `--secondary` (Indigo hsl(221,83%,53%)), `--success`, `--warning`, `--destructive`, `--info` as documented. Keep tokens in Tailwind config + CSS vars.
@@ -74,7 +74,7 @@ This repo aligns with the LinkVybe Premium Design System V2 described in `design
 - **Introduce a DevConsole tab/section**: Build component under `src/components/DevConsole/panels/`, register in `CONSOLE_TABS`, choose `lucide-react` icon, and guard heavy bundles with `lazy()`.
 - **Persist new settings**: Update `ExtensionSettings` schema + helper functions, ensure `StateManager.updateSettings` respects new flags, add UI controls in `UnifiedSettingsPanel` with optimistic loading + validation per `SETTINGS_IMPLEMENTATION.md`.
 - **Extend AI providers**: Add adapter in `src/lib/ai/services/aiClient.ts`, expose config in `AISettingsPanel` + store, support streaming responses, and gate UI with availability checks from `useChromeAI` or provider metadata.
-- **Autofill persona/data tweaks**: Modify `src/lib/autofill/datastore.ts`, keep schema docs in `Input.md` synchronized, and verify overlay styles stay compliant with LinkVybe tone.
+- **Autofill persona/data tweaks**: Modify `src/lib/autofill/datastore.ts`, keep schema docs in `Input.md` synchronized, and verify overlay styles stay compliant with Devconsole tone.
 - **GraphQL endpoints**: Use `graphqlSettings.ts` helpers to normalize/test URIs, update Unified Settings forms, and ensure GraphiQL default headers remain redaction-safe.
 - **Chrome AI panel updates**: Respect Canary flag detection (`useChromeAI`), display download states, and never surface actions if on-device models unavailable.
 
@@ -89,7 +89,7 @@ This repo aligns with the LinkVybe Premium Design System V2 described in `design
 
 ## Documentation Radar
 - `ARCHITECTURE.md`: canonical flow diagrams + messaging contracts.
-- `design-guide.md`: LinkVybe design requirements (keep this doc in sync when UI conventions change).
+- `design-guide.md`: Devconsole design requirements (keep this doc in sync when UI conventions change).
 - `AI_FEATURE_SUMMARY.md`, `AI_LOG_EXPLAINER.md`, `AI_QUICK_START.md`: AI UX & troubleshooting.
 - `SETTINGS_*` trio: architecture, implementation, and UX rationale for the unified settings surface.
 - `Input.md`: Autofill personas, schema, and debugging flow.

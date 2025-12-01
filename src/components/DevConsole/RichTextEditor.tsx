@@ -16,16 +16,16 @@ import {
   ListOrdered,
   Quote,
 } from 'lucide-react';
+import { setBlockType, toggleMark, wrapIn } from 'prosemirror-commands';
 import { exampleSetup } from 'prosemirror-example-setup';
 import {
   defaultMarkdownParser,
   defaultMarkdownSerializer,
   schema as markdownSchema,
 } from 'prosemirror-markdown';
+import { wrapInList } from 'prosemirror-schema-list';
 import { Command, EditorState } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
-import { toggleMark, setBlockType, wrapIn } from 'prosemirror-commands';
-import { wrapInList } from 'prosemirror-schema-list';
 import { useEffect, useRef, useState } from 'react';
 import { cn } from '../../utils';
 
@@ -136,6 +136,24 @@ export function RichTextEditor({
   }, [content]);
 
   const toggleView = () => {
+    // When switching to markdown mode, get the current content from the editor
+    if (!showMarkdown && viewRef.current) {
+      const currentMarkdown = defaultMarkdownSerializer.serialize(viewRef.current.state.doc);
+      setMarkdownText(currentMarkdown);
+    }
+    // When switching back to rich text mode, update the editor with markdown content
+    if (showMarkdown && viewRef.current) {
+      const doc = defaultMarkdownParser.parse(markdownText) || markdownSchema.node('doc', null, [
+        markdownSchema.node('paragraph'),
+      ]);
+      const state = EditorState.create({
+        doc,
+        plugins: exampleSetup({ schema: markdownSchema }),
+      });
+      viewRef.current.updateState(state);
+      contentRef.current = markdownText;
+      onChange(markdownText);
+    }
     setShowMarkdown(!showMarkdown);
   };
 

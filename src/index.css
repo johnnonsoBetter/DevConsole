@@ -7,7 +7,7 @@
 @layer base {
   :root {
     /*
-      ===== LINKVYBE PREMIUM DESIGN SYSTEM V2 =====
+      ===== Devconsole PREMIUM DESIGN SYSTEM V2 =====
       Apple-inspired color palette refined for premium consistency
       Optimized HSL values for better harmony and accessibility
     */
@@ -20,7 +20,7 @@
     --popover: 0 0% 100%;
     --popover-foreground: 240 10% 3.9%;
 
-    /* === Brand Primary (LinkVybe Signature Purple) === */
+    /* === Brand Primary (Devconsole Signature Purple) === */
     --primary: 262 83% 58%; /* Refined purple - perfectly balanced */
     --primary-foreground: 0 0% 98%;
 
