@@ -349,15 +349,13 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
         colorConfig.bg,
         colorConfig.border,
         'border-2',
-        isDragging && 'cursor-grabbing scale-105',
-        !isDragging && 'cursor-grab',
+        isDragging && 'scale-105',
         isExpanded ? 'w-[500px] h-[600px]' : 'w-[320px] h-[380px]'
       )}
       style={{
         left: `${translatedPosition.x}px`,
         top: `${translatedPosition.y}px`,
       }}
-      {...listeners}
       {...attributes}
     >
       {/* Notification Toast */}
@@ -402,19 +400,25 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
         </div>
       )}
 
-      {/* Header */}
+      {/* Header - Drag Handle */}
       <div
         className={cn(
           'flex items-center justify-between p-3 border-b-2',
           colorConfig.border,
-          'bg-gradient-to-b from-white/40 to-transparent'
+          'bg-gradient-to-b from-white/40 to-transparent dark:from-black/20',
+          isDragging ? 'cursor-grabbing' : 'cursor-grab'
         )}
+        {...listeners}
       >
         <div className="flex items-center gap-2 flex-1">
           <button
-            onClick={handleTogglePin}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleTogglePin();
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
             className={cn(
-              'p-1.5 rounded hover:bg-white/50 transition-colors flex items-center justify-center',
+              'p-1.5 rounded hover:bg-white/50 dark:hover:bg-gray-700/50 transition-colors flex items-center justify-center',
               isPinned && 'text-red-500'
             )}
             title={isPinned ? 'Unpin' : 'Pin'}
@@ -429,10 +433,14 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
 
         <div className="flex items-center gap-1">
           <button
-            onClick={handleCaptureScreenshot}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleCaptureScreenshot();
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
             disabled={isCapturing}
             className={cn(
-              'p-1.5 rounded  dark:bg-muted hover:bg-white/50 transition-colors flex items-center justify-center',
+              'p-1.5 rounded hover:bg-white/50 dark:hover:bg-gray-700/50 transition-colors flex items-center justify-center',
               isCapturing && 'opacity-50 cursor-wait'
             )}
             title="Capture Screenshot"
@@ -441,8 +449,12 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
           </button>
 
           <button
-            onClick={() => setIsExpanded((prev) => !prev)}
-            className="p-1.5 rounded hover:bg-white/50 transition-colors flex items-center justify-center"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsExpanded((prev) => !prev);
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+            className="p-1.5 rounded hover:bg-white/50 dark:hover:bg-gray-700/50 transition-colors flex items-center justify-center"
             title={isExpanded ? 'Compact View' : 'Expand View'}
           >
             {isExpanded ? (
@@ -453,24 +465,36 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
           </button>
 
           <button
-            onClick={() => setIsMinimized((prev) => !prev)}
-            className="p-1.5 rounded hover:bg-white/50 transition-colors flex items-center justify-center"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsMinimized((prev) => !prev);
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+            className="p-1.5 rounded hover:bg-white/50 dark:hover:bg-gray-700/50 transition-colors flex items-center justify-center"
             title={isMinimized ? 'Restore' : 'Minimize to Title Bar'}
           >
             <Minus className="w-4 h-4" />
           </button>
 
           <button
-            onClick={handleDelete}
-            className="p-1.5 rounded hover:bg-red-100 hover:text-red-600 transition-colors flex items-center justify-center"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDelete();
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+            className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/50 hover:text-red-600 dark:hover:text-red-400 transition-colors flex items-center justify-center"
             title="Delete"
           >
             <Trash2 className="w-4 h-4" />
           </button>
 
           <button
-            onClick={onClose}
-            className="p-1.5 rounded hover:bg-white/50 transition-colors flex items-center justify-center"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+            className="p-1.5 rounded hover:bg-white/50 dark:hover:bg-gray-700/50 transition-colors flex items-center justify-center"
             title="Close"
           >
             <X className="w-4 h-4" />
@@ -524,14 +548,17 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
       </div>
 
       {/* Content */}
-      <div className="p-4 h-[calc(100%-8rem)] flex flex-col gap-3 overflow-y-auto">
+      <div 
+        className="p-4 h-[calc(100%-8rem)] flex flex-col gap-3 overflow-y-auto"
+        onPointerDown={(e) => e.stopPropagation()}
+      >
           {/* Screenshot Preview - Compact */}
           {screenshot && (
             <div className="relative group">
               <img
                 src={screenshot}
                 alt="Screenshot"
-                className="w-full h-24 object-cover rounded border-2 border-gray-300 cursor-pointer hover:opacity-90 transition-opacity"
+                className="w-full h-24 object-cover rounded border-2 border-gray-300 dark:border-gray-600 cursor-pointer hover:opacity-90 transition-opacity"
                 onClick={(e) => {
                   e.stopPropagation();
                   // Open in new tab for full view
@@ -568,25 +595,31 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
             className={cn(
               'flex-1 w-full px-2 py-1 bg-transparent border-none outline-none resize-none',
               colorConfig.text,
-              'placeholder:text-gray-500'
+              'placeholder:text-gray-500 dark:placeholder:text-gray-400'
             )}
             onClick={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
           />
       </div>
 
       {/* Footer with color picker */}
-      <div className={cn('p-3 border-t-2', colorConfig.border, 'bg-gradient-to-t from-white/40 to-transparent')}>
+      <div className={cn('p-3 border-t-2', colorConfig.border, 'bg-gradient-to-t from-white/40 dark:from-black/20 to-transparent')}>
         <div className="flex items-center justify-center gap-2">
           {STICKY_COLORS.map((color) => (
             <button
               key={color.name}
-              onClick={() => setSelectedColor(color.name)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedColor(color.name);
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
               className={cn(
                 'w-8 h-8 rounded-full border-2 transition-all hover:scale-110 flex items-center justify-center',
                 color.bg,
                 color.border,
-                selectedColor === color.name && 'ring-2 ring-gray-600 ring-offset-1'
+                selectedColor === color.name && 'ring-2 ring-gray-600 dark:ring-gray-400 ring-offset-1 dark:ring-offset-gray-800'
               )}
               title={`Change to ${color.name}`}
             />

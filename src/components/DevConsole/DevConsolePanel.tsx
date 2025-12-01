@@ -35,6 +35,7 @@ import { useCodeActionsStore, useGitHubIssueSlideoutStore } from '../../utils/st
 import { useAISettingsStore } from '../../utils/stores/aiSettings';
 import { useGitHubSettingsStore } from '../../utils/stores/githubSettings';
 import { BetterTabs } from '../ui/better-tabs';
+import { AutofillToggle } from './AutofillToggle';
 import { GitHubIssueSlideout } from './GitHubIssueSlideout';
 import { GitHubIssuesTab } from './GitHubIssuesTab';
 import { CodeActionsPanel } from './panels/CodeActionsPanel';
@@ -198,6 +199,7 @@ export function DevConsolePanel({ githubConfig }: DevConsolePanelProps = {}) {
 
           {/* Right: Actions */}
           <div className="flex  items-center gap-2">
+            <AutofillToggle size="sm" className="sm:h-9 sm:w-9" />
             <ThemeToggle size="sm" className="sm:h-9 sm:w-9" />
 
           

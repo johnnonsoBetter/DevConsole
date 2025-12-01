@@ -34,8 +34,6 @@ import type { LogExplanationData } from '../LogExplanation';
 import { LogExplanation } from '../LogExplanation';
 import { MobileBottomSheet, MobileBottomSheetContent } from '../MobileBottomSheet';
 
-import { DurationSparkline } from '../Sparkline';
-
 // ============================================================================
 // NOTIFICATION TOAST COMPONENT
 // ============================================================================
@@ -216,21 +214,12 @@ interface NetworkRowProps {
   isSelected: boolean;
   onSelect: (request: any) => void;
   style: React.CSSProperties;
-  endpointStats: Record<string, number[]>;
 }
 
 /**
  * Memoized NetworkRow component for virtualization
  */
-const NetworkRow = memo(({ request: req, isSelected, onSelect, style, endpointStats }: NetworkRowProps) => {
-  const endpoint = useMemo(() => {
-    try {
-      return new URL(req.url, window.location.origin).pathname;
-    } catch {
-      return req.url;
-    }
-  }, [req.url]);
-  
+const NetworkRow = memo(({ request: req, isSelected, onSelect, style }: NetworkRowProps) => {
   // Format request name like Chrome DevTools
   const requestName = useMemo(() => {
     try {
@@ -271,8 +260,6 @@ const NetworkRow = memo(({ request: req, isSelected, onSelect, style, endpointSt
       return req.url;
     }
   }, [req.url, req.type]);
-  
-  const trendData = useMemo(() => endpointStats[endpoint]?.slice(-20) || [], [endpointStats, endpoint]);
 
   // Check if request has error (status is truly missing with error, not just undefined)
   const hasError = !!req.error;
@@ -284,7 +271,7 @@ const NetworkRow = memo(({ request: req, isSelected, onSelect, style, endpointSt
       style={style}
       onClick={() => onSelect(req)}
       className={cn(
-        'border-b border-gray-100 dark:border-gray-800 cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50 grid grid-cols-[80px_120px_1fr_112px_80px] sm:grid-cols-[96px_128px_1fr_112px_80px] md:grid-cols-[96px_128px_1fr_112px_80px] items-center',
+        'border-b border-gray-100 dark:border-gray-800 cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50 grid grid-cols-[80px_100px_1fr] sm:grid-cols-[96px_120px_1fr] items-center',
         isSelected && 'bg-primary/5',
         hasError && 'bg-red-50/50 dark:bg-red-900/10 border-red-200 dark:border-red-900/30'
       )}
@@ -326,30 +313,8 @@ const NetworkRow = memo(({ request: req, isSelected, onSelect, style, endpointSt
             <span title={new Date(req.timestamp).toLocaleString()}>
               {humanizeTime(req.timestamp)}
             </span>
-            <span className="sm:hidden">
-              <DurationChip duration={req.duration || 0} threshold={500} />
-            </span>
           </div>
         </div>
-      </div>
-
-      {/* Duration */}
-      <div className="px-3 sm:px-4 py-3 hidden sm:block">
-        <DurationChip duration={req.duration || 0} threshold={500} />
-      </div>
-
-      {/* Trend */}
-      <div className="px-3 sm:px-4 py-3 hidden md:block">
-        {trendData.length > 1 ? (
-          <DurationSparkline
-            data={trendData}
-            width={60}
-            height={20}
-            threshold={500}
-          />
-        ) : (
-          <span className="text-gray-400 text-xs">—</span>
-        )}
       </div>
     </div>
   );
@@ -936,29 +901,6 @@ export function NetworkPanel() {
   }, [paginatedRequests.totalPages]);
 
   /**
-   * Group ALL requests by endpoint for accurate sparkline visualization
-   * Memoized to avoid recalculation on every render
-   * Uses full dataset to show true performance trends, not just visible items
-   */
-  const endpointStats = useMemo(() => {
-    return networkRequests.reduce(
-      (acc, req) => {
-        try {
-          const endpoint = new URL(req.url, window.location.origin).pathname;
-          if (!acc[endpoint]) {
-            acc[endpoint] = [];
-          }
-          acc[endpoint].push(req.duration || 0);
-        } catch {
-          // Handle invalid URLs gracefully
-        }
-        return acc;
-      },
-      {} as Record<string, number[]>
-    );
-  }, [networkRequests]);
-
-  /**
    * Handle horizontal resize of detail panel
    */
   const handleResizeStart = useCallback(
@@ -1054,7 +996,7 @@ export function NetworkPanel() {
             <>
               {/* Table Header */}
               <div className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
-                <div className="grid grid-cols-[80px_120px_1fr_112px_80px] sm:grid-cols-[96px_128px_1fr_112px_80px] md:grid-cols-[96px_128px_1fr_112px_80px] text-left text-sm">
+                <div className="grid grid-cols-[80px_100px_1fr] sm:grid-cols-[96px_120px_1fr] text-left text-sm">
                   <div className="px-3 sm:px-4 py-2 font-medium text-gray-700 dark:text-gray-300">
                     Method
                   </div>
@@ -1063,12 +1005,6 @@ export function NetworkPanel() {
                   </div>
                   <div className="px-3 sm:px-4 py-2 font-medium text-gray-700 dark:text-gray-300">
                     URL
-                  </div>
-                  <div className="px-3 sm:px-4 py-2 font-medium text-gray-700 dark:text-gray-300 hidden sm:block">
-                    Duration
-                  </div>
-                  <div className="px-3 sm:px-4 py-2 font-medium text-gray-700 dark:text-gray-300 hidden md:block">
-                    Trend
                   </div>
                 </div>
               </div>
@@ -1082,7 +1018,6 @@ export function NetworkPanel() {
                     isSelected={selectedRequest?.id === request.id}
                     onSelect={setSelectedRequest}
                     style={{}}
-                    endpointStats={endpointStats}
                   />
                 ))}
               </div>

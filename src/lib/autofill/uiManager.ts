@@ -3,11 +3,6 @@
  * Handles blue icons, suggestion boxes, and Fill All button injection
  */
 
-/**
- * UI Manager for Autofill Extension
- * Handles blue icons, suggestion boxes, and Fill All button injection
- */
-
 import { detectInputType } from "./fieldDetector";
 import {
   fillAllInputs,
@@ -37,6 +32,33 @@ const iconRegistry = new Map<
 
 // Global event listeners for performance (Single listener instead of N listeners)
 let globalListenersAttached = false;
+
+/**
+ * Cleanup all autofill UI elements
+ */
+export function cleanupAutofillUI(): void {
+  // Remove all icons
+  iconRegistry.forEach(({ icon }) => {
+    if (icon.parentNode) {
+      icon.remove();
+    }
+  });
+  iconRegistry.clear();
+
+  // Remove suggestion box
+  if (suggestionBox) {
+    suggestionBox.remove();
+    suggestionBox = null;
+  }
+
+  // Remove fill all button
+  if (fillAllButton) {
+    fillAllButton.remove();
+    fillAllButton = null;
+  }
+
+  currentInput = null;
+}
 
 function ensureGlobalListeners() {
   if (globalListenersAttached) return;
@@ -629,7 +651,11 @@ export function enhanceInputs(): void {
  * Setup keyboard shortcuts
  */
 export function setupKeyboardShortcuts(): void {
-  document.addEventListener("keydown", (e) => {
+  document.addEventListener("keydown", async (e) => {
+    // Check if autofill is enabled
+    const { getIsAutofillEnabled } = await import("./index");
+    if (!getIsAutofillEnabled()) return;
+
     // Alt+` for individual input
     if (e.altKey && e.key === "`") {
       const activeElement = document.activeElement;

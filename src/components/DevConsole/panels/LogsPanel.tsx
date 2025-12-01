@@ -10,12 +10,12 @@ import { useRaindropSettings } from '../../../hooks/useRaindropSettings';
 import { createLogExplainer } from '../../../lib/ai/services/logExplainer';
 import { createMemoryEnhancedLogExplainer } from '../../../lib/ai/services/memoryEnhancedLogExplainer';
 import {
-  copyLogContext,
-  downloadLogContext,
-  generateLogContext,
-  getFormatOptions,
-  type ContextFormat,
-  type LogData,
+    copyLogContext,
+    downloadLogContext,
+    generateLogContext,
+    getFormatOptions,
+    type ContextFormat,
+    type LogData,
 } from '../../../lib/devConsole/logContextGenerator';
 import { cn } from '../../../utils';
 import { useGitHubIssueSlideoutStore } from '../../../utils/stores';

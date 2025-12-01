@@ -1,8 +1,8 @@
 
 import { useGitHubIssueSlideoutStore } from "@/utils/stores";
 import DOMPurify from "dompurify";
-import { useState } from "react";
 import { AlertCircle, CheckCircle, Code, Eye, Github, Loader, Send, Settings } from "lucide-react";
+import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useGitHubSettings } from "../../hooks/useGitHubSettings";
