@@ -5,31 +5,33 @@
  */
 
 import {
-    Activity,
-    BookOpen,
-    Download,
-    Github,
-    Info,
-    Network,
-    RefreshCw,
-    Send,
-    Settings,
-    Terminal,
-    Zap
+  Activity,
+  BookOpen,
+  Download,
+  Github,
+  Info,
+  // Monitor, // TODO: Re-enable when Terminal Stream API is ready
+  Network,
+  RefreshCw,
+  Send,
+  Settings,
+  Terminal,
+  Zap
 } from 'lucide-react';
 import { lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import {
-    copyContextPackToClipboard,
-    createContextPack,
-    exportContextPack,
+  copyContextPackToClipboard,
+  createContextPack,
+  exportContextPack,
 } from '../../lib/devConsole/contextPacker';
 import {
-    useDevConsoleStore
+  useDevConsoleStore
 } from '../../utils/stores/devConsole';
 const GraphQLExplorer = lazy(() => import('../DevConsole/GraphQLExplorerV2').then(module => ({default: module.GraphQLExplorerV2})));
 
 import { StickyNoteButton } from '../../features/notes';
 import { useCodeActionsStore, useGitHubIssueSlideoutStore } from '../../utils/stores';
+// import { useTerminalStreamStore } from '../../utils/stores'; // TODO: Re-enable when Terminal Stream API is ready
 import { useAISettingsStore } from '../../utils/stores/aiSettings';
 import { useGitHubSettingsStore } from '../../utils/stores/githubSettings';
 import { BetterTabs } from '../ui/better-tabs';
@@ -39,6 +41,7 @@ import { CodeActionsPanel } from './panels/CodeActionsPanel';
 import { LogsPanel } from './panels/LogsPanel';
 import { NetworkPanel } from './panels/NetworkPanel';
 import { NotesPanel } from './panels/NotesPanel';
+// import { TerminalPanel } from './panels/TerminalPanel'; // TODO: Re-enable when Terminal Stream API is ready
 import { ThemeToggle } from './ThemeToggle';
 import { UnifiedSettingsPanel } from './UnifiedSettingsPanel';
 
@@ -60,6 +63,7 @@ export interface GitHubConfig {
 const CONSOLE_TABS = [
   { id: 'logs', label: 'Logs', icon: Terminal },
   { id: 'network', label: 'Network', icon: Network },
+  // { id: 'terminal', label: 'Terminal', icon: Monitor }, // TODO: Re-enable when Terminal Stream API is ready
   { id: 'notes', label: 'Notes', icon: BookOpen },
   { id: 'actions', label: 'Actions', icon: Send },
   { id: 'graphql', label: 'GraphQL', icon: Zap },
@@ -101,6 +105,9 @@ export function DevConsolePanel({ githubConfig }: DevConsolePanelProps = {}) {
     ).length
   );
 
+  // Get terminal stream message count for badge
+  // const terminalMessageCount = useTerminalStreamStore((state) => state.totalMessagesReceived); // TODO: Re-enable when Terminal Stream API is ready
+
   // Use prop githubConfig if provided, otherwise use settings from store
   const effectiveGithubConfig =
     githubConfig ||
@@ -139,6 +146,7 @@ export function DevConsolePanel({ githubConfig }: DevConsolePanelProps = {}) {
                 />
               )}
               {tab.id === 'network' && <NetworkPanel />}
+              {/* {tab.id === 'terminal' && <TerminalPanel />} */}{/* TODO: Re-enable when Terminal Stream API is ready */}
               {tab.id === 'notes' && <NotesPanel />}
               {tab.id === 'actions' && <CodeActionsPanel />}
               {tab.id === 'graphql' && <GraphQLExplorer />}

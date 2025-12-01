@@ -7,42 +7,44 @@
  */
 
 import {
-    Bot,
-    Brain,
-    CheckCircle,
-    ChevronRight,
-    ExternalLink,
-    Eye,
-    EyeOff,
-    Github,
-    Image,
-    Info,
-    Loader,
-    Save,
-    Settings,
-    Shield,
-    TestTube,
-    Webhook,
-    XCircle,
-    Zap
+  Bot,
+  Brain,
+  CheckCircle,
+  ChevronRight,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  Github,
+  Image,
+  Info,
+  Loader,
+  Monitor,
+  Save,
+  Settings,
+  Shield,
+  TestTube,
+  Webhook,
+  Wifi,
+  XCircle,
+  Zap
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useGitHubSettings, type GitHubSettings } from "../../hooks/useGitHubSettings";
 import { testGitHubConnection } from "../../lib/devConsole/githubApi";
 import {
-    clearGraphQLSettings,
-    loadGraphQLSettings,
-    saveGraphQLSettings,
-    testGraphQLConnection,
-    validateGraphQLEndpoint,
-    type GraphQLSettings,
+  clearGraphQLSettings,
+  loadGraphQLSettings,
+  saveGraphQLSettings,
+  testGraphQLConnection,
+  validateGraphQLEndpoint,
+  type GraphQLSettings,
 } from "../../lib/devConsole/graphqlSettings";
 import { cn } from "../../utils";
 import {
-    clearUnsplashConfig,
-    loadUnsplashConfig,
-    saveUnsplashConfig,
-    type UnsplashConfig,
+  clearUnsplashConfig,
+  loadUnsplashConfig,
+  saveUnsplashConfig,
+  type UnsplashConfig,
 } from "../../utils/extensionSettings";
 import { AISettingsPanel } from "./AISettingsPanel";
 import { RaindropSettingsPanel } from "./RaindropSettingsPanel";
@@ -1145,6 +1147,196 @@ function StatusBanner({ type, message }: StatusBannerProps) {
 }
 
 // ============================================================================
+// TERMINAL STREAM SETTINGS COMPONENT
+// ============================================================================
+
+function TerminalStreamSettings() {
+  const [terminalStreamUrl, setTerminalStreamUrl] = useState('ws://localhost:9091');
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const [testStatus, setTestStatus] = useState<{ type: StatusType; message: string }>({ type: null, message: '' });
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<{ type: StatusType; message: string }>({ type: null, message: '' });
+
+  // Load saved Terminal Stream URL on mount
+  useEffect(() => {
+    chrome.storage.local.get(['terminalStreamUrl'], (result) => {
+      if (result.terminalStreamUrl) {
+        setTerminalStreamUrl(result.terminalStreamUrl);
+      }
+    });
+  }, []);
+
+  const handleTestConnection = async () => {
+    setIsTestingConnection(true);
+    setTestStatus({ type: null, message: '' });
+
+    try {
+      const { terminalStream } = await import('../../lib/webhookCopilot/terminalStreamService');
+      const health = await terminalStream.checkHealth();
+      
+      if (health.available) {
+        setTestStatus({
+          type: 'success',
+          message: `✅ Terminal Stream server is available!\n\nStatus: ${health.status}`,
+        });
+      } else {
+        setTestStatus({
+          type: 'error',
+          message: `❌ Cannot connect to Terminal Stream.\n\n${health.error || 'Server not reachable'}\n\nMake sure:\n1. VS Code is running\n2. Terminal Stream is enabled in Webhook Copilot settings\n3. Server is running on port 9091`,
+        });
+      }
+    } catch (error) {
+      console.error('Terminal Stream test failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      setTestStatus({
+        type: 'error',
+        message: `❌ Connection test failed: ${errorMessage}`,
+      });
+    } finally {
+      setIsTestingConnection(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    setSaveStatus({ type: null, message: '' });
+
+    try {
+      await chrome.storage.local.set({ terminalStreamUrl });
+      
+      setSaveStatus({
+        type: 'success',
+        message: '✅ Terminal Stream URL saved!',
+      });
+
+      const { terminalStream } = await import('../../lib/webhookCopilot/terminalStreamService');
+      terminalStream.setUrl(terminalStreamUrl);
+    } catch (error) {
+      console.error('Failed to save Terminal Stream URL:', error);
+      setSaveStatus({
+        type: 'error',
+        message: '❌ Failed to save URL',
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="card p-6 mb-6">
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-4">
+        <div className="p-2 bg-cyan-500/10 rounded-lg">
+          <Monitor className="w-5 h-5 text-cyan-600" />
+        </div>
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+            Terminal Stream
+          </h3>
+          <p className="text-xs text-muted-foreground">
+            Real-time terminal output from VS Code
+          </p>
+        </div>
+      </div>
+
+      {/* Status Banners */}
+      {testStatus.type && (
+        <div className="mb-4">
+          <StatusBanner type={testStatus.type} message={testStatus.message} />
+        </div>
+      )}
+
+      {saveStatus.type && (
+        <div className="mb-4">
+          <StatusBanner type={saveStatus.type} message={saveStatus.message} />
+        </div>
+      )}
+
+      {/* URL Configuration */}
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            WebSocket URL
+          </label>
+          <input
+            type="text"
+            value={terminalStreamUrl}
+            onChange={(e) => setTerminalStreamUrl(e.target.value)}
+            placeholder="ws://localhost:9091"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Default: ws://localhost:9091
+          </p>
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            onClick={handleTestConnection}
+            disabled={isTestingConnection || !terminalStreamUrl}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all",
+              isTestingConnection
+                ? "bg-gray-300 dark:bg-gray-700 text-gray-500 cursor-not-allowed"
+                : "bg-cyan-500 hover:bg-cyan-600 text-white shadow-sm hover:shadow-md"
+            )}
+          >
+            {isTestingConnection ? (
+              <>
+                <Loader className="w-4 h-4 animate-spin" />
+                Testing...
+              </>
+            ) : (
+              <>
+                <Wifi className="w-4 h-4" />
+                Test Connection
+              </>
+            )}
+          </button>
+
+          <button
+            onClick={handleSave}
+            disabled={isSaving || !terminalStreamUrl}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all",
+              isSaving
+                ? "bg-gray-300 dark:bg-gray-700 text-gray-500 cursor-not-allowed"
+                : "bg-success hover:bg-success/90 text-white shadow-sm hover:shadow-md"
+            )}
+          >
+            {isSaving ? (
+              <>
+                <Loader className="w-4 h-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                Save
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Features Info */}
+      <div className="mt-6 p-4 bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-700 rounded-lg">
+        <h4 className="text-sm font-semibold text-cyan-800 dark:text-cyan-300 mb-2">
+          Terminal Stream Features
+        </h4>
+        <ul className="text-xs text-cyan-700 dark:text-cyan-400 space-y-1 list-disc list-inside">
+          <li>Stream real-time output from all VS Code terminals</li>
+          <li>View command output, build logs, and test results</li>
+          <li>Subscribe to specific terminals or all at once</li>
+          <li>Auto-reconnect on connection loss</li>
+          <li>Configurable output buffer (up to 10,000 lines)</li>
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
 // WEBHOOK COPILOT SETTINGS SECTION
 // ============================================================================
 
@@ -1383,6 +1575,9 @@ function WebhookSettingsSection() {
           </div>
         </div>
       </div>
+
+      {/* Terminal Stream Section */}
+      <TerminalStreamSettings />
 
       {/* Available Actions */}
       <div className="card p-6">
