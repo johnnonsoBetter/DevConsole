@@ -10,6 +10,7 @@ import {
   Clipboard,
   Clock,
   Code2,
+  Image as ImageIcon,
   Loader2,
   RefreshCw,
   Send,
@@ -18,7 +19,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { webhookCopilot } from '../../../lib/webhookCopilot/webhookService';
 import {
   CodeAction,
@@ -133,6 +134,14 @@ function ActionItem({ action, onRetry, onCopy, onRemove }: ActionItemProps) {
           <span className="capitalize">{action.source.replace('-', ' ')}</span>
         </div>
 
+        {/* Image Badge */}
+        {action.imageCount && action.imageCount > 0 && (
+          <div className="flex-shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-xs text-purple-600 dark:text-purple-400">
+            <ImageIcon className="w-3 h-3" />
+            <span>{action.imageCount}</span>
+          </div>
+        )}
+
         {/* Prompt Preview */}
         <div className="flex-1 min-w-0">
           <p className="text-sm text-gray-900 dark:text-gray-100 truncate">
@@ -168,6 +177,14 @@ function ActionItem({ action, onRetry, onCopy, onRemove }: ActionItemProps) {
       {/* Expanded Details */}
       {isExpanded && (
         <div className="px-3 pb-3 pt-1 border-t border-gray-200 dark:border-gray-700 bg-white/50 dark:bg-black/20">
+          {/* Images Attached */}
+          {action.imageCount && action.imageCount > 0 && (
+            <div className="mb-2 flex items-center gap-2 text-xs text-purple-600 dark:text-purple-400">
+              <ImageIcon className="w-3.5 h-3.5 flex-shrink-0" />
+              <span>{action.imageCount} image{action.imageCount > 1 ? 's' : ''} attached</span>
+            </div>
+          )}
+
           {/* Full Prompt */}
           <div className="mb-2">
             <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
@@ -265,6 +282,7 @@ function EmptyState() {
         Send logs or notes to VS Code Copilot and they'll appear here. Use the{' '}
         <span className="font-medium">Copilot</span> button in Logs or the{' '}
         <span className="font-medium">Code</span> button on Sticky Notes.
+        You can also attach screenshots for visual context.
       </p>
     </div>
   );
@@ -276,55 +294,9 @@ function EmptyState() {
 
 export function CodeActionsPanel() {
   const { actions, removeAction, clearAll, clearCompleted, updateAction } = useCodeActionsStore();
-  const [isPolling, setIsPolling] = useState<Set<string>>(new Set());
 
-  // Poll for status updates on queued/processing actions
-  useEffect(() => {
-    const activeActions = actions.filter(
-      (a) => (a.status === 'processing' || a.status === 'sending' || a.status === 'queued') && a.requestId && !isPolling.has(a.id)
-    );
-
-    activeActions.forEach(async (action) => {
-      if (!action.requestId) return;
-      
-      setIsPolling((prev) => new Set(prev).add(action.id));
-      
-      const result = await webhookCopilot.pollForCompletion(action.requestId, {
-        maxAttempts: 60, // Longer for queued tasks
-        intervalMs: 2000,
-        onStatusChange: (status, queuePosition) => {
-          if (status === 'processing') {
-            updateAction(action.id, { status: 'processing', queuePosition: undefined });
-          } else if (status === 'queued') {
-            updateAction(action.id, { status: 'queued', queuePosition });
-          }
-        },
-      });
-
-      if (result.completed) {
-        updateAction(action.id, {
-          status: result.status === 'completed' ? 'completed' : 'failed',
-          error: result.error,
-          queuePosition: undefined,
-          completedAt: Date.now(),
-        });
-      } else {
-        // Polling failed or timed out - mark as failed to stop retrying
-        updateAction(action.id, {
-          status: 'failed',
-          error: result.error || 'Lost connection to VS Code',
-          queuePosition: undefined,
-          completedAt: Date.now(),
-        });
-      }
-
-      setIsPolling((prev) => {
-        const next = new Set(prev);
-        next.delete(action.id);
-        return next;
-      });
-    });
-  }, [actions, isPolling, updateAction]);
+  // Note: Status polling removed for now to simplify debugging
+  // Actions will show their last known status without auto-updates
 
   const handleRetry = useCallback(async (action: CodeAction) => {
     updateAction(action.id, { status: 'sending', sentAt: Date.now(), error: undefined, queuePosition: undefined });
