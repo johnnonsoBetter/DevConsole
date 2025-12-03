@@ -5,27 +5,27 @@
  */
 
 import {
-    Activity,
-    BookOpen,
-    Download,
-    Github,
-    Info,
-    // Monitor, // TODO: Re-enable when Terminal Stream API is ready
-    Network,
-    RefreshCw,
-    Send,
-    Settings,
-    Terminal,
-    Zap
+  // Activity, // TODO: Re-enable when Tools panel is needed
+  BookOpen,
+  // Download, // TODO: Re-enable when Tools panel is needed
+  Github,
+  // Info, // TODO: Re-enable when Tools panel is needed
+  // Monitor, // TODO: Re-enable when Terminal Stream API is ready
+  Network,
+  // RefreshCw, // TODO: Re-enable when Tools panel is needed
+  Settings,
+  Terminal,
 } from 'lucide-react';
-import { lazy, useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, useEffect, useMemo, useState } from 'react';
+import { GraphQLIcon, LogoIcon } from '../../icons';
+// TODO: Re-enable when Tools panel is needed
+// import {
+//     copyContextPackToClipboard,
+//     createContextPack,
+//     exportContextPack,
+// } from '../../lib/devConsole/contextPacker';
 import {
-    copyContextPackToClipboard,
-    createContextPack,
-    exportContextPack,
-} from '../../lib/devConsole/contextPacker';
-import {
-    useDevConsoleStore
+  useDevConsoleStore
 } from '../../utils/stores/devConsole';
 const GraphQLExplorer = lazy(() => import('../DevConsole/GraphQLExplorerV2').then(module => ({default: module.GraphQLExplorerV2})));
 
@@ -36,6 +36,7 @@ import { useAISettingsStore } from '../../utils/stores/aiSettings';
 import { useGitHubSettingsStore } from '../../utils/stores/githubSettings';
 import { BetterTabs } from '../ui/better-tabs';
 import { AutofillToggle } from './AutofillToggle';
+import { EnvironmentBadge } from './EnvironmentBadge';
 import { GitHubIssueSlideout } from './GitHubIssueSlideout';
 import { GitHubIssuesTab } from './GitHubIssuesTab';
 import { CodeActionsPanel } from './panels/CodeActionsPanel';
@@ -66,9 +67,9 @@ const CONSOLE_TABS = [
   { id: 'network', label: 'Network', icon: Network },
   // { id: 'terminal', label: 'Terminal', icon: Monitor }, // TODO: Re-enable when Terminal Stream API is ready
   { id: 'notes', label: 'Notes', icon: BookOpen },
-  { id: 'actions', label: 'Actions', icon: Send },
-  { id: 'graphql', label: 'GraphQL', icon: Zap },
-  { id: 'tools', label: 'Tools', icon: Activity },
+  { id: 'actions', label: 'Actions', icon: VSCodeIcon },
+  { id: 'graphql', label: 'GraphQL', icon: GraphQLIcon },
+  // { id: 'tools', label: 'Tools', icon: Activity }, // TODO: Re-enable Tools panel when needed
   { id: 'github', label: 'GitHub', icon: Github },
   { id: 'settings', label: 'Settings', icon: Settings },
 ] as const;
@@ -151,7 +152,7 @@ export function DevConsolePanel({ githubConfig }: DevConsolePanelProps = {}) {
               {tab.id === 'notes' && <NotesPanel />}
               {tab.id === 'actions' && <CodeActionsPanel />}
               {tab.id === 'graphql' && <GraphQLExplorer />}
-              {tab.id === 'tools' && <ToolsPanel />}
+              {/* {tab.id === 'tools' && <ToolsPanel />} */}{/* TODO: Re-enable when Tools panel is needed */}
               {tab.id === 'github' && (
                 <GitHubIssuesTab
                   githubConfig={effectiveGithubConfig || undefined}
@@ -180,15 +181,20 @@ export function DevConsolePanel({ githubConfig }: DevConsolePanelProps = {}) {
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200 dark:border-gray-800 bg-gradient-to-r from-primary/5 to-secondary/5">
           {/* Left: Title & Badge */}
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
-              <Terminal className="w-4 h-4 text-white" />
-            </div>
+              <div className='w-11 h-11 rounded-lg bg-primary' >
+              <LogoIcon size={40} className=" text-gray-50 w-10 h-10" />
+
+              </div>
+            
             <div>
               <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                Developer Console
+                DevConsole
               </h2>
               <p className="text-xs text-muted-foreground">{new Date().toLocaleTimeString()}</p>
             </div>
+
+            {/* Environment Badge - shows Dev Mode or Remote */}
+            <EnvironmentBadge compact />
 
             {unreadErrorCount > 0 && (
               <div className="px-2 py-0.5 bg-destructive text-white text-xs font-semibold rounded-full">
@@ -224,21 +230,17 @@ export function DevConsolePanel({ githubConfig }: DevConsolePanelProps = {}) {
 }
 
 // ============================================================================
-// TOOLS PANEL
+// TOOLS PANEL (TODO: Re-enable when needed)
 // ============================================================================
 
-/**
+/*
  * ToolsPanel Component
  * Provides developer utilities for exporting data and creating context packs
- */
+ *
 function ToolsPanel() {
   const { logsToBeExported, clearAll } = useDevConsoleStore();
   const [isGenerating, setIsGenerating] = useState(false);
 
-  /**
-   * Create and export a comprehensive context pack
-   * Includes screenshots, logs, network requests, and metadata
-   */
   const handleCreateContextPack = useCallback(async () => {
     setIsGenerating(true);
     try {
@@ -248,13 +250,11 @@ function ToolsPanel() {
         networkCount: 10,
       });
 
-      // Try to copy to clipboard first
       const copied = await copyContextPackToClipboard(pack);
 
       if (copied) {
         alert('📋 Context pack copied to clipboard!\n\nPaste into your issue tracker.');
       } else {
-        // Fallback: download as file
         exportContextPack(pack);
         alert('📦 Context pack downloaded!\n\nAttach to your issue tracker.');
       }
@@ -266,9 +266,6 @@ function ToolsPanel() {
     }
   }, []);
 
-  /**
-   * Export all logs as JSON to clipboard
-   */
   const handleExportLogs = useCallback(async () => {
     const data = logsToBeExported || "";
     try {
@@ -276,7 +273,6 @@ function ToolsPanel() {
       alert('📋 Logs copied to clipboard!');
     } catch (error) {
       console.error('Clipboard error:', error);
-      // Fallback: use textarea method
       const textArea = document.createElement('textarea');
       textArea.value = data;
       textArea.style.position = 'fixed';
@@ -289,9 +285,6 @@ function ToolsPanel() {
     }
   }, [logsToBeExported]);
 
-  /**
-   * Clear all console data with confirmation
-   */
   const handleClearAll = useCallback(() => {
     if (confirm('Are you sure you want to clear all console data?')) {
       clearAll();
@@ -307,7 +300,6 @@ function ToolsPanel() {
         <p className="text-sm text-muted-foreground">Export data and manage console state</p>
       </div>
 
-      {/* Featured Context Pack Tool */}
       <div className="card bg-gradient-to-br from-primary/5 via-primary/3 to-secondary/5 border-primary/10 hover:border-primary/20 transition-all duration-200">
         <button
           onClick={handleCreateContextPack}
@@ -335,7 +327,6 @@ function ToolsPanel() {
         </button>
       </div>
 
-      {/* Quick Actions Grid */}
       <div>
         <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-3">Quick Actions</h4>
         <div className="grid grid-cols-2 gap-3">
@@ -371,7 +362,6 @@ function ToolsPanel() {
         </div>
       </div>
 
-      {/* Help Section */}
       <div className="card bg-info/5 border-info/20">
         <div className="p-4">
           <div className="flex items-start gap-3">
@@ -394,3 +384,4 @@ function ToolsPanel() {
     </div>
   );
 }
+*/
