@@ -209,6 +209,18 @@ const DEFAULT_FILTER: ConsoleFilter = {
   search: "",
 };
 
+const RECENT_LOGS_STORAGE_KEY = "devConsoleRecentLogs";
+
+const persistRecentLogs = (logs: LogEntry[]) => {
+  try {
+    chrome.storage?.local?.set?.({
+      [RECENT_LOGS_STORAGE_KEY]: logs.slice(0, 20),
+    });
+  } catch (error) {
+    console.warn("[DevConsole] Failed to persist recent logs", error);
+  }
+};
+
 export const useDevConsoleStore = create<IStore>((set) => ({
   isDragging: false,
   isOpen: false,
@@ -268,21 +280,26 @@ export const useDevConsoleStore = create<IStore>((set) => ({
     ),
 
   addLog: (log) =>
-    set(
-      produce((draft) => {
-        const newLog: LogEntry = {
-          ...log,
-          id: `log-${Date.now()}-${Math.random()}`,
-          timestamp: Date.now(),
-        };
+    set((state) => {
+      const newLog: LogEntry = {
+        ...log,
+        id: `log-${Date.now()}-${Math.random()}`,
+        timestamp: Date.now(),
+      };
 
-        draft.logs = [newLog, ...draft.logs].slice(0, draft.maxLogs);
+      const logs = [newLog, ...state.logs].slice(0, state.maxLogs);
+      const unreadErrorCount =
+        newLog.level === "error" && !state.isOpen
+          ? state.unreadErrorCount + 1
+          : state.unreadErrorCount;
 
-        if (newLog.level === "error" && !draft.isOpen) {
-          draft.unreadErrorCount += 1;
-        }
-      })
-    ),
+      persistRecentLogs(logs);
+
+      return {
+        logs,
+        unreadErrorCount,
+      };
+    }),
 
   addNetworkRequest: (request) =>
     set(
@@ -336,12 +353,10 @@ export const useDevConsoleStore = create<IStore>((set) => ({
     ),
 
   clearLogs: () =>
-    set(
-      produce((draft) => {
-        draft.logs = [];
-        draft.unreadErrorCount = 0;
-      })
-    ),
+    set(() => {
+      persistRecentLogs([]);
+      return { logs: [], unreadErrorCount: 0 };
+    }),
 
   clearNetwork: () =>
     set(
@@ -365,15 +380,16 @@ export const useDevConsoleStore = create<IStore>((set) => ({
     ),
 
   clearAll: () =>
-    set(
-      produce((draft) => {
-        draft.logs = [];
-        draft.networkRequests = [];
-        draft.stateSnapshots = [];
-        draft.performanceMetrics = [];
-        draft.unreadErrorCount = 0;
-      })
-    ),
+    set(() => {
+      persistRecentLogs([]);
+      return {
+        logs: [],
+        networkRequests: [],
+        stateSnapshots: [],
+        performanceMetrics: [],
+        unreadErrorCount: 0,
+      };
+    }),
   setFilter: (filter) =>
     set(
       produce((draft) => {
