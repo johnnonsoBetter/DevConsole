@@ -16,8 +16,7 @@ export default defineConfig({
       input: {
         devtools: "src/devtools/devtools.html",
         panel: "src/devtools/index.html",
-        popup: "public/popup.html",
-        popupScript: "public/popup.js",
+        popup: "src/popup/index.html",
         "page-hook-logic": "src/content/page-hook-logic.ts",
         landing: "src/landing/index.html",
       },
