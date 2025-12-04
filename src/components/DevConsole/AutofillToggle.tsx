@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { UserRoundPen } from "lucide-react";
 import { useEffect, useState } from "react";
 import { cn } from "../../utils";
+import { useInspectedPageEnvironment } from "../../utils/environmentDetection";
 import { useAutofillSettingsStore } from "../../utils/stores/autofillSettings";
 
 interface AutofillToggleProps {
@@ -12,9 +13,11 @@ interface AutofillToggleProps {
 /**
  * Animated autofill toggle that enables/disables the smart autofill feature.
  * Uses the autofill settings store to keep preferences synced across sessions.
+ * Shows environment context (most useful in dev mode for testing forms).
  */
 export function AutofillToggle({ size = "md", className }: AutofillToggleProps) {
   const { isEnabled, toggle, loadSettings, isLoaded } = useAutofillSettingsStore();
+  const { envInfo } = useInspectedPageEnvironment();
   const [isToggling, setIsToggling] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
 
@@ -120,6 +123,12 @@ export function AutofillToggle({ size = "md", className }: AutofillToggleProps) 
                 ? "Click to disable form auto-fill suggestions" 
                 : "Click to enable form auto-fill suggestions"}
             </p>
+            {/* Environment hint */}
+            {envInfo?.isDevelopment && (
+              <p className="text-emerald-400 text-[10px] mt-1">
+                ✓ Dev mode - perfect for testing forms
+              </p>
+            )}
             {/* Arrow */}
             <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rotate-45 bg-gray-900 dark:bg-gray-800 border-l border-t border-gray-700 dark:border-gray-600" />
           </motion.div>

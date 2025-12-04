@@ -128,7 +128,7 @@ export function AISettingsPanel() {
               <button
                 onClick={() => setEnabled(!enabled)}
                 className={cn(
-                  "relative inline-flex h-7 w-12 items-center rounded-full transition-all shadow-sm",
+                  "relative flex h-7 w-12 items-center rounded-full transition-all shadow-sm",
                   enabled ? "bg-green-500 hover:bg-green-600" : "bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500"
                 )}
                 aria-label={enabled ? "Disable AI features" : "Enable AI features"}
@@ -227,7 +227,7 @@ export function AISettingsPanel() {
                 onClick={() => setUseGateway(!useGateway)}
                 disabled={!enabled}
                 className={cn(
-                  "relative inline-flex h-6 w-11 items-center rounded-full transition-all shadow-sm",
+                  "relative flex h-6 w-11 items-center rounded-full transition-all shadow-sm",
                   useGateway ? "bg-blue-600 hover:bg-blue-700" : "bg-gray-300 dark:bg-gray-600",
                   !enabled && "opacity-40 cursor-not-allowed"
                 )}
@@ -272,7 +272,7 @@ export function AISettingsPanel() {
                     href="https://vercel.com/docs/ai-gateway"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
+                    className="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
                   >
                     Vercel AI Gateway
                     <ExternalLink className="w-3 h-3" />
@@ -340,7 +340,7 @@ export function AISettingsPanel() {
                         {p.description}
                       </div>
                       <div className="flex items-center gap-2 mt-2.5">
-                        <span className="inline-flex items-center gap-1 text-xs font-medium text-gray-600 dark:text-gray-400 px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded">
+                        <span className="flex items-center gap-1 text-xs font-medium text-gray-600 dark:text-gray-400 px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded">
                           <Bot className="w-3 h-3" />
                           {p.models.length} model{p.models.length !== 1 ? 's' : ''}
                         </span>
@@ -402,7 +402,7 @@ export function AISettingsPanel() {
                           {m.description}
                         </div>
                         <div className="flex flex-wrap gap-2 text-xs">
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md font-medium">
+                          <span className="flex items-center gap-1 px-2.5 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md font-medium">
                             <Bot className="w-3 h-3" />
                             {m.contextWindow.toLocaleString()} tokens
                           </span>
@@ -462,7 +462,7 @@ export function AISettingsPanel() {
                     href={selectedProvider.website}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
+                    className="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
                   >
                     {selectedProvider.name}
                     <ExternalLink className="w-3 h-3" />

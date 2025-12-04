@@ -315,7 +315,6 @@ export function GitHubIssueSlideout({ isOpen, onClose, githubConfig, onOpenSetti
   const {
     title,
     body,
-    screenshot,
     activeView,
     mode,
     editingIssueNumber,
@@ -324,7 +323,6 @@ export function GitHubIssueSlideout({ isOpen, onClose, githubConfig, onOpenSetti
     publishStatus,
     setTitle,
     setBody,
-    setScreenshot,
     setActiveView,
     setIsGenerating,
     setIsPublishing,
@@ -801,7 +799,7 @@ export function GitHubIssueSlideout({ isOpen, onClose, githubConfig, onOpenSetti
                         href={publishStatus.issueUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-sm font-medium hover:underline mt-2"
+                        className="flex items-center gap-1 text-sm font-medium hover:underline mt-2"
                       >
                         View Issue #{publishStatus.issueUrl.split("/").pop()}
                         <Send className="w-3.5 h-3.5" />

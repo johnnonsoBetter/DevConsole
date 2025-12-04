@@ -157,6 +157,7 @@ interface CodeAction {
   promptPreview: string;
   requestId?: string;    // From extension response
   error?: string;
+  imageCount?: number;   // Number of images attached
   timestamp: number;
 }
 ```
@@ -165,17 +166,67 @@ interface CodeAction {
 
 **Planned UI**:
 ```
-┌─────────────────────────────────────────────────────────┐
-│ Code Actions                             [Clear All]   │
-├─────────────────────────────────────────────────────────┤
-│ ✓ 2m ago │ logs   │ "Debug TypeError..."  │ In VS Code │
-│ ◐ now    │ sticky │ "Create hook..."      │ Sending... │
-│ ✗ 5m ago │ logs   │ "Fix build error"     │ Retry      │
-│ 📋 1m ago│ logs   │ "Analyze leak"        │ Copied     │
-└─────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│ Code Actions                                   [Clear All]   │
+├──────────────────────────────────────────────────────────────┤
+│ ✓ 2m ago │ logs   │ 📷2 │ "Debug TypeError..."  │ In VS Code │
+│ ◐ now    │ sticky │     │ "Create hook..."      │ Sending... │
+│ ✗ 5m ago │ logs   │ 📷1 │ "Fix build error"     │ Retry      │
+│ 📋 1m ago│ logs   │     │ "Analyze leak"        │ Copied     │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-**Note**: "In VS Code" means sent successfully - user should check VS Code for Copilot's response.
+**Note**: "In VS Code" means sent successfully - user should check VS Code for Copilot's response. The 📷 badge shows attached images.
+
+---
+
+## Image Attachments
+
+Users can attach screenshots or images to their Copilot requests for visual context:
+
+### Features
+- **Upload**: Click the image button next to send
+- **Paste**: Ctrl/Cmd+V to paste from clipboard
+- **Drag & Drop**: Drop images directly onto the chat dialog
+- **Multiple**: Up to 4 images per request (10MB each max)
+- **Formats**: PNG, JPEG, GIF, WebP
+
+### Implementation
+
+```typescript
+// Image attachment interface
+interface ImageAttachment {
+  data: string;      // base64-encoded image data
+  mimeType: 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp';
+  description?: string;
+}
+
+// Send with images
+await webhookCopilot.sendPrompt(
+  prompt,
+  { type: 'log', ...metadata },
+  images  // Optional ImageAttachment[]
+);
+```
+
+### Webhook Payload with Images
+
+```json
+{
+  "prompt": "What does this error mean?",
+  "images": [
+    {
+      "data": "<base64-encoded>",
+      "mimeType": "image/png",
+      "description": "Error screenshot"
+    }
+  ],
+  "context": {
+    "type": "log",
+    "source": "console"
+  }
+}
+```
 
 ---
 

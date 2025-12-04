@@ -8,28 +8,21 @@
 
 import {
   Bot,
-  Brain,
   CheckCircle,
-  ChevronRight,
-  ExternalLink,
   Eye,
   EyeOff,
   Github,
-  Image,
-  Info,
   Loader,
-  Monitor,
+  PanelLeftClose,
+  PanelLeftOpen,
   Save,
   Settings,
-  Shield,
   TestTube,
-  Webhook,
-  Wifi,
   XCircle,
-  Zap
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useGitHubSettings, type GitHubSettings } from "../../hooks/useGitHubSettings";
+import { GraphQLIcon, RaindropIcon, UnsplashIcon, VSCodeIcon } from "../../icons";
 import { testGitHubConnection } from "../../lib/devConsole/githubApi";
 import {
   clearGraphQLSettings,
@@ -46,6 +39,7 @@ import {
   saveUnsplashConfig,
   type UnsplashConfig,
 } from "../../utils/extensionSettings";
+import { Tooltip } from "../ui";
 import { AISettingsPanel } from "./AISettingsPanel";
 import { RaindropSettingsPanel } from "./RaindropSettingsPanel";
 
@@ -68,62 +62,85 @@ type SettingsSection = 'github' | 'graphql' | 'general' | 'unsplash' | 'ai' | 'w
 
 export function UnifiedSettingsPanel() {
   const [activeSection, setActiveSection] = useState<SettingsSection>('github');
+  const [sidebarExpanded, setSidebarExpanded] = useState(false);
 
   return (
-    <div className="h-full flex flex-col md:flex-row overflow-hidden">
-      {/* Sidebar Navigation */}
-      <div className="w-full md:w-64 border-b md:border-b-0 md:border-r border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/50">
-        <div className="p-4">
-          <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-            Settings
-          </h3>
+    <div className="h-full flex flex-row overflow-hidden">
+      {/* Mini Drawer Sidebar - Works for all screen sizes */}
+      <div 
+        className={cn(
+          "flex flex-col border-r border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/50 transition-all duration-200 ease-in-out flex-shrink-0",
+          sidebarExpanded ? "w-52" : "w-14"
+        )}
+      >
+        <div className="p-2 sm:p-3 flex-1">
+          {/* Toggle Button & Header */}
+          <div className="flex items-center justify-between mb-3">
+            <div className={cn(
+              "text-xs font-semibold text-gray-400 uppercase tracking-wider overflow-hidden whitespace-nowrap transition-all duration-200",
+              sidebarExpanded ? "opacity-100 w-auto" : "opacity-0 w-0"
+            )}>
+              Settings
+            </div>
+            <button
+              onClick={() => setSidebarExpanded(!sidebarExpanded)}
+              className="p-1.5 rounded-lg text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+              title={sidebarExpanded ? "Collapse sidebar" : "Expand sidebar"}
+            >
+              {sidebarExpanded ? (
+                <PanelLeftClose className="w-4 h-4" />
+              ) : (
+                <PanelLeftOpen className="w-4 h-4" />
+              )}
+            </button>
+          </div>
           <nav className="space-y-1">
             <SettingsNavItem
               icon={Bot}
               label="AI Providers"
-              description="Configure AI models & keys"
+              expanded={sidebarExpanded}
               active={activeSection === 'ai'}
               onClick={() => setActiveSection('ai')}
             />
             <SettingsNavItem
-              icon={Brain}
-              label="Raindrop Memory"
-              description="SmartMemory for AI context"
+              icon={RaindropIcon}
+              label="Raindrop"
+              expanded={sidebarExpanded}
               active={activeSection === 'raindrop'}
               onClick={() => setActiveSection('raindrop')}
             />
             <SettingsNavItem
               icon={Github}
-              label="GitHub Integration"
-              description="Issue tracking & reporting"
+              label="GitHub"
+              expanded={sidebarExpanded}
               active={activeSection === 'github'}
               onClick={() => setActiveSection('github')}
             />
             <SettingsNavItem
-              icon={Zap}
-              label="GraphQL Explorer"
-              description="API endpoint configuration"
+              icon={GraphQLIcon}
+              label="GraphQL"
+              expanded={sidebarExpanded}
               active={activeSection === 'graphql'}
               onClick={() => setActiveSection('graphql')}
             />
             <SettingsNavItem
-              icon={Image}
-              label="Unsplash Integration"
-              description="Image autofill configuration"
+              icon={UnsplashIcon}
+              label="Unsplash"
+              expanded={sidebarExpanded}
               active={activeSection === 'unsplash'}
               onClick={() => setActiveSection('unsplash')}
             />
             <SettingsNavItem
-              icon={Webhook}
-              label="Webhook Copilot"
-              description="VS Code automation endpoint"
+              icon={VSCodeIcon}
+              label="Webhook"
+              expanded={sidebarExpanded}
               active={activeSection === 'webhook'}
               onClick={() => setActiveSection('webhook')}
             />
             <SettingsNavItem
               icon={Settings}
               label="General"
-              description="Extension preferences"
+              expanded={sidebarExpanded}
               active={activeSection === 'general'}
               onClick={() => setActiveSection('general')}
             />
@@ -146,70 +163,57 @@ export function UnifiedSettingsPanel() {
 }
 
 // ============================================================================
-// SIDEBAR NAVIGATION ITEM
+// SIDEBAR NAVIGATION ITEM (Mini Drawer Style)
 // ============================================================================
 
 interface SettingsNavItemProps {
   icon: React.ElementType;
   label: string;
-  description: string;
+  expanded: boolean;
   active: boolean;
   onClick: () => void;
 }
 
-function SettingsNavItem({ icon: Icon, label, description, active, onClick }: SettingsNavItemProps) {
-  return (
+function SettingsNavItem({ icon: Icon, label, expanded, active, onClick }: SettingsNavItemProps) {
+  const buttonContent = (
     <button
       onClick={onClick}
       className={cn(
-        "w-full text-left p-3 rounded-lg transition-all group",
+        "w-full flex items-center gap-3 p-2.5 rounded-lg transition-all duration-200",
         active
-          ? "bg-primary/10 border border-primary/20 shadow-sm"
-          : "hover:bg-gray-100 dark:hover:bg-gray-800/50 border border-transparent"
+          ? "bg-primary/10 text-primary"
+          : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-200"
       )}
     >
-      <div className="flex items-start gap-3">
-        <Icon
-          className={cn(
-            "w-5 h-5 mt-0.5 flex-shrink-0 transition-colors",
-            active
-              ? "text-primary"
-              : "text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300"
-          )}
-        />
-        <div className="flex-1 min-w-0">
-          <div
-            className={cn(
-              "text-sm font-medium transition-colors",
-              active
-                ? "text-primary"
-                : "text-gray-900 dark:text-gray-100 group-hover:text-gray-700 dark:group-hover:text-gray-200"
-            )}
-          >
-            {label}
-          </div>
-          <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-            {description}
-          </div>
-        </div>
-        <ChevronRight
-          className={cn(
-            "w-4 h-4 mt-1 flex-shrink-0 transition-all",
-            active
-              ? "text-primary opacity-100"
-              : "text-gray-400 opacity-0 group-hover:opacity-100"
-          )}
-        />
-      </div>
+      <Icon className={cn("w-5 h-5 flex-shrink-0", active && "text-primary")} />
+      <span 
+        className={cn(
+          "text-sm font-medium whitespace-nowrap overflow-hidden transition-all duration-200",
+          expanded ? "opacity-100 w-auto" : "opacity-0 w-0"
+        )}
+      >
+        {label}
+      </span>
     </button>
   );
+
+  // Show tooltip only when sidebar is collapsed
+  if (!expanded) {
+    return (
+      <Tooltip content={label} side="right">
+        {buttonContent}
+      </Tooltip>
+    );
+  }
+
+  return buttonContent;
 }
 
 // ============================================================================
 // GITHUB SETTINGS SECTION
 // ============================================================================
 
-function GitHubSettingsSection() {
+export function GitHubSettingsSection() {
   const {
     settings,
     saveSettings,
@@ -349,22 +353,28 @@ function GitHubSettingsSection() {
           <div className="p-2 bg-gray-900 dark:bg-gray-100 rounded-lg">
             <Github className="w-5 h-5 text-white dark:text-gray-900" />
           </div>
-          <div>
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-              GitHub Integration
-            </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Create issues directly from error logs
-            </p>
-          </div>
+          <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+            GitHub Integration
+          </h3>
         </div>
+        <p className="text-sm text-gray-600 dark:text-gray-400">
+          Create issues directly from error logs
+        </p>
       </div>
 
+      {/* Status Messages */}
+      {(saveStatus.type || testStatus.type) && (
+        <div className="mb-5 space-y-2">
+          {saveStatus.type && <StatusBanner type={saveStatus.type} message={saveStatus.message} />}
+          {testStatus.type && <StatusBanner type={testStatus.type} message={testStatus.message} />}
+        </div>
+      )}
+
       {/* Form */}
-      <div className="space-y-5">
+      <div className="space-y-4">
         {/* Username */}
         <div>
-          <label htmlFor="github-username" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="github-username" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
             GitHub Username <span className="text-destructive">*</span>
           </label>
           <input
@@ -373,16 +383,13 @@ function GitHubSettingsSection() {
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             placeholder="octocat"
-            className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
           />
-          <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-            Your GitHub username (e.g., octocat)
-          </p>
         </div>
 
         {/* Repository */}
         <div>
-          <label htmlFor="github-repo" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="github-repo" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
             Repository <span className="text-destructive">*</span>
           </label>
           <input
@@ -396,18 +403,17 @@ function GitHubSettingsSection() {
                 setRepo(normalized);
               }
             }}
-            placeholder="owner/repo-name"
-            className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-primary/50 focus:border-primary font-mono text-sm transition-all"
+            placeholder="owner/repo-name or full GitHub URL"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-primary/50 focus:border-primary font-mono text-sm transition-all"
           />
-          <div className="mt-1.5 text-xs text-gray-500 dark:text-gray-400 space-y-1">
-            <p>Format: <code className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">owner/repo-name</code></p>
-            <p className="text-info">💡 URLs will be auto-normalized (e.g., https://github.com/owner/repo → owner/repo)</p>
-          </div>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            URLs auto-normalized to <code className="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">owner/repo</code>
+          </p>
         </div>
 
         {/* Personal Access Token */}
         <div>
-          <label htmlFor="github-token" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="github-token" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
             Personal Access Token <span className="text-destructive">*</span>
           </label>
           <div className="relative">
@@ -417,12 +423,12 @@ function GitHubSettingsSection() {
               value={token}
               onChange={(e) => setToken(e.target.value)}
               placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-              className="w-full px-4 py-2.5 pr-12 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-primary/50 focus:border-primary font-mono text-sm transition-all"
+              className="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-primary/50 focus:border-primary font-mono text-sm transition-all"
             />
             <button
               type="button"
               onClick={() => setShowToken(!showToken)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
               aria-label={showToken ? "Hide token" : "Show token"}
             >
               {showToken ? (
@@ -432,101 +438,46 @@ function GitHubSettingsSection() {
               )}
             </button>
           </div>
-          <div className="mt-2 space-y-1.5">
-            <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
-              <Shield className="w-3 h-3" />
-              Create a token at:{" "}
-              <a
-                href="https://github.com/settings/tokens/new?scopes=repo&description=DevConsole"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline inline-flex items-center gap-0.5"
-              >
-                github.com/settings/tokens/new
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Required scope: <code className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">repo</code>
-            </p>
-            <p className="text-xs text-warning flex items-center gap-1">
-              <Info className="w-3 h-3" />
-              Token is stored securely in your browser. Never share it.
-            </p>
-          </div>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Requires <code className="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">repo</code> scope •{" "}
+            <a
+              href="https://github.com/settings/tokens/new?scopes=repo&description=DevConsole"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              Create token ↗
+            </a>
+          </p>
         </div>
       </div>
 
-      {/* Status Messages */}
-      <div className="mt-6 space-y-3">
-        {saveStatus.type && (
-          <StatusBanner type={saveStatus.type} message={saveStatus.message} />
-        )}
-        {testStatus.type && (
-          <StatusBanner type={testStatus.type} message={testStatus.message} />
-        )}
-      </div>
-
       {/* Action Buttons */}
-      <div className="mt-6 flex items-center gap-3 flex-wrap">
+      <div className="mt-6 flex items-center gap-3">
         <button
           onClick={handleSave}
           disabled={isSaving}
-          className="flex-1 min-w-[140px] px-6 py-2.5 bg-primary hover:bg-primary/90 text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm hover:shadow"
+          className="flex-1 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
-          {isSaving ? (
-            <>
-              <Loader className="w-4 h-4 animate-spin" />
-              Saving...
-            </>
-          ) : (
-            <>
-              <Save className="w-4 h-4" />
-              Save Settings
-            </>
-          )}
+          {isSaving ? <Loader className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          {isSaving ? "Saving..." : "Save"}
         </button>
 
         <button
           onClick={handleTest}
           disabled={isTesting}
-          className="flex-1 min-w-[140px] px-6 py-2.5 bg-secondary hover:bg-secondary/90 text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm hover:shadow"
+          className="flex-1 px-4 py-2 bg-secondary hover:bg-secondary/90 text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
-          {isTesting ? (
-            <>
-              <Loader className="w-4 h-4 animate-spin" />
-              Testing...
-            </>
-          ) : (
-            <>
-              <TestTube className="w-4 h-4" />
-              Test Connection
-            </>
-          )}
+          {isTesting ? <Loader className="w-4 h-4 animate-spin" /> : <TestTube className="w-4 h-4" />}
+          {isTesting ? "Testing..." : "Test"}
         </button>
 
         <button
           onClick={handleClear}
-          className="px-6 py-2.5 bg-destructive/10 hover:bg-destructive/20 text-destructive rounded-lg font-medium transition-all border border-destructive/20 shadow-sm hover:shadow"
+          className="px-4 py-2 bg-destructive/10 hover:bg-destructive/20 text-destructive rounded-lg font-medium transition-all border border-destructive/20"
         >
           Clear
         </button>
-      </div>
-
-      {/* Help Card */}
-      <div className="mt-8 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10 border border-blue-200 dark:border-blue-800/30 rounded-xl">
-        <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-3 flex items-center gap-2">
-          <Info className="w-4 h-4" />
-          Quick Setup Guide
-        </h4>
-        <ol className="text-xs text-gray-700 dark:text-gray-300 space-y-2 list-decimal list-inside">
-          <li>Visit GitHub Settings → Developer settings → Personal access tokens</li>
-          <li>Click "Generate new token (classic)"</li>
-          <li>Give it a descriptive name (e.g., "DevConsole Extension")</li>
-          <li>Select the <code className="px-1.5 py-0.5 bg-white dark:bg-gray-800 rounded text-blue-600 dark:text-blue-400">repo</code> scope (full control of private repositories)</li>
-          <li>Click "Generate token" and copy it immediately</li>
-          <li>Paste the token above, add your username and repository, then save</li>
-        </ol>
       </div>
     </div>
   );
@@ -536,7 +487,7 @@ function GitHubSettingsSection() {
 // GRAPHQL SETTINGS SECTION
 // ============================================================================
 
-function GraphQLSettingsSection() {
+export function GraphQLSettingsSection() {
   const [endpoint, setEndpoint] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
@@ -645,25 +596,31 @@ function GraphQLSettingsSection() {
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center gap-3 mb-2">
-          <div className="p-2 bg-purple-500 rounded-lg">
-            <Zap className="w-5 h-5 text-white" />
+          <div className="p-2 bg-[#E10098] rounded-lg">
+            <GraphQLIcon className="w-5 h-5 text-white" />
           </div>
-          <div>
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-              GraphQL Explorer
-            </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Configure your GraphQL endpoint for the interactive explorer
-            </p>
-          </div>
+          <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+            GraphQL Explorer
+          </h3>
         </div>
+        <p className="text-sm text-gray-600 dark:text-gray-400">
+          Configure your GraphQL endpoint for the interactive explorer
+        </p>
       </div>
 
+      {/* Status Messages */}
+      {(saveStatus.type || testStatus.type) && (
+        <div className="mb-5 space-y-2">
+          {saveStatus.type && <StatusBanner type={saveStatus.type} message={saveStatus.message} />}
+          {testStatus.type && <StatusBanner type={testStatus.type} message={testStatus.message} />}
+        </div>
+      )}
+
       {/* Form */}
-      <div className="space-y-5">
+      <div className="space-y-4">
         {/* Endpoint URL */}
         <div>
-          <label htmlFor="graphql-endpoint" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="graphql-endpoint" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
             GraphQL Endpoint URL <span className="text-destructive">*</span>
           </label>
           <input
@@ -672,132 +629,40 @@ function GraphQLSettingsSection() {
             value={endpoint}
             onChange={(e) => setEndpoint(e.target.value)}
             placeholder="https://api.example.com/graphql or /graphql"
-            className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 font-mono text-sm transition-all"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 font-mono text-sm transition-all"
           />
-          <div className="mt-2 space-y-2">
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Enter an absolute URL or relative path:
-            </p>
-            <ul className="text-xs text-gray-500 dark:text-gray-400 space-y-1 ml-4">
-              <li className="flex items-start gap-2">
-                <span className="text-purple-500 mt-0.5">•</span>
-                <span>
-                  <strong className="text-gray-700 dark:text-gray-300">Absolute:</strong>{" "}
-                  <code className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">
-                    https://api.example.com/graphql
-                  </code>
-                </span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-purple-500 mt-0.5">•</span>
-                <span>
-                  <strong className="text-gray-700 dark:text-gray-300">Relative:</strong>{" "}
-                  <code className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">
-                    /graphql
-                  </code>{" "}
-                  <span className="text-gray-400">(uses current domain)</span>
-                </span>
-              </li>
-            </ul>
-          </div>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Absolute URL or relative path (e.g., <code className="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">/graphql</code> uses current domain)
+          </p>
         </div>
       </div>
 
-      {/* Status Messages */}
-      <div className="mt-6 space-y-3">
-        {saveStatus.type && (
-          <StatusBanner type={saveStatus.type} message={saveStatus.message} />
-        )}
-        {testStatus.type && (
-          <StatusBanner type={testStatus.type} message={testStatus.message} />
-        )}
-      </div>
-
       {/* Action Buttons */}
-      <div className="mt-6 flex items-center gap-3 flex-wrap">
+      <div className="mt-6 flex items-center gap-3">
         <button
           onClick={handleSave}
           disabled={isSaving}
-          className="flex-1 min-w-[140px] px-6 py-2.5 bg-purple-500 hover:bg-purple-600 text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm hover:shadow"
+          className="flex-1 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
-          {isSaving ? (
-            <>
-              <Loader className="w-4 h-4 animate-spin" />
-              Saving...
-            </>
-          ) : (
-            <>
-              <Save className="w-4 h-4" />
-              Save Settings
-            </>
-          )}
+          {isSaving ? <Loader className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          {isSaving ? "Saving..." : "Save"}
         </button>
 
         <button
           onClick={handleTest}
           disabled={isTesting}
-          className="flex-1 min-w-[140px] px-6 py-2.5 bg-secondary hover:bg-secondary/90 text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm hover:shadow"
+          className="flex-1 px-4 py-2 bg-secondary hover:bg-secondary/90 text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
-          {isTesting ? (
-            <>
-              <Loader className="w-4 h-4 animate-spin" />
-              Testing...
-            </>
-          ) : (
-            <>
-              <TestTube className="w-4 h-4" />
-              Test Connection
-            </>
-          )}
+          {isTesting ? <Loader className="w-4 h-4 animate-spin" /> : <TestTube className="w-4 h-4" />}
+          {isTesting ? "Testing..." : "Test"}
         </button>
 
         <button
           onClick={handleClear}
-          className="px-6 py-2.5 bg-destructive/10 hover:bg-destructive/20 text-destructive rounded-lg font-medium transition-all border border-destructive/20 shadow-sm hover:shadow"
+          className="px-4 py-2 bg-destructive/10 hover:bg-destructive/20 text-destructive rounded-lg font-medium transition-all border border-destructive/20"
         >
           Clear
         </button>
-      </div>
-
-      {/* Examples Card */}
-      <div className="mt-8 p-4 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/10 dark:to-pink-900/10 border border-purple-200 dark:border-purple-800/30 rounded-xl">
-        <h4 className="text-sm font-semibold text-purple-900 dark:text-purple-300 mb-3">
-          📝 Example Endpoints
-        </h4>
-        <div className="space-y-3">
-          <div>
-            <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Public GitHub API:</span>
-            <code className="block mt-1 px-3 py-2 bg-white dark:bg-gray-800 rounded-lg border border-purple-200 dark:border-purple-800/30 font-mono text-xs text-gray-800 dark:text-gray-200">
-              https://api.github.com/graphql
-            </code>
-          </div>
-          <div>
-            <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Local development:</span>
-            <code className="block mt-1 px-3 py-2 bg-white dark:bg-gray-800 rounded-lg border border-purple-200 dark:border-purple-800/30 font-mono text-xs text-gray-800 dark:text-gray-200">
-              http://localhost:4000/graphql
-            </code>
-          </div>
-          <div>
-            <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Relative path (same domain):</span>
-            <code className="block mt-1 px-3 py-2 bg-white dark:bg-gray-800 rounded-lg border border-purple-200 dark:border-purple-800/30 font-mono text-xs text-gray-800 dark:text-gray-200">
-              /api/graphql
-            </code>
-          </div>
-        </div>
-      </div>
-
-      {/* Info Card */}
-      <div className="mt-4 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10 border border-blue-200 dark:border-blue-800/30 rounded-xl">
-        <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-2 flex items-center gap-2">
-          <Info className="w-4 h-4" />
-          How to Use
-        </h4>
-        <ol className="text-xs text-gray-700 dark:text-gray-300 space-y-1.5 list-decimal list-inside">
-          <li>Enter your GraphQL endpoint URL (absolute or relative path)</li>
-          <li>Click "Test Connection" to verify the endpoint is accessible</li>
-          <li>Click "Save Settings" to store your configuration</li>
-          <li>Navigate to the GraphQL tab to start exploring your API</li>
-        </ol>
       </div>
     </div>
   );
@@ -807,7 +672,7 @@ function GraphQLSettingsSection() {
 // UNSPLASH SETTINGS SECTION
 // ============================================================================
 
-function UnsplashSettingsSection() {
+export function UnsplashSettingsSection() {
   const [accessKey, setAccessKey] = useState("");
   const [showAccessKey, setShowAccessKey] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -874,25 +739,30 @@ function UnsplashSettingsSection() {
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center gap-3 mb-2">
-          <div className="p-2 bg-orange-500 rounded-lg">
-            <Image className="w-5 h-5 text-white" />
+          <div className="p-2 bg-black rounded-lg">
+            <UnsplashIcon className="w-5 h-5 text-white" />
           </div>
-          <div>
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-              Unsplash Integration
-            </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Configure Unsplash API for autofill image inputs
-            </p>
-          </div>
+          <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+            Unsplash Integration
+          </h3>
         </div>
+        <p className="text-sm text-gray-600 dark:text-gray-400">
+          Configure Unsplash API for autofill image inputs
+        </p>
       </div>
 
+      {/* Status Messages */}
+      {saveStatus.type && (
+        <div className="mb-5">
+          <StatusBanner type={saveStatus.type} message={saveStatus.message} />
+        </div>
+      )}
+
       {/* Form */}
-      <div className="space-y-5">
+      <div className="space-y-4">
         {/* Access Key */}
         <div>
-          <label htmlFor="unsplash-key" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="unsplash-key" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
             Unsplash Access Key{" "}
             <span className="text-gray-500 dark:text-gray-400 font-normal">(optional)</span>
           </label>
@@ -902,13 +772,13 @@ function UnsplashSettingsSection() {
               type={showAccessKey ? "text" : "password"}
               value={accessKey}
               onChange={(e) => setAccessKey(e.target.value)}
-              placeholder="Your Unsplash access key (leave blank to use default)"
-              className="w-full px-4 py-2.5 pr-12 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 font-mono text-sm transition-all"
+              placeholder="Your Unsplash access key"
+              className="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 font-mono text-sm transition-all"
             />
             <button
               type="button"
               onClick={() => setShowAccessKey(!showAccessKey)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
               aria-label={showAccessKey ? "Hide access key" : "Show access key"}
             >
               {showAccessKey ? (
@@ -918,104 +788,37 @@ function UnsplashSettingsSection() {
               )}
             </button>
           </div>
-          <div className="mt-2 space-y-1.5">
-            <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
-              <Shield className="w-3 h-3" />
-              Get a free access key at:{" "}
-              <a
-                href="https://unsplash.com/developers"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline inline-flex items-center gap-0.5"
-              >
-                unsplash.com/developers
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Free tier: <code className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">50 requests/hour</code>
-            </p>
-            <p className="text-xs text-info flex items-center gap-1">
-              <Info className="w-3 h-3" />
-              Leave blank to use the default key with shared rate limits.
-            </p>
-          </div>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Leave blank to use default key •{" "}
+            <a
+              href="https://unsplash.com/developers"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              Get free key ↗
+            </a>
+          </p>
         </div>
       </div>
 
-      {/* Status Messages */}
-      <div className="mt-6 space-y-3">
-        {saveStatus.type && (
-          <StatusBanner type={saveStatus.type} message={saveStatus.message} />
-        )}
-      </div>
-
       {/* Action Buttons */}
-      <div className="mt-6 flex items-center gap-3 flex-wrap">
+      <div className="mt-6 flex items-center gap-3">
         <button
           onClick={handleSave}
           disabled={isSaving}
-          className="flex-1 min-w-[140px] px-6 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm hover:shadow"
+          className="flex-1 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
-          {isSaving ? (
-            <>
-              <Loader className="w-4 h-4 animate-spin" />
-              Saving...
-            </>
-          ) : (
-            <>
-              <Save className="w-4 h-4" />
-              Save Settings
-            </>
-          )}
+          {isSaving ? <Loader className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          {isSaving ? "Saving..." : "Save"}
         </button>
 
         <button
           onClick={handleClear}
-          className="px-6 py-2.5 bg-destructive/10 hover:bg-destructive/20 text-destructive rounded-lg font-medium transition-all border border-destructive/20 shadow-sm hover:shadow"
+          className="px-4 py-2 bg-destructive/10 hover:bg-destructive/20 text-destructive rounded-lg font-medium transition-all border border-destructive/20"
         >
           Clear
         </button>
-      </div>
-
-      {/* Info Card */}
-      <div className="mt-8 p-4 bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/10 dark:to-amber-900/10 border border-orange-200 dark:border-orange-800/30 rounded-xl">
-        <h4 className="text-sm font-semibold text-orange-900 dark:text-orange-300 mb-3 flex items-center gap-2">
-          <Info className="w-4 h-4" />
-          About Unsplash Integration
-        </h4>
-        <div className="text-xs text-gray-700 dark:text-gray-300 space-y-2">
-          <p>
-            The Unsplash integration powers the autofill feature for image input fields. When you encounter
-            an image upload field on a form, the autofill assistant can suggest and fill images from Unsplash's
-            vast collection.
-          </p>
-          <p className="font-medium text-orange-800 dark:text-orange-400">
-            Why provide your own key?
-          </p>
-          <ul className="space-y-1 ml-4 list-disc">
-            <li>Avoid shared rate limits with other users</li>
-            <li>Get 50 requests per hour on the free tier</li>
-            <li>Track your own API usage independently</li>
-          </ul>
-        </div>
-      </div>
-
-      {/* Setup Guide */}
-      <div className="mt-4 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10 border border-blue-200 dark:border-blue-800/30 rounded-xl">
-        <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-3 flex items-center gap-2">
-          <Info className="w-4 h-4" />
-          Quick Setup Guide
-        </h4>
-        <ol className="text-xs text-gray-700 dark:text-gray-300 space-y-2 list-decimal list-inside">
-          <li>Visit <a href="https://unsplash.com/developers" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">unsplash.com/developers</a></li>
-          <li>Sign up or log in to your Unsplash account</li>
-          <li>Click "New Application" to register your app</li>
-          <li>Accept the API Use and Guidelines</li>
-          <li>Fill in your application details (name, description, etc.)</li>
-          <li>Copy the "Access Key" from your application dashboard</li>
-          <li>Paste the access key above and save</li>
-        </ol>
       </div>
     </div>
   );
@@ -1025,7 +828,7 @@ function UnsplashSettingsSection() {
 // GENERAL SETTINGS SECTION
 // ============================================================================
 
-function GeneralSettingsSection() {
+export function GeneralSettingsSection() {
   return (
     <div className="p-6 max-w-3xl">
       {/* Header */}
@@ -1147,200 +950,10 @@ function StatusBanner({ type, message }: StatusBannerProps) {
 }
 
 // ============================================================================
-// TERMINAL STREAM SETTINGS COMPONENT
-// ============================================================================
-
-function TerminalStreamSettings() {
-  const [terminalStreamUrl, setTerminalStreamUrl] = useState('ws://localhost:9091');
-  const [isTestingConnection, setIsTestingConnection] = useState(false);
-  const [testStatus, setTestStatus] = useState<{ type: StatusType; message: string }>({ type: null, message: '' });
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<{ type: StatusType; message: string }>({ type: null, message: '' });
-
-  // Load saved Terminal Stream URL on mount
-  useEffect(() => {
-    chrome.storage.local.get(['terminalStreamUrl'], (result) => {
-      if (result.terminalStreamUrl) {
-        setTerminalStreamUrl(result.terminalStreamUrl);
-      }
-    });
-  }, []);
-
-  const handleTestConnection = async () => {
-    setIsTestingConnection(true);
-    setTestStatus({ type: null, message: '' });
-
-    try {
-      const { terminalStream } = await import('../../lib/webhookCopilot/terminalStreamService');
-      const health = await terminalStream.checkHealth();
-      
-      if (health.available) {
-        setTestStatus({
-          type: 'success',
-          message: `✅ Terminal Stream server is available!\n\nStatus: ${health.status}`,
-        });
-      } else {
-        setTestStatus({
-          type: 'error',
-          message: `❌ Cannot connect to Terminal Stream.\n\n${health.error || 'Server not reachable'}\n\nMake sure:\n1. VS Code is running\n2. Terminal Stream is enabled in Webhook Copilot settings\n3. Server is running on port 9091`,
-        });
-      }
-    } catch (error) {
-      console.error('Terminal Stream test failed:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      setTestStatus({
-        type: 'error',
-        message: `❌ Connection test failed: ${errorMessage}`,
-      });
-    } finally {
-      setIsTestingConnection(false);
-    }
-  };
-
-  const handleSave = async () => {
-    setIsSaving(true);
-    setSaveStatus({ type: null, message: '' });
-
-    try {
-      await chrome.storage.local.set({ terminalStreamUrl });
-      
-      setSaveStatus({
-        type: 'success',
-        message: '✅ Terminal Stream URL saved!',
-      });
-
-      const { terminalStream } = await import('../../lib/webhookCopilot/terminalStreamService');
-      terminalStream.setUrl(terminalStreamUrl);
-    } catch (error) {
-      console.error('Failed to save Terminal Stream URL:', error);
-      setSaveStatus({
-        type: 'error',
-        message: '❌ Failed to save URL',
-      });
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  return (
-    <div className="card p-6 mb-6">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-4">
-        <div className="p-2 bg-cyan-500/10 rounded-lg">
-          <Monitor className="w-5 h-5 text-cyan-600" />
-        </div>
-        <div>
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-            Terminal Stream
-          </h3>
-          <p className="text-xs text-muted-foreground">
-            Real-time terminal output from VS Code
-          </p>
-        </div>
-      </div>
-
-      {/* Status Banners */}
-      {testStatus.type && (
-        <div className="mb-4">
-          <StatusBanner type={testStatus.type} message={testStatus.message} />
-        </div>
-      )}
-
-      {saveStatus.type && (
-        <div className="mb-4">
-          <StatusBanner type={saveStatus.type} message={saveStatus.message} />
-        </div>
-      )}
-
-      {/* URL Configuration */}
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            WebSocket URL
-          </label>
-          <input
-            type="text"
-            value={terminalStreamUrl}
-            onChange={(e) => setTerminalStreamUrl(e.target.value)}
-            placeholder="ws://localhost:9091"
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-          />
-          <p className="text-xs text-muted-foreground mt-1">
-            Default: ws://localhost:9091
-          </p>
-        </div>
-
-        <div className="flex gap-3">
-          <button
-            onClick={handleTestConnection}
-            disabled={isTestingConnection || !terminalStreamUrl}
-            className={cn(
-              "flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all",
-              isTestingConnection
-                ? "bg-gray-300 dark:bg-gray-700 text-gray-500 cursor-not-allowed"
-                : "bg-cyan-500 hover:bg-cyan-600 text-white shadow-sm hover:shadow-md"
-            )}
-          >
-            {isTestingConnection ? (
-              <>
-                <Loader className="w-4 h-4 animate-spin" />
-                Testing...
-              </>
-            ) : (
-              <>
-                <Wifi className="w-4 h-4" />
-                Test Connection
-              </>
-            )}
-          </button>
-
-          <button
-            onClick={handleSave}
-            disabled={isSaving || !terminalStreamUrl}
-            className={cn(
-              "flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all",
-              isSaving
-                ? "bg-gray-300 dark:bg-gray-700 text-gray-500 cursor-not-allowed"
-                : "bg-success hover:bg-success/90 text-white shadow-sm hover:shadow-md"
-            )}
-          >
-            {isSaving ? (
-              <>
-                <Loader className="w-4 h-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <Save className="w-4 h-4" />
-                Save
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* Features Info */}
-      <div className="mt-6 p-4 bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-700 rounded-lg">
-        <h4 className="text-sm font-semibold text-cyan-800 dark:text-cyan-300 mb-2">
-          Terminal Stream Features
-        </h4>
-        <ul className="text-xs text-cyan-700 dark:text-cyan-400 space-y-1 list-disc list-inside">
-          <li>Stream real-time output from all VS Code terminals</li>
-          <li>View command output, build logs, and test results</li>
-          <li>Subscribe to specific terminals or all at once</li>
-          <li>Auto-reconnect on connection loss</li>
-          <li>Configurable output buffer (up to 10,000 lines)</li>
-        </ul>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================================
 // WEBHOOK COPILOT SETTINGS SECTION
 // ============================================================================
 
-function WebhookSettingsSection() {
+export function WebhookSettingsSection() {
   const [webhookUrl, setWebhookUrl] = useState('http://localhost:9090/webhook');
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [testStatus, setTestStatus] = useState<{ type: StatusType; message: string }>({ type: null, message: '' });
@@ -1434,173 +1047,85 @@ function WebhookSettingsSection() {
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center gap-3 mb-2">
-          <div className="p-2 bg-primary/10 rounded-lg">
-            <Webhook className="w-5 h-5 text-primary" />
+          <div className="p-2 bg-[#007ACC] rounded-lg">
+            <VSCodeIcon className="w-5 h-5 text-white" />
           </div>
           <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-            Webhook Copilot Integration
+            Webhook Copilot
           </h2>
         </div>
         <p className="text-sm text-muted-foreground">
-          Connect to Webhook Copilot extension to automate VS Code and trigger Copilot actions from your notes.
+          Automate VS Code and trigger Copilot actions from notes
         </p>
       </div>
 
       {/* Status Banners */}
-      {testStatus.type && (
-        <div className="mb-4">
-          <StatusBanner type={testStatus.type} message={testStatus.message} />
+      {(testStatus.type || saveStatus.type) && (
+        <div className="mb-5 space-y-2">
+          {testStatus.type && <StatusBanner type={testStatus.type} message={testStatus.message} />}
+          {saveStatus.type && <StatusBanner type={saveStatus.type} message={saveStatus.message} />}
         </div>
       )}
 
-      {saveStatus.type && (
-        <div className="mb-4">
-          <StatusBanner type={saveStatus.type} message={saveStatus.message} />
-        </div>
-      )}
-
-      {/* Webhook URL Configuration */}
-      <div className="card p-6 mb-6">
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">
-          Webhook Endpoint
-        </h3>
-        
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Webhook URL
-            </label>
-            <input
-              type="text"
-              value={webhookUrl}
-              onChange={(e) => setWebhookUrl(e.target.value)}
-              placeholder="http://localhost:9090/webhook"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              Default: http://localhost:9090/webhook
-            </p>
-          </div>
-
-          <div className="flex gap-3">
-            <button
-              onClick={handleTestConnection}
-              disabled={isTestingConnection || !webhookUrl}
-              className={cn(
-                "flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all",
-                isTestingConnection
-                  ? "bg-gray-300 dark:bg-gray-700 text-gray-500 cursor-not-allowed"
-                  : "bg-info hover:bg-info/90 text-white shadow-sm hover:shadow-md"
-              )}
-            >
-              {isTestingConnection ? (
-                <>
-                  <Loader className="w-4 h-4 animate-spin" />
-                  Testing...
-                </>
-              ) : (
-                <>
-                  <TestTube className="w-4 h-4" />
-                  Test Connection
-                </>
-              )}
-            </button>
-
-            <button
-              onClick={handleSave}
-              disabled={isSaving || !webhookUrl}
-              className={cn(
-                "flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all",
-                isSaving
-                  ? "bg-gray-300 dark:bg-gray-700 text-gray-500 cursor-not-allowed"
-                  : "bg-success hover:bg-success/90 text-white shadow-sm hover:shadow-md"
-              )}
-            >
-              {isSaving ? (
-                <>
-                  <Loader className="w-4 h-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4" />
-                  Save
-                </>
-              )}
-            </button>
-          </div>
+      {/* Form */}
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+            Webhook URL
+          </label>
+          <input
+            type="text"
+            value={webhookUrl}
+            onChange={(e) => setWebhookUrl(e.target.value)}
+            placeholder="http://localhost:9090/webhook"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent font-mono text-sm"
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Default: <code className="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">localhost:9090/webhook</code>
+          </p>
         </div>
       </div>
 
-      {/* Setup Instructions */}
-      <div className="card p-6 mb-6 bg-info/5 border-info/20">
-        <div className="flex items-start gap-3 mb-4">
-          <Info className="w-5 h-5 text-info flex-shrink-0 mt-0.5" />
-          <div>
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">
-              How to Set Up Webhook Copilot
-            </h3>
-            <ol className="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-decimal list-inside">
-              <li>Install the Webhook Copilot extension in VS Code</li>
-              <li>Ensure VS Code is running with the extension active</li>
-              <li>The extension runs a server on <code className="px-1 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-xs">http://localhost:9090</code></li>
-              <li>Click "Test Connection" to verify it's working</li>
-              <li>Use the Code button on sticky notes to send tasks to Copilot</li>
-            </ol>
-            
-            <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
-              <p className="text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">
-                💡 Quick Test from Terminal
-              </p>
-              <code className="block text-xs text-blue-700 dark:text-blue-400 bg-white dark:bg-gray-800 p-2 rounded mt-2 font-mono">
-                curl http://localhost:9090/health
-              </code>
-              <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
-                Should return: <code className="px-1 py-0.5 bg-white dark:bg-gray-800 rounded">{`{"status":"ok",...}`}</code>
-              </p>
-            </div>
-            
-            <div className="mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">
-              <p className="text-xs font-semibold text-yellow-800 dark:text-yellow-300 mb-1">
-                🔍 Troubleshooting Connection Issues
-              </p>
-              <ul className="text-xs text-yellow-700 dark:text-yellow-400 space-y-1 list-disc list-inside">
-                <li>Check extension is active in VS Code Extensions panel</li>
-                <li>Verify server started in Output → "Webhook Copilot"</li>
-                <li>Confirm port 9090 isn't blocked by firewall</li>
-                <li>Try "Webhook Copilot: Start Server" command</li>
-                <li>Check for port conflicts: <code className="px-1 py-0.5 bg-yellow-100 dark:bg-yellow-800 rounded">lsof -ti:9090</code></li>
-              </ul>
-            </div>
-          </div>
-        </div>
+      {/* Action Buttons */}
+      <div className="mt-6 flex items-center gap-3">
+        <button
+          onClick={handleSave}
+          disabled={isSaving || !webhookUrl}
+          className="flex-1 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        >
+          {isSaving ? <Loader className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          {isSaving ? "Saving..." : "Save"}
+        </button>
+
+        <button
+          onClick={handleTestConnection}
+          disabled={isTestingConnection || !webhookUrl}
+          className="flex-1 px-4 py-2 bg-secondary hover:bg-secondary/90 text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        >
+          {isTestingConnection ? <Loader className="w-4 h-4 animate-spin" /> : <TestTube className="w-4 h-4" />}
+          {isTestingConnection ? "Testing..." : "Test"}
+        </button>
       </div>
 
-      {/* Terminal Stream Section */}
-      <TerminalStreamSettings />
+      {/* Quick Help */}
+      <div className="mt-6 p-3 bg-info/5 border border-info/20 rounded-lg">
+        <p className="text-xs text-gray-600 dark:text-gray-400">
+          <strong className="text-gray-800 dark:text-gray-200">Setup:</strong> Install Webhook Copilot extension in VS Code → Run "Start Server" command → Test connection
+        </p>
+      </div>
 
       {/* Available Actions */}
-      <div className="card p-6">
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">
+      <div className="mt-6">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">
           Available Actions
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {[
-            { name: 'Execute Task', desc: 'Send coding tasks to Copilot' },
-            { name: 'Copilot Chat', desc: 'Ask questions and get explanations' },
-            { name: 'Create File', desc: 'Generate new files with content' },
-            { name: 'Modify File', desc: 'Edit existing files' },
-            { name: 'Run Command', desc: 'Execute VS Code commands' },
-            { name: 'Query Workspace', desc: 'Search for files and code' },
-          ].map((action) => (
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+          {['Execute Task', 'Copilot Chat', 'Create File', 'Modify File', 'Run Command', 'Query Workspace'].map((action) => (
             <div
-              key={action.name}
-              className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700"
+              key={action}
+              className="px-3 py-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-medium text-gray-700 dark:text-gray-300"
             >
-              <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">
-                {action.name}
-              </h4>
-              <p className="text-xs text-muted-foreground">{action.desc}</p>
+              {action}
             </div>
           ))}
         </div>
@@ -1613,7 +1138,7 @@ function WebhookSettingsSection() {
 // AI SETTINGS SECTION
 // ============================================================================
 
-function AISettingsSection() {
+export function AISettingsSection() {
   return <AISettingsPanel />;
 }
 
@@ -1621,6 +1146,6 @@ function AISettingsSection() {
 // RAINDROP SETTINGS SECTION
 // ============================================================================
 
-function RaindropSettingsSection() {
+export function RaindropSettingsSection() {
   return <RaindropSettingsPanel />;
 }

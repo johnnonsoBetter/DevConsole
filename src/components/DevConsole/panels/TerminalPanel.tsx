@@ -896,7 +896,7 @@ export function TerminalPanel() {
 
             <button
               onClick={connect}
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-medium hover:from-cyan-600 hover:to-blue-700 transition-colors shadow-lg shadow-blue-500/25"
+              className="flex items-center gap-2 px-6 py-3 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-medium hover:from-cyan-600 hover:to-blue-700 transition-colors shadow-lg shadow-blue-500/25"
             >
               <Wifi className="w-5 h-5" />
               Connect to Terminal Stream
@@ -944,7 +944,7 @@ export function TerminalPanel() {
             <button
               onClick={handleCreateTerminal}
               disabled={isCreatingTerminal}
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-gradient-to-r from-purple-500 to-blue-600 text-white font-medium hover:from-purple-600 hover:to-blue-700 transition-colors shadow-lg shadow-purple-500/25 disabled:opacity-50"
+              className="flex items-center gap-2 px-6 py-3 rounded-lg bg-gradient-to-r from-purple-500 to-blue-600 text-white font-medium hover:from-purple-600 hover:to-blue-700 transition-colors shadow-lg shadow-purple-500/25 disabled:opacity-50"
             >
               {isCreatingTerminal ? (
                 <Loader2 className="w-5 h-5 animate-spin" />

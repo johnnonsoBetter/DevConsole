@@ -4,11 +4,12 @@
  */
 
 import ReactJson from '@microlink/react-json-view';
-import { Brain, Check, ChevronDown, ClipboardCopy, Code2, Download, Github, Search, Sparkles, Trash2, X, Zap } from 'lucide-react';
+import { Check, ChevronDown, ClipboardCopy, Code2, Download, FileText, Github, Search, Sparkles, Trash2, X } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useIsMobile } from '../../../hooks/useMediaQuery';
 import { useRaindropSettings } from '../../../hooks/useRaindropSettings';
 import { useUnifiedTheme } from '../../../hooks/useTheme';
+import { RaindropIcon, VSCodeIcon } from '../../../icons';
 import { createLogExplainer } from '../../../lib/ai/services/logExplainer';
 import { createMemoryEnhancedLogExplainer } from '../../../lib/ai/services/memoryEnhancedLogExplainer';
 import {
@@ -27,12 +28,12 @@ import { useAISettingsStore } from '../../../utils/stores/aiSettings';
 import { useDevConsoleStore } from '../../../utils/stores/devConsole';
 import { humanizeTime } from '../../../utils/timeUtils';
 import { DurationChip, GraphQLChip, MethodChip, StatusChip } from '../Chips';
-import { CopilotChatInput, type CopilotContext } from '../CopilotChatInput';
+import { EmbeddedCopilotChat, type EmbeddedCopilotContext } from '../EmbeddedCopilotChat';
 import { EmptyStateHelper } from '../EmptyStateHelper';
 import { GitHubIssueSlideout } from '../GitHubIssueSlideout';
 import type { LogExplanationData } from '../LogExplanation';
 import { LogExplanation } from '../LogExplanation';
-import { MobileBottomSheet, MobileBottomSheetContent } from '../MobileBottomSheet';
+import { MobileDetailsSlideout, MobileDetailsSlideoutContent } from '../MobileDetailsSlideout';
 
 // ============================================================================
 // NOTIFICATION TOAST COMPONENT
@@ -139,7 +140,7 @@ function NetworkContextDropdown({ request }: NetworkContextDropdownProps) {
     <div className="relative">
       <button
         onClick={() => setMenuOpen(!menuOpen)}
-        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors bg-muted hover:bg-accent text-muted-foreground hover:text-accent-foreground"
+        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors bg-muted hover:bg-accent text-muted-foreground hover:text-accent-foreground"
         title="Export context"
       >
         <Code2 className="w-3.5 h-3.5" />
@@ -807,7 +808,7 @@ export function NetworkPanel() {
   /**
    * Build the Copilot context object for the chat input
    */
-  const buildCopilotContext = useCallback((): CopilotContext | null => {
+  const buildCopilotContext = useCallback((): EmbeddedCopilotContext | null => {
     if (!selectedRequest) return null;
 
     const networkData: NetworkData = {
@@ -930,7 +931,7 @@ export function NetworkPanel() {
   }, [isResizing]);
 
   return (
-    <div className="h-full flex">
+    <div className="h-full flex relative overflow-hidden">
       {/* Request Table */}
       <div
         className={cn(
@@ -1050,63 +1051,71 @@ export function NetworkPanel() {
       {selectedRequest && (
         <>
           {isMobile ? (
-            /* Mobile: Bottom Sheet */
-            <MobileBottomSheet
+            /* Mobile: Slideout Overlay with Embedded Chat */
+            <MobileDetailsSlideout
               isOpen={!!selectedRequest}
               onClose={() => setSelectedRequest(null)}
               title="Request Details"
               subtitle={`${selectedRequest.method} • ${selectedRequest.status || 'Pending'}`}
-              headerActions={
-                <div className="flex items-center gap-2">
-                  {/* AI Explain Button - Always visible */}
+              headerActions={<NetworkContextDropdown request={selectedRequest} />}
+              chatContent={
+                buildCopilotContext() && (
+                  <EmbeddedCopilotChat
+                    context={buildCopilotContext() as EmbeddedCopilotContext}
+                    onSuccess={(requestId) => {
+                      console.log('✅ Sent to Copilot:', requestId);
+                      setCopilotNotification({
+                        type: 'success',
+                        message: '✓ Sent to VS Code! Check Copilot for results.',
+                      });
+                    }}
+                    onFallback={(prompt) => {
+                      console.log('📋 Copied to clipboard:', prompt.slice(0, 50) + '...');
+                    }}
+                  />
+                )
+              }
+              bottomActions={
+                <div className="flex items-center gap-3">
+                  {/* Explain Request Button */}
                   {!explanation && !isExplaining && (
                     <button
                       onClick={handleExplainRequest}
                       disabled={isExplaining}
                       className={cn(
-                        "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all border hover:shadow-apple-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed",
-                        isRaindropConfigured 
-                          ? "bg-gradient-to-r from-cyan-500/10 to-blue-500/10 hover:from-cyan-500/20 hover:to-blue-500/20 text-cyan-600 dark:text-cyan-400 border-cyan-300 dark:border-cyan-700"
-                          : "bg-gradient-to-r from-purple-500/10 to-blue-500/10 hover:from-purple-500/20 hover:to-blue-500/20 text-purple-600 dark:text-purple-400 border-purple-300 dark:border-purple-700"
+                        "flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all",
+                        "bg-purple-600 hover:bg-purple-700 dark:bg-purple-500 dark:hover:bg-purple-600",
+                        "text-white shadow-sm hover:shadow-md active:scale-[0.98]",
+                        "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-sm"
                       )}
-                      title={isRaindropConfigured ? "Explain with AI + SmartMemory" : "Explain this request with AI"}
+                      title={isRaindropConfigured ? 'Explain with AI + SmartMemory' : 'Explain this request with AI'}
                     >
                       {isRaindropConfigured ? (
-                        <Brain className="w-3.5 h-3.5" />
+                        <RaindropIcon className="w-4 h-4" />
                       ) : (
-                        <Sparkles className="w-3.5 h-3.5" />
+                        <Sparkles className="w-4 h-4" />
                       )}
+                      <span>Explain Request</span>
                     </button>
                   )}
-                  {/* Ask Copilot Button */}
-                  <button
-                    onClick={() => setIsCopilotChatOpen(true)}
-                    className={cn(
-                      "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all border hover:shadow-apple-sm active:scale-95",
-                      "bg-gradient-to-r from-blue-500/10 to-purple-500/10 hover:from-blue-500/20 hover:to-purple-500/20",
-                      "text-blue-600 dark:text-blue-400 border-blue-300/50 dark:border-blue-700/50"
-                    )}
-                    title="Ask Copilot about this request"
-                  >
-                    <Zap className="w-3.5 h-3.5" />
-                  </button>
-                  {/* GitHub Issue Button */}
+                  
+                  {/* Convert to Issue Button */}
                   <button
                     onClick={() => githubSlideoutStore.open(selectedRequest)}
                     className={cn(
-                      'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all border hover:shadow-apple-sm active:scale-95',
-                      selectedRequest?.status >= 400 || selectedRequest?.error
-                        ? 'bg-success/10 hover:bg-success/15 text-success border-success/20'
-                        : 'bg-primary/10 hover:bg-primary/15 text-primary border-primary/20'
+                      "flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all",
+                      "bg-gray-900 dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-100",
+                      "text-white dark:text-gray-900 shadow-sm hover:shadow-md active:scale-[0.98]"
                     )}
                     title="Create GitHub Issue from this request"
                   >
-                    <Github className="w-3.5 h-3.5" />
+                    <Github className="w-4 h-4" />
+                    <span>Convert to Issue</span>
                   </button>
                 </div>
               }
             >
-              <MobileBottomSheetContent>
+              <MobileDetailsSlideoutContent>
                 <NetworkRequestDetails 
                   request={selectedRequest}
                   explanation={explanation}
@@ -1114,8 +1123,8 @@ export function NetworkPanel() {
                   explainError={explainError}
                   streamingText={streamingText}
                 />
-              </MobileBottomSheetContent>
-            </MobileBottomSheet>
+              </MobileDetailsSlideoutContent>
+            </MobileDetailsSlideout>
           ) : (
             /* Desktop: Resizable Side Panel */
             <>
@@ -1131,6 +1140,7 @@ export function NetworkPanel() {
               </div>
 
               <div className="flex flex-col" style={{ width: `${detailPanelWidth}%` }}>
+                {/* Header */}
                 <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30 shrink-0">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
@@ -1145,60 +1155,122 @@ export function NetworkPanel() {
                         )}
                       </div>
                     </div>
-                    <button
-                      onClick={() => setSelectedRequest(null)}
-                      className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
-                      title="Close Details"
-                    >
-                      <X className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                    </button>
-                  </div>
-                </div>
-                
-                {/* Action Buttons */}
-                <div className="px-4 py-2 border-b border-border bg-muted/30">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {!explanation && !isExplaining && (
+                    <div className="flex items-center gap-1">
+                      <NetworkContextDropdown request={selectedRequest} />
                       <button
-                        onClick={handleExplainRequest}
-                        disabled={isExplaining}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors bg-primary hover:bg-primary/90 text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed"
-                        title={isRaindropConfigured ? 'Explain with AI + Memory' : 'Explain with AI'}
+                        onClick={() => setSelectedRequest(null)}
+                        className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                        title="Close Details"
                       >
-                        <Brain className="w-3.5 h-3.5" />
-                        <span>Explain</span>
+                        <X className="w-4 h-4 text-gray-500 dark:text-gray-400" />
                       </button>
-                    )}
-                    <button
-                      onClick={() => setIsCopilotChatOpen(true)}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors bg-secondary hover:bg-secondary/90 text-secondary-foreground"
-                      title="Ask Copilot"
-                    >
-                      <Zap className="w-3.5 h-3.5" />
-                      <span>Ask Copilot</span>
-                    </button>
-                    <NetworkContextDropdown request={selectedRequest} />
-                    <button
-                      onClick={() => githubSlideoutStore.open(selectedRequest)}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors bg-muted hover:bg-accent text-muted-foreground hover:text-accent-foreground"
-                      title="Create GitHub Issue"
-                    >
-                      <Github className="w-3.5 h-3.5" />
-                      <span>Issue</span>
-                    </button>
+                    </div>
                   </div>
                 </div>
 
-                {/* Request Details Content */}
-                <div className="flex-1 overflow-hidden">
-                  <NetworkRequestDetails 
-                    request={selectedRequest}
-                    explanation={explanation}
-                    isExplaining={isExplaining}
-                    explainError={explainError}
-                    streamingText={streamingText}
-                  />
+                {/* View Tabs */}
+                <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30 shrink-0">
+                  <button
+                    onClick={() => setIsCopilotChatOpen(false)}
+                    className={cn(
+                      "flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all",
+                      !isCopilotChatOpen
+                        ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm border border-gray-200 dark:border-gray-600"
+                        : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+                    )}
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>Details</span>
+                  </button>
+                  <button
+                    onClick={() => setIsCopilotChatOpen(true)}
+                    className={cn(
+                      "flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all",
+                      isCopilotChatOpen
+                        ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 shadow-sm border border-blue-200 dark:border-blue-700"
+                        : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+                    )}
+                  >
+                    <VSCodeIcon size={14} className="flex-shrink-0" />
+                    <span>Task VSCode</span>
+                  </button>
                 </div>
+
+                {/* Content Area - Chat view needs flex column for sticky input */}
+                <div className={cn(
+                  "flex-1 min-h-0",
+                  isCopilotChatOpen ? "flex flex-col" : "overflow-hidden"
+                )}>
+                  {!isCopilotChatOpen ? (
+                    <NetworkRequestDetails 
+                      request={selectedRequest}
+                      explanation={explanation}
+                      isExplaining={isExplaining}
+                      explainError={explainError}
+                      streamingText={streamingText}
+                    />
+                  ) : (
+                    buildCopilotContext() && (
+                      <EmbeddedCopilotChat
+                        context={buildCopilotContext() as EmbeddedCopilotContext}
+                        onSuccess={(requestId) => {
+                          console.log('✅ Sent to Copilot:', requestId);
+                          setCopilotNotification({
+                            type: 'success',
+                            message: '✓ Sent to VS Code! Check Copilot for results.',
+                          });
+                        }}
+                        onFallback={(prompt) => {
+                          console.log('📋 Copied to clipboard:', prompt.slice(0, 50) + '...');
+                        }}
+                        className="flex-1"
+                      />
+                    )
+                  )}
+                </div>
+
+                {/* Sticky Bottom Action Bar - Only show on Details tab */}
+                {!isCopilotChatOpen && (
+                  <div className="shrink-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      {/* Explain Request Button */}
+                      {!explanation && !isExplaining && (
+                        <button
+                          onClick={handleExplainRequest}
+                          disabled={isExplaining}
+                          className={cn(
+                            "flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all",
+                            "bg-purple-600 hover:bg-purple-700 dark:bg-purple-500 dark:hover:bg-purple-600",
+                            "text-white shadow-sm hover:shadow-md active:scale-[0.98]",
+                            "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-sm"
+                          )}
+                          title={isRaindropConfigured ? 'Explain with AI + SmartMemory' : 'Explain this request with AI'}
+                        >
+                          {isRaindropConfigured ? (
+                            <RaindropIcon className="w-4 h-4" />
+                          ) : (
+                            <Sparkles className="w-4 h-4" />
+                          )}
+                          <span>Explain Request</span>
+                        </button>
+                      )}
+                      
+                      {/* Convert to Issue Button */}
+                      <button
+                        onClick={() => githubSlideoutStore.open(selectedRequest)}
+                        className={cn(
+                          "flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all",
+                          "bg-gray-900 dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-100",
+                          "text-white dark:text-gray-900 shadow-sm hover:shadow-md active:scale-[0.98]"
+                        )}
+                        title="Create GitHub Issue from this request"
+                      >
+                        <Github className="w-4 h-4" />
+                        <span>Convert to Issue</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -1210,25 +1282,6 @@ export function NetworkPanel() {
         isOpen={githubSlideoutStore.isOpen}
         onClose={() => githubSlideoutStore.close()}
       />
-
-      {/* Copilot Chat Input Modal */}
-      {buildCopilotContext() && (
-        <CopilotChatInput
-          context={buildCopilotContext()!}
-          isOpen={isCopilotChatOpen}
-          onClose={() => setIsCopilotChatOpen(false)}
-          onSuccess={(requestId) => {
-            console.log('✅ Sent to Copilot:', requestId);
-            setCopilotNotification({
-              type: 'success',
-              message: '✓ Sent to VS Code! Check Copilot for results.',
-            });
-          }}
-          onFallback={(prompt) => {
-            console.log('📋 Copied to clipboard:', prompt.slice(0, 50) + '...');
-          }}
-        />
-      )}
 
       {/* Copilot Notification Toast */}
       <NotificationToast 

@@ -1,4 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createGitHubIssueComment,
+  listGitHubIssueComments,
+  listGitHubIssues,
+  updateGitHubIssue,
+  type GitHubConfig,
+  type GitHubIssue,
+  type GitHubIssueComment,
+} from "@/lib/devConsole/githubApi";
+import { cn } from "@/utils";
+import { useGitHubIssueSlideoutStore, useGitHubSettingsStore } from "@/utils/stores";
+import DOMPurify from "dompurify";
 import {
   AlertCircle,
   CheckCircle2,
@@ -15,18 +26,7 @@ import {
   Settings,
   Tag,
 } from "lucide-react";
-import { cn } from "@/utils";
-import {
-  createGitHubIssueComment,
-  listGitHubIssueComments,
-  listGitHubIssues,
-  updateGitHubIssue,
-  type GitHubConfig,
-  type GitHubIssueComment,
-  type GitHubIssue,
-} from "@/lib/devConsole/githubApi";
-import { useGitHubIssueSlideoutStore, useGitHubSettingsStore } from "@/utils/stores";
-import DOMPurify from "dompurify";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -59,7 +59,7 @@ function IssueStateBadge({ state }: { state: "open" | "closed" }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold",
+        "flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold",
         isOpen ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
       )}
     >
@@ -500,7 +500,7 @@ export function GitHubIssuesTab({ githubConfig, onOpenSettings }: GitHubIssuesTa
                       {issue.labels.slice(0, 3).map((label) => (
                         <span
                           key={label.id}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium"
+                          className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium"
                           style={{
                             backgroundColor: `#${label.color}22`,
                             color: `#${label.color}`,
@@ -539,7 +539,7 @@ export function GitHubIssuesTab({ githubConfig, onOpenSettings }: GitHubIssuesTa
                     href={selectedIssue.html_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-sm text-primary hover:underline inline-flex items-center gap-1"
+                    className="text-sm text-primary hover:underline flex items-center gap-1"
                   >
                     View on GitHub
                     <ExternalLink className="w-4 h-4" />
@@ -649,7 +649,7 @@ export function GitHubIssuesTab({ githubConfig, onOpenSettings }: GitHubIssuesTa
                     {selectedIssue.labels.map((label) => (
                       <span
                         key={label.id}
-                        className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium"
+                        className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium"
                         style={{
                           backgroundColor: `#${label.color}22`,
                           color: `#${label.color}`,

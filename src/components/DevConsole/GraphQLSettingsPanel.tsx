@@ -1,14 +1,15 @@
-import { useState, useEffect } from "react";
-import { Settings, Save, TestTube, CheckCircle, XCircle, Loader, Zap } from "lucide-react";
-import { cn } from "../../utils";
+import { CheckCircle, Loader, Save, Settings, TestTube, XCircle } from "lucide-react";
+import { useEffect, useState } from "react";
+import { GraphQLIcon } from "../../icons";
 import {
-  loadGraphQLSettings,
-  saveGraphQLSettings,
-  clearGraphQLSettings,
-  validateGraphQLEndpoint,
-  testGraphQLConnection,
-  type GraphQLSettings,
+    clearGraphQLSettings,
+    loadGraphQLSettings,
+    saveGraphQLSettings,
+    testGraphQLConnection,
+    validateGraphQLEndpoint,
+    type GraphQLSettings,
 } from "../../lib/devConsole/graphqlSettings";
+import { cn } from "../../utils";
 
 // ============================================================================
 // GRAPHQL SETTINGS PANEL
@@ -139,7 +140,7 @@ export function GraphQLSettingsPanel({ onSave }: GraphQLSettingsPanelProps) {
           {/* Header */}
           <div className="mb-6">
             <div className="flex items-center gap-2 mb-2">
-              <Zap className="w-6 h-6 text-purple-500" />
+              <GraphQLIcon className="w-6 h-6 text-[#E10098]" />
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                 GraphQL Explorer Settings
               </h3>

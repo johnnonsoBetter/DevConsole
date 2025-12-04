@@ -4,9 +4,11 @@
  * Clean, minimal UI design
  */
 
-import { AlertTriangle, Bot, CheckCircle2, ChevronRight, Lightbulb, Loader2, X, XCircle, Zap } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { AlertTriangle, Bot, CheckCircle2, ChevronDown, ChevronRight, Lightbulb, X, XCircle, Zap } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '../../utils';
+import { SparklesLoader } from './SparklesLoader';
 
 // ============================================================================
 // TYPES
@@ -45,10 +47,50 @@ function SeverityIndicator({ severity }: { severity: LogExplanationData['severit
   const { color, label } = config[severity];
 
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+    <span className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
       <span className={cn('w-2 h-2 rounded-full', color)} />
       {label}
     </span>
+  );
+}
+
+// ============================================================================
+// EXPANDABLE TEXT COMPONENT
+// ============================================================================
+
+interface ExpandableTextProps {
+  text: string;
+  maxLength?: number;
+  className?: string;
+}
+
+function ExpandableText({ text, maxLength = 300, className }: ExpandableTextProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const needsTruncation = text.length > maxLength;
+  const displayText = needsTruncation && !isExpanded 
+    ? text.slice(0, maxLength).trim() + '...' 
+    : text;
+
+  return (
+    <div className={className}>
+      <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed whitespace-pre-wrap">
+        {displayText}
+      </p>
+      {needsTruncation && (
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="mt-2 flex items-center gap-1 text-xs font-medium text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 transition-colors"
+        >
+          <ChevronDown 
+            className={cn(
+              'w-3.5 h-3.5 transition-transform duration-200',
+              isExpanded && 'rotate-180'
+            )} 
+          />
+          {isExpanded ? 'Show less' : 'Show more'}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -91,7 +133,17 @@ function Section({
           )} 
         />
       </button>
-      {expanded && <div className="pb-3">{children}</div>}
+      {expanded && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          exit={{ opacity: 0, height: 0 }}
+          transition={{ duration: 0.2 }}
+          className="pb-3"
+        >
+          {children}
+        </motion.div>
+      )}
     </div>
   );
 }
@@ -108,25 +160,14 @@ export function LogExplanation({
   onClose,
 }: LogExplanationProps) {
   
-  // Loading state - minimal skeleton
+  // Loading state - enhanced sparkles loader
   if (isLoading && !streamingText) {
     return (
-      <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden">
-        <div className="px-4 py-3 flex items-center gap-3 border-b border-gray-100 dark:border-gray-700/50">
-          <div className="w-7 h-7 rounded-md bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
-            <Loader2 className="w-4 h-4 text-gray-500 animate-spin" />
-          </div>
-          <div className="flex-1">
-            <div className="text-sm font-medium text-gray-900 dark:text-gray-100">Analyzing log...</div>
-            <div className="text-xs text-gray-500 dark:text-gray-400">AI is processing</div>
-          </div>
-        </div>
-        <div className="p-4 space-y-2.5">
-          <div className="h-3 bg-gray-100 dark:bg-gray-700 rounded animate-pulse w-full" />
-          <div className="h-3 bg-gray-100 dark:bg-gray-700 rounded animate-pulse w-4/5" />
-          <div className="h-3 bg-gray-100 dark:bg-gray-700 rounded animate-pulse w-3/5" />
-        </div>
-      </div>
+      <SparklesLoader
+        title="Analyzing log"
+        subtitle="AI is examining the issue"
+        size="md"
+      />
     );
   }
 
@@ -160,13 +201,27 @@ export function LogExplanation({
     return (
       <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden">
         <div className="px-4 py-3 flex items-center gap-3 border-b border-gray-100 dark:border-gray-700/50">
-          <div className="w-7 h-7 rounded-md bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center">
-            <Bot className="w-4 h-4 text-blue-500" />
-          </div>
+          <motion.div 
+            className="w-7 h-7 rounded-md bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center"
+            animate={{
+              scale: [1, 1.05, 1],
+            }}
+            transition={{
+              duration: 1.5,
+              repeat: Infinity,
+              ease: 'easeInOut',
+            }}
+          >
+            <Bot className="w-4 h-4 text-white" />
+          </motion.div>
           <div className="flex-1 flex items-center gap-2">
             <span className="text-sm font-medium text-gray-900 dark:text-gray-100">AI Analysis</span>
-            <span className="flex items-center gap-1 text-xs text-blue-500 dark:text-blue-400">
-              <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" />
+            <span className="flex items-center gap-1.5 text-xs text-purple-500 dark:text-purple-400">
+              <motion.span 
+                className="w-1.5 h-1.5 bg-purple-500 rounded-full"
+                animate={{ opacity: [1, 0.3, 1] }}
+                transition={{ duration: 1, repeat: Infinity }}
+              />
               Streaming
             </span>
           </div>
@@ -174,7 +229,11 @@ export function LogExplanation({
         <div className="p-4">
           <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
             {streamingText}
-            <span className="inline-block w-0.5 h-4 bg-blue-500 ml-0.5 animate-[blink_1s_infinite]" />
+            <motion.span 
+              className="inline-block w-0.5 h-4 bg-purple-500 ml-0.5"
+              animate={{ opacity: [1, 0] }}
+              transition={{ duration: 0.5, repeat: Infinity }}
+            />
           </p>
         </div>
       </div>
@@ -186,11 +245,16 @@ export function LogExplanation({
 
   // Full explanation - clean card layout
   return (
-    <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden">
+    <motion.div 
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden"
+    >
       {/* Header */}
       <div className="px-4 py-3 flex items-center gap-3 border-b border-gray-100 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-800/50">
-        <div className="w-7 h-7 rounded-md bg-violet-50 dark:bg-violet-900/20 flex items-center justify-center">
-          <Bot className="w-4 h-4 text-violet-500" />
+        <div className="w-7 h-7 rounded-md bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-sm">
+          <Bot className="w-4 h-4 text-white" />
         </div>
         <div className="flex-1 flex items-center gap-3">
           <span className="text-sm font-medium text-gray-900 dark:text-gray-100">AI Analysis</span>
@@ -219,11 +283,12 @@ export function LogExplanation({
           </div>
         </div>
 
-        {/* Detailed Explanation */}
+        {/* Detailed Explanation - with See More */}
         <div className="py-3 border-b border-gray-100 dark:border-gray-700/50">
-          <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed whitespace-pre-wrap">
-            {explanation.explanation}
-          </p>
+          <ExpandableText 
+            text={explanation.explanation} 
+            maxLength={250}
+          />
         </div>
 
         {/* Possible Causes */}
@@ -272,6 +337,6 @@ export function LogExplanation({
           AI-generated • Verify before implementing
         </p>
       </div>
-    </div>
+    </motion.div>
   );
 }

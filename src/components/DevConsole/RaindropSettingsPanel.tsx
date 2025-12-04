@@ -3,9 +3,10 @@
  * Configuration UI for LiquidMetal Raindrop SmartMemory integration
  */
 
-import { Brain, CheckCircle, ExternalLink, HelpCircle, Loader2, XCircle } from 'lucide-react';
+import { CheckCircle, ExternalLink, HelpCircle, Loader2, XCircle } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useRaindropSettings } from '../../hooks/useRaindropSettings';
+import { RaindropIcon } from '../../icons';
 import { createRaindropClient } from '../../lib/ai/services/raindropClient';
 import { DEFAULT_RAINDROP_SETTINGS } from '../../lib/ai/types';
 import { cn } from '../../utils';
@@ -101,7 +102,7 @@ export function RaindropSettingsPanel() {
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-lg">
-            <Brain className="w-5 h-5 text-white" />
+            <RaindropIcon className="w-5 h-5 text-white" />
           </div>
           <div>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
@@ -117,7 +118,7 @@ export function RaindropSettingsPanel() {
         <button
           onClick={handleToggleEnabled}
           className={cn(
-            'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
+            'relative flex h-6 w-11 items-center rounded-full transition-colors',
             settings.enabled ? 'bg-cyan-500' : 'bg-gray-300 dark:bg-gray-600'
           )}
         >
@@ -148,7 +149,7 @@ export function RaindropSettingsPanel() {
               href="https://docs.liquidmetal.ai/tutorials/smartmemory-app-deployment/"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-cyan-600 dark:text-cyan-400 hover:underline"
+              className="flex items-center gap-1 text-cyan-600 dark:text-cyan-400 hover:underline"
             >
               Deployment Guide <ExternalLink className="w-3 h-3" />
             </a>
@@ -157,7 +158,7 @@ export function RaindropSettingsPanel() {
               href="https://docs.liquidmetal.ai/reference/smartmemory/"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-cyan-600 dark:text-cyan-400 hover:underline"
+              className="flex items-center gap-1 text-cyan-600 dark:text-cyan-400 hover:underline"
             >
               API Reference <ExternalLink className="w-3 h-3" />
             </a>

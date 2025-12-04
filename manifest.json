@@ -34,18 +34,18 @@
   
   "action": {
     "default_title": "DevConsole",
-    "default_popup": "public/popup.html",
+    "default_popup": "src/popup/index.html",
     "default_icon": {
-      "16": "public/icons/icon16.svg",
-      "48": "public/icons/icon48.svg",
-      "128": "public/icons/icon128.svg"
+      "16": "icons/logo16.svg",
+      "48": "icons/logo48.svg",
+      "128": "icons/logo128.svg"
     }
   },
   
   "icons": {
-    "16": "public/icons/icon16.svg",
-    "48": "public/icons/icon48.svg",
-    "128": "public/icons/icon128.svg"
+    "16": "icons/logo16.svg",
+    "48": "icons/logo48.svg",
+    "128": "icons/logo128.svg"
   },
   
   "web_accessible_resources": [

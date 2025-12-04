@@ -1,25 +1,24 @@
 import { createGraphiQLFetcher } from "@graphiql/toolkit";
 import "graphiql/style.css";
 import {
-  BookOpen,
-  Brain,
-  Check,
-  ChevronDown,
-  ChevronUp,
-  Copy,
-  ExternalLink,
-  Lightbulb,
-  Loader2,
-  Play,
-  Send,
-  Settings as SettingsIcon,
-  Sparkles,
-  WandSparkles,
-  X,
-  Zap
+    BookOpen,
+    Check,
+    ChevronDown,
+    ChevronUp,
+    Copy,
+    ExternalLink,
+    Lightbulb,
+    Loader2,
+    Play,
+    Send,
+    Settings as SettingsIcon,
+    Sparkles,
+    WandSparkles,
+    X,
 } from "lucide-react";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useGraphQLSmartMemoryV2, type GeneratedQuery } from "../../hooks/useGraphQLSmartMemoryV2";
+import { GraphQLIcon, RaindropIcon } from "../../icons";
 import { loadGraphQLSettings } from "../../lib/devConsole/graphqlSettings";
 import { fetchSchemaIntrospection } from "../../lib/graphql/introspection";
 import { cn } from "../../utils";
@@ -230,7 +229,7 @@ export function GraphQLExplorer() {
     return (
       <div className="h-full flex items-center justify-center bg-white dark:bg-gray-950">
         <div className="text-center">
-          <Zap className="w-12 h-12 text-purple-500 mx-auto mb-3 animate-pulse" />
+          <GraphQLIcon className="w-12 h-12 text-[#E10098] mx-auto mb-3 animate-pulse" />
           <p className="text-sm text-gray-500 dark:text-gray-400">Loading GraphQL settings...</p>
         </div>
       </div>
@@ -243,8 +242,8 @@ export function GraphQLExplorer() {
         <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-gradient-to-r from-purple-500/5 via-purple-500/5 to-purple-500/5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-primary flex items-center justify-center">
-                <Zap className="w-4 h-4 text-white" />
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#E10098] to-primary flex items-center justify-center">
+                <GraphQLIcon className="w-4 h-4 text-white" />
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
@@ -279,8 +278,8 @@ export function GraphQLExplorer() {
       <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-gradient-to-r from-primary/5 via-purple-500/5 to-secondary/5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-primary flex items-center justify-center">
-              <Zap className="w-4 h-4 text-white" />
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#E10098] to-primary flex items-center justify-center">
+              <GraphQLIcon className="w-4 h-4 text-white" />
             </div>
             <div>
               <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
@@ -290,7 +289,7 @@ export function GraphQLExplorer() {
                 </span>
                 {isRaindropConfigured && (
                   <span className="px-1.5 py-0.5 text-[10px] font-medium bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 rounded flex items-center gap-1">
-                    <Brain className="w-3 h-3" />
+                    <RaindropIcon className="w-3 h-3" />
                     AI
                   </span>
                 )}
@@ -390,7 +389,7 @@ export function GraphQLExplorer() {
               <div className="mt-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
                 <div className="flex items-center justify-between">
                   <p className="text-sm text-amber-700 dark:text-amber-300 flex items-center gap-2">
-                    <Brain className="w-4 h-4" />
+                    <RaindropIcon className="w-4 h-4" />
                     Schema not indexed. Index it for better query generation.
                   </p>
                   <button
