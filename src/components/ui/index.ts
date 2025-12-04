@@ -8,3 +8,6 @@ export type { TabsProps, TabsTriggerProps, TabsContentProps } from './tabs';
 
 export { BetterTabs } from './better-tabs';
 export type { BetterTab } from './better-tabs';
+
+export { Tooltip } from './tooltip';
+export type { TooltipProps } from './tooltip';
