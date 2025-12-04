@@ -26,6 +26,7 @@ export interface CodeAction {
   actionType: CodeActionType;
   promptPreview: string; // First 100 chars
   fullPrompt: string;
+  imageCount?: number; // Number of images attached to this request
 
   // Status tracking
   status: CodeActionStatus;

@@ -16,6 +16,12 @@ export type WebhookAction =
   | "run_command"
   | "query_workspace";
 
+export interface ImageAttachment {
+  data: string; // base64-encoded image data
+  mimeType: "image/png" | "image/jpeg" | "image/gif" | "image/webp";
+  description?: string;
+}
+
 export interface WebhookPayload {
   action: WebhookAction;
   task?: string;
@@ -185,21 +191,29 @@ export class WebhookCopilotService {
       line?: number;
       source?: string;
       [key: string]: unknown;
-    }
+    },
+    images?: ImageAttachment[]
   ): Promise<WebhookResponse> {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+
+      const payload: Record<string, unknown> = {
+        prompt,
+        context,
+      };
+
+      // Add images if provided
+      if (images && images.length > 0) {
+        payload.images = images;
+      }
 
       const response = await fetch(this.webhookUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          prompt,
-          context,
-        }),
+        body: JSON.stringify(payload),
         signal: controller.signal,
       });
 
