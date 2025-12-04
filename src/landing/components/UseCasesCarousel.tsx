@@ -109,7 +109,7 @@ export const UseCasesCarousel: React.FC = () => {
                   
                   <a 
                     href="#"
-                    className="inline-flex items-center gap-2 text-sm font-semibold text-purple-600 hover:text-purple-700 group-hover:gap-3 transition-all"
+                    className="flex items-center gap-2 text-sm font-semibold text-purple-600 hover:text-purple-700 group-hover:gap-3 transition-all"
                   >
                     View case
                     <ArrowRight className="w-4 h-4" />

@@ -41,13 +41,13 @@ export const AutofillSection: React.FC = () => {
             
             {/* Keyboard Shortcuts */}
             <div className="flex flex-wrap gap-3">
-              <div className="inline-flex items-center gap-2 px-3 py-2 bg-white rounded-lg border border-gray-200 shadow-sm">
+              <div className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg border border-gray-200 shadow-sm">
                 <kbd className="px-2 py-0.5 bg-gray-100 rounded text-xs font-mono text-gray-600 border border-gray-200">Alt</kbd>
                 <span className="text-gray-400">+</span>
                 <kbd className="px-2 py-0.5 bg-gray-100 rounded text-xs font-mono text-gray-600 border border-gray-200">`</kbd>
                 <span className="text-xs text-gray-500">Open suggestions</span>
               </div>
-              <div className="inline-flex items-center gap-2 px-3 py-2 bg-white rounded-lg border border-gray-200 shadow-sm">
+              <div className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg border border-gray-200 shadow-sm">
                 <kbd className="px-2 py-0.5 bg-gray-100 rounded text-xs font-mono text-gray-600 border border-gray-200">Ctrl</kbd>
                 <span className="text-gray-400">+</span>
                 <kbd className="px-2 py-0.5 bg-gray-100 rounded text-xs font-mono text-gray-600 border border-gray-200">F</kbd>

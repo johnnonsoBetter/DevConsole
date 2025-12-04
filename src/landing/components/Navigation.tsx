@@ -101,7 +101,7 @@ export const Navigation: React.FC = () => {
               href="https://github.com/johnnonsoBetter/DevConsole" 
               target="_blank"
               rel="noopener noreferrer"
-              className="hidden md:inline-flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white text-[14px] font-medium rounded-full hover:bg-gray-800 transition-all hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0"
+              className="hidden md:flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white text-[14px] font-medium rounded-full hover:bg-gray-800 transition-all hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0"
             >
               <Download className="w-4 h-4" />
               <span>Download</span>

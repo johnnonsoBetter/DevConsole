@@ -61,7 +61,7 @@ export const GitHubSection: React.FC = () => {
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1.5">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700">
+                        <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700">
                           <CircleDot className="w-2.5 h-2.5" />
                           Open
                         </span>
@@ -70,11 +70,11 @@ export const GitHubSection: React.FC = () => {
                       </div>
                       <h3 className="text-sm font-semibold text-gray-900 mb-2">Login button unresponsive on mobile Safari</h3>
                       <div className="flex items-center gap-1.5">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-100 text-red-600 border border-red-200">
+                        <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-100 text-red-600 border border-red-200">
                           <Tag className="w-2.5 h-2.5" />
                           bug
                         </span>
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-100 text-purple-600 border border-purple-200">
+                        <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-100 text-purple-600 border border-purple-200">
                           <Tag className="w-2.5 h-2.5" />
                           mobile
                         </span>
@@ -89,7 +89,7 @@ export const GitHubSection: React.FC = () => {
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1.5">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700">
+                        <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700">
                           <CircleDot className="w-2.5 h-2.5" />
                           Open
                         </span>
@@ -97,7 +97,7 @@ export const GitHubSection: React.FC = () => {
                       </div>
                       <h3 className="text-sm font-semibold text-gray-900 mb-2 group-hover:text-emerald-600 transition-colors">Add dark mode support to dashboard</h3>
                       <div className="flex items-center gap-1.5">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 text-blue-600 border border-blue-200">
+                        <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 text-blue-600 border border-blue-200">
                           <Tag className="w-2.5 h-2.5" />
                           enhancement
                         </span>
@@ -112,7 +112,7 @@ export const GitHubSection: React.FC = () => {
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1.5">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-500">
+                        <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-500">
                           <CheckCircle2 className="w-2.5 h-2.5" />
                           Closed
                         </span>
@@ -246,15 +246,15 @@ export const GitHubSection: React.FC = () => {
             
             {/* Workflow Badges */}
             <div className="flex flex-wrap gap-2">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 text-xs font-medium rounded-full border border-emerald-100">
+              <span className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 text-xs font-medium rounded-full border border-emerald-100">
                 <RefreshCw className="w-3 h-3" />
                 Real-time sync
               </span>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 text-purple-700 text-xs font-medium rounded-full border border-purple-100">
+              <span className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 text-purple-700 text-xs font-medium rounded-full border border-purple-100">
                 <GitPullRequest className="w-3 h-3" />
                 Any repository
               </span>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 text-xs font-medium rounded-full border border-blue-100">
+              <span className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 text-xs font-medium rounded-full border border-blue-100">
                 <Tag className="w-3 h-3" />
                 Label support
               </span>

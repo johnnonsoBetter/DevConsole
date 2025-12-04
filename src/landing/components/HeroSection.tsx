@@ -71,7 +71,7 @@ export const HeroSection: React.FC = () => {
       <div className="relative z-10 max-w-[1400px] mx-auto px-6 lg:px-10 text-center">
         {/* Badge */}
         <motion.div 
-          className="inline-flex items-center gap-2 px-4 py-2 bg-gray-50 border border-gray-200/60 rounded-full mb-8 shadow-sm"
+          className="flex items-center gap-2 px-4 py-2 bg-gray-50 border border-gray-200/60 rounded-full mb-8 shadow-sm"
           initial={{ opacity: 0, y: 20, scale: 0.9 }}
           animate={isInView ? { opacity: 1, y: 0, scale: 1 } : {}}
           transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
@@ -128,7 +128,7 @@ export const HeroSection: React.FC = () => {
             href="https://github.com/johnnonsoBetter/DevConsole"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-8 py-4 bg-gray-900 text-white text-[15px] font-semibold rounded-full hover:bg-gray-800 transition-all shadow-lg hover:shadow-xl hover:-translate-y-1 group relative overflow-hidden"
+            className="flex items-center gap-2 px-8 py-4 bg-gray-900 text-white text-[15px] font-semibold rounded-full hover:bg-gray-800 transition-all shadow-lg hover:shadow-xl hover:-translate-y-1 group relative overflow-hidden"
             style={{ x: springX, y: springY }}
             onMouseMove={handleMagneticMove}
             onMouseLeave={handleMagneticLeave}
@@ -148,7 +148,7 @@ export const HeroSection: React.FC = () => {
           </motion.a>
           <motion.a 
             href="#use-cases"
-            className="inline-flex items-center gap-2 px-8 py-4 bg-white text-gray-700 text-[15px] font-semibold rounded-full border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all shadow-sm hover:shadow-md"
+            className="flex items-center gap-2 px-8 py-4 bg-white text-gray-700 text-[15px] font-semibold rounded-full border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all shadow-sm hover:shadow-md"
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
           >
