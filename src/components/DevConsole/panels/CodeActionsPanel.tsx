@@ -12,6 +12,7 @@ import {
   Code2,
   Image as ImageIcon,
   Loader2,
+  Plus,
   RefreshCw,
   StickyNote,
   Terminal,
@@ -19,6 +20,7 @@ import {
   X,
 } from 'lucide-react';
 import { useCallback, useState } from 'react';
+import { cn } from '../../../utils';
 import { VSCodeIcon } from '../../../icons';
 import { webhookCopilot } from '../../../lib/webhookCopilot/webhookService';
 import {
@@ -26,6 +28,7 @@ import {
   CodeActionStatus,
   useCodeActionsStore,
 } from '../../../utils/stores/codeActions';
+import { TaskCodeEditor } from './TaskCodeEditor';
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -269,7 +272,11 @@ function ActionItem({ action, onRetry, onCopy, onRemove }: ActionItemProps) {
 // EMPTY STATE
 // ============================================================================
 
-function EmptyState() {
+interface EmptyStateProps {
+  onCreateTask: () => void;
+}
+
+function EmptyState({ onCreateTask }: EmptyStateProps) {
   return (
     <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
       <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/30 dark:to-purple-900/30 flex items-center justify-center mb-4">
@@ -278,12 +285,25 @@ function EmptyState() {
       <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
         No Code Actions Yet
       </h3>
-      <p className="text-sm text-gray-500 dark:text-gray-400 max-w-sm">
+      <p className="text-sm text-gray-500 dark:text-gray-400 max-w-sm mb-6">
         Send logs or notes to VS Code Copilot and they'll appear here. Use the{' '}
         <span className="font-medium">Copilot</span> button in Logs or the{' '}
         <span className="font-medium">Code</span> button on Sticky Notes.
         You can also attach screenshots for visual context.
       </p>
+      
+      {/* Create Task Button */}
+      <button
+        onClick={onCreateTask}
+        className={cn(
+          "flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all",
+          "bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600",
+          "text-white shadow-sm hover:shadow-md active:scale-[0.98]"
+        )}
+      >
+        <Plus className="w-4 h-4" />
+        <span>Create Task</span>
+      </button>
     </div>
   );
 }
@@ -294,6 +314,7 @@ function EmptyState() {
 
 export function CodeActionsPanel() {
   const { actions, removeAction, clearAll, clearCompleted, updateAction } = useCodeActionsStore();
+  const [isTaskEditorOpen, setIsTaskEditorOpen] = useState(false);
 
   // Note: Status polling removed for now to simplify debugging
   // Actions will show their last known status without auto-updates
@@ -355,7 +376,7 @@ export function CodeActionsPanel() {
   ).length;
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-gray-900">
+    <div className="h-full flex flex-col bg-white dark:bg-gray-900 relative">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800">
         <div className="flex items-center gap-3">
@@ -376,30 +397,45 @@ export function CodeActionsPanel() {
           )}
         </div>
 
-        {actions.length > 0 && (
-          <div className="flex items-center gap-2">
-            {completedCount > 0 && (
-              <button
-                onClick={clearCompleted}
-                className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
-              >
-                Clear Completed
-              </button>
+        <div className="flex items-center gap-2">
+          {/* Create Task Button - Always visible */}
+          <button
+            onClick={() => setIsTaskEditorOpen(true)}
+            className={cn(
+              "flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors",
+              "bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50",
+              "text-blue-700 dark:text-blue-300"
             )}
-            <button
-              onClick={clearAll}
-              className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 transition-colors"
-            >
-              Clear All
-            </button>
-          </div>
-        )}
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Create Task</span>
+          </button>
+
+          {actions.length > 0 && (
+            <>
+              {completedCount > 0 && (
+                <button
+                  onClick={clearCompleted}
+                  className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                >
+                  Clear Completed
+                </button>
+              )}
+              <button
+                onClick={clearAll}
+                className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 transition-colors"
+              >
+                Clear All
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4">
         {actions.length === 0 ? (
-          <EmptyState />
+          <EmptyState onCreateTask={() => setIsTaskEditorOpen(true)} />
         ) : (
           <div className="space-y-2">
             {actions.map((action) => (
@@ -414,6 +450,15 @@ export function CodeActionsPanel() {
           </div>
         )}
       </div>
+
+      {/* Task Editor Slideout */}
+      <TaskCodeEditor
+        isOpen={isTaskEditorOpen}
+        onClose={() => setIsTaskEditorOpen(false)}
+        onSuccess={(requestId) => {
+          console.log('✅ Task sent to Copilot:', requestId);
+        }}
+      />
     </div>
   );
 }

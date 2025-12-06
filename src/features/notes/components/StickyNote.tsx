@@ -7,11 +7,12 @@
 import { useDraggable } from '@dnd-kit/core';
 import { Camera, Github, Maximize2, Minimize2, Minus, Pin, Trash2, X, Zap } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CopilotChatInput, type CopilotContext } from '../../../components/DevConsole/CopilotChatInput';
+import { type EmbeddedCopilotContext } from '../../../components/DevConsole/EmbeddedCopilotChat';
 import { cn } from '../../../utils';
 import { useGitHubIssueSlideoutStore } from '../../../utils/stores';
 import { NotesService } from '../services/notesService';
 import { Note, useNotesStore } from '../stores/notes';
+import { NoteCopilotSlideout } from './NoteCopilotSlideout';
 
 // ============================================================================
 // TYPES
@@ -301,7 +302,7 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
   /**
    * Build the Copilot context object for the chat input
    */
-  const buildCopilotContext = useCallback((): CopilotContext | null => {
+  const buildCopilotContext = useCallback((): EmbeddedCopilotContext | null => {
     if (!content.trim()) return null;
 
     const noteTitle = generateTitle(content);
@@ -319,6 +320,7 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
       fullContext: content,
       metadata: {
         timestamp: Date.now(),
+        source: 'sticky-note',
       },
     };
   }, [content]);
@@ -668,10 +670,10 @@ export function StickyNote({ note, noteId, onClose, position }: StickyNoteProps)
         </div>
       </div>
 
-      {/* Copilot Chat Input Modal */}
+      {/* Copilot Chat Slideout */}
       {buildCopilotContext() && (
-        <CopilotChatInput
-          context={buildCopilotContext()!}
+        <NoteCopilotSlideout
+          context={buildCopilotContext()}
           isOpen={isCopilotChatOpen}
           onClose={() => setIsCopilotChatOpen(false)}
           onSuccess={(requestId) => {
