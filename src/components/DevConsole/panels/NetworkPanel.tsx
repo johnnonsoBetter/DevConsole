@@ -13,12 +13,12 @@ import { RaindropIcon, VSCodeIcon } from '../../../icons';
 import { createLogExplainer } from '../../../lib/ai/services/logExplainer';
 import { createMemoryEnhancedLogExplainer } from '../../../lib/ai/services/memoryEnhancedLogExplainer';
 import {
-  copyNetworkContext,
-  downloadNetworkContext,
-  generateNetworkContext,
-  getNetworkFormatOptions,
-  type ContextFormat,
-  type NetworkData,
+    copyNetworkContext,
+    downloadNetworkContext,
+    generateNetworkContext,
+    getNetworkFormatOptions,
+    type ContextFormat,
+    type NetworkData,
 } from '../../../lib/devConsole/networkContextGenerator';
 import { cn } from '../../../utils';
 import { formatDuration } from '../../../utils/formatUtils';

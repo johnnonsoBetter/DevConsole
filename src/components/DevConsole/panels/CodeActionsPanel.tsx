@@ -5,28 +5,28 @@
  */
 
 import {
-  AlertCircle,
-  Check,
-  Clipboard,
-  Clock,
-  Code2,
-  Image as ImageIcon,
-  Loader2,
-  Plus,
-  RefreshCw,
-  StickyNote,
-  Terminal,
-  Trash2,
-  X,
+    AlertCircle,
+    Check,
+    Clipboard,
+    Clock,
+    Code2,
+    Image as ImageIcon,
+    Loader2,
+    Plus,
+    RefreshCw,
+    StickyNote,
+    Terminal,
+    Trash2,
+    X,
 } from 'lucide-react';
 import { useCallback, useState } from 'react';
-import { cn } from '../../../utils';
 import { VSCodeIcon } from '../../../icons';
 import { webhookCopilot } from '../../../lib/webhookCopilot/webhookService';
+import { cn } from '../../../utils';
 import {
-  CodeAction,
-  CodeActionStatus,
-  useCodeActionsStore,
+    CodeAction,
+    CodeActionStatus,
+    useCodeActionsStore,
 } from '../../../utils/stores/codeActions';
 import { TaskCodeEditor } from './TaskCodeEditor';
 

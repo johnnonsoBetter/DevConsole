@@ -7,8 +7,8 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import { memo } from 'react';
-import { cn } from '../../../utils';
 import { EmbeddedCopilotChat, type EmbeddedCopilotContext } from '../../../components/DevConsole/EmbeddedCopilotChat';
+import { cn } from '../../../utils';
 
 // ============================================================================
 // TYPES

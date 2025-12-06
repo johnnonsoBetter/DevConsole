@@ -5,11 +5,11 @@ import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
-  createGitHubIssue,
-  testGitHubConnection,
-  updateGitHubIssue,
-  type GitHubConfig,
-  type GitHubIssue,
+    createGitHubIssue,
+    testGitHubConnection,
+    updateGitHubIssue,
+    type GitHubConfig,
+    type GitHubIssue,
 } from "../../lib/devConsole/githubApi";
 import { cn } from "../../utils";
 import { SuperWriteAI } from "./SuperWriteAI";
