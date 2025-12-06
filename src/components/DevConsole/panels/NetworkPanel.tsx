@@ -863,6 +863,75 @@ export function NetworkPanel() {
     };
   }, [selectedRequest, explanation]);
 
+  /**
+   * Handle converting network request to GitHub issue
+   * Builds proper title and body for the issue slideout
+   */
+  const handleConvertToIssue = useCallback(() => {
+    if (!selectedRequest) return;
+
+    // Build title from request
+    const statusEmoji = selectedRequest.status >= 400 ? '❌' : selectedRequest.status >= 300 ? '⚠️' : '✅';
+    const statusText = selectedRequest.status || 'Pending';
+    const urlPath = new URL(selectedRequest.url, window.location.origin).pathname;
+    const title = `[Network ${statusText}] ${selectedRequest.method} ${urlPath}`;
+
+    // Build body from request details
+    const bodyParts: string[] = [
+      '## Request Details',
+      '',
+      `**Method:** ${selectedRequest.method}`,
+      `**URL:** ${selectedRequest.url}`,
+      `**Status:** ${statusEmoji} ${statusText}`,
+    ];
+
+    if (selectedRequest.duration) {
+      bodyParts.push(`**Duration:** ${formatDuration(selectedRequest.duration)}`);
+    }
+
+    bodyParts.push('');
+
+    // Add error info if present
+    if (selectedRequest.error) {
+      bodyParts.push('## Error', '', '```', selectedRequest.error, '```', '');
+    }
+
+    // Add request headers if present
+    if (selectedRequest.requestHeaders && Object.keys(selectedRequest.requestHeaders).length > 0) {
+      bodyParts.push('## Request Headers', '', '```json', JSON.stringify(selectedRequest.requestHeaders, null, 2), '```', '');
+    }
+
+    // Add request body if present
+    if (selectedRequest.requestBody) {
+      bodyParts.push('## Request Body', '', '```json', typeof selectedRequest.requestBody === 'string' ? selectedRequest.requestBody : JSON.stringify(selectedRequest.requestBody, null, 2), '```', '');
+    }
+
+    // Add response info
+    if (selectedRequest.responseBody) {
+      const responsePreview = typeof selectedRequest.responseBody === 'string' 
+        ? selectedRequest.responseBody.slice(0, 1000) 
+        : JSON.stringify(selectedRequest.responseBody, null, 2).slice(0, 1000);
+      bodyParts.push('## Response Body (Preview)', '', '```json', responsePreview, responsePreview.length >= 1000 ? '\n... (truncated)' : '', '```', '');
+    }
+
+    // Add environment info
+    bodyParts.push(
+      '## Environment',
+      '',
+      `- **Timestamp:** ${new Date(selectedRequest.timestamp).toISOString()}`,
+      `- **Type:** ${selectedRequest.type || 'fetch'}`
+    );
+
+    if (selectedRequest.graphql) {
+      bodyParts.push(`- **GraphQL Operation:** ${selectedRequest.graphql.operationName || 'Unknown'}`);
+    }
+
+    const body = bodyParts.join('\n');
+
+    // Open the slideout with custom content (passing null for log)
+    githubSlideoutStore.open(null, { title, body });
+  }, [selectedRequest, githubSlideoutStore]);
+
   // Reset to page 1 when search changes
   useEffect(() => {
     setCurrentPage(1);
@@ -1101,7 +1170,7 @@ export function NetworkPanel() {
                   
                   {/* Convert to Issue Button */}
                   <button
-                    onClick={() => githubSlideoutStore.open(selectedRequest)}
+                    onClick={handleConvertToIssue}
                     className={cn(
                       "flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all",
                       "bg-gray-900 dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-100",
@@ -1257,7 +1326,7 @@ export function NetworkPanel() {
                       
                       {/* Convert to Issue Button */}
                       <button
-                        onClick={() => githubSlideoutStore.open(selectedRequest)}
+                        onClick={handleConvertToIssue}
                         className={cn(
                           "flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all",
                           "bg-gray-900 dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-100",

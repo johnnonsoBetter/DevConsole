@@ -464,7 +464,7 @@ export function GitHubIssueSlideout({ isOpen, onClose, githubConfig, onOpenSetti
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", damping: 30, stiffness: 300 }}
-            className="fixed top-0 right-0 bottom-0 w-[600px] bg-white dark:bg-gray-900 shadow-2xl z-[10001] flex flex-col border-l border-gray-200 dark:border-gray-800"
+            className="fixed top-0 right-0 bottom-0 w-full max-w-[400px] bg-white dark:bg-gray-900 shadow-2xl z-[10001] flex flex-col border-l border-gray-200 dark:border-gray-800"
           >
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-gradient-to-r from-success/10 to-info/10">
