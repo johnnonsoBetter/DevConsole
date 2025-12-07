@@ -1,0 +1,27 @@
+{
+  "name": "devconsole-livekit-agent",
+  "version": "1.0.0",
+  "description": "LiveKit Agent with STT transcription for DevConsole video calls",
+  "type": "module",
+  "main": "dist/agent.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/agent.ts dev",
+    "start": "node dist/agent.js start",
+    "download-files": "node dist/agent.js download-files",
+    "format": "prettier --write .",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@livekit/agents": "^1.0.0",
+    "@livekit/agents-plugin-deepgram": "^1.0.0",
+    "@livekit/agents-plugin-silero": "^1.0.0",
+    "@livekit/rtc-node": "^0.13.12",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  }
+}
