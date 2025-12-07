@@ -164,7 +164,7 @@ Adjust constants if needed:
 ## Related Files
 - `src/content/index.ts` - Main content script with optimizations
 - `src/content/page-hook-logic.ts` - Page-context injection (message size limits)
-- `src/background/service-worker.ts` - Receives batched messages
+- `src/background/index.ts` - Receives batched messages
 - `src/core/messaging/types.ts` - Message type definitions
 
 ## References

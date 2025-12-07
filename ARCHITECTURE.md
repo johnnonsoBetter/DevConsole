@@ -47,7 +47,7 @@ DevConsole is a Chrome extension that provides developer tools with console logg
 - Filters sensitive data
 
 ### 3. Background Service Worker
-**Location:** `src/background/service-worker.ts`
+**Location:** `src/background/index.ts`
 
 - Central state management
 - Stores logs and network requests
@@ -123,7 +123,7 @@ await StorageService.set('devConsole_logs', logs, true);
 ```
 src/
 ├── background/          # Service worker
-│   └── service-worker.ts
+│   └── index.ts
 ├── content/             # Content scripts
 │   ├── index.ts         # Main relay
 │   └── page-hook-logic.ts  # Page hooks
@@ -172,7 +172,7 @@ src/
 ### Adding a New Message Type
 
 1. Define type in `src/core/messaging/types.ts`
-2. Add handler in `src/background/service-worker.ts`
+2. Add handler in `src/background/index.ts`
 3. Send from content/page using messaging service
 4. Receive in DevTools bridge if needed
 

@@ -4,7 +4,7 @@
 - **Product**: Chrome DevTools extension that captures console + network data, injects a React DevConsole UI, and layers in AI tooling, GitHub automation, GraphQL exploration, and smart autofill.
 - **Stack**: Vite + React 18 + TypeScript, Zustand, TailwindCSS, Framer Motion, Manifest V3 service worker, Chrome storage/messaging, GraphiQL, Vercel `ai` SDK, Unsplash integration.
 - **Experience Pillars**: Observability (Logs/Network), Collaboration (context packs, GitHub issues), Intelligence (AI explainers + Chrome on-device models), Productivity (Autofill + Playground tools).
-- **Primary Flow**: `page-hook-logic.ts` (capture) → `content/index.ts` (batch + relay + Autofill bootstrap) → `background/service-worker.ts` (state + storage) → `src/devtools` bridge → `src/components/DevConsole` tabs.
+ - **Primary Flow**: `page-hook-logic.ts` (capture) → `content/index.ts` (batch + relay + Autofill bootstrap) → `background/index.ts` (state + storage) → `src/devtools` bridge → `src/components/DevConsole` tabs.
 
 ## Architecture in Motion
 The extension runs three coordinated contexts:
@@ -29,7 +29,7 @@ DevTools Bridge → Zustand Stores → React DevConsole Tabs
 ## Module Map & Responsibilities
 - `manifest.json`: MV3 permissions (`storage`, `activeTab`, `<all_urls>`), background service worker entry, content + DevTools scripts.
 - `src/content/`: `page-hook-logic.ts`, relay `index.ts`, Autofill bootstrap, injection helpers.
-- `src/background/`: `service-worker.ts` + `StateManager`, storage wiring, message handlers.
+- `src/background/`: `index.ts` + `StateManager`, storage wiring, message handlers.
 - `src/devtools/`: Panel registration (`devtools.ts`, `DevToolsPanel.tsx`), bridge that hydrates Zustand stores.
 - `src/components/DevConsole/`: DevConsole shell, tabs (Logs, Network, GraphQL, Tools, Settings), AI widgets, GitHub/GraphQL panels, shared UI primitives.
 - `src/lib/devConsole/`: Console/network interceptors, AI client/log explainer, GitHub + GraphQL helpers, context packer, prompt formatter.
@@ -70,7 +70,7 @@ This repo aligns with the Devconsole Premium Design System V2 described in `desi
 - Provide non-color affordances (icons, labels, helper text) for all semantic states.
 
 ## Implementation Recipes
-- **Add a message type**: Extend `src/core/messaging/types.ts`, update `MessageReceiver`/`MessageSender`, wire background handler in `service-worker.ts`, surface payload via Zustand selectors, and document in `ARCHITECTURE.md` if externally consumable.
+- **Add a message type**: Extend `src/core/messaging/types.ts`, update `MessageReceiver`/`MessageSender`, wire background handler in `index.ts`, surface payload via Zustand selectors, and document in `ARCHITECTURE.md` if externally consumable.
 - **Introduce a DevConsole tab/section**: Build component under `src/components/DevConsole/panels/`, register in `CONSOLE_TABS`, choose `lucide-react` icon, and guard heavy bundles with `lazy()`.
 - **Persist new settings**: Update `ExtensionSettings` schema + helper functions, ensure `StateManager.updateSettings` respects new flags, add UI controls in `UnifiedSettingsPanel` with optimistic loading + validation per `SETTINGS_IMPLEMENTATION.md`.
 - **Extend AI providers**: Add adapter in `src/lib/ai/services/aiClient.ts`, expose config in `AISettingsPanel` + store, support streaming responses, and gate UI with availability checks from `useChromeAI` or provider metadata.

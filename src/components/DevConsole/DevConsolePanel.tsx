@@ -5,16 +5,17 @@
  */
 
 import {
-  // Activity, // TODO: Re-enable when Tools panel is needed
-  BookOpen,
-  // Download, // TODO: Re-enable when Tools panel is needed
-  Github,
-  // Info, // TODO: Re-enable when Tools panel is needed
-  // Monitor, // TODO: Re-enable when Terminal Stream API is ready
-  Network,
-  // RefreshCw, // TODO: Re-enable when Tools panel is needed
-  Settings,
-  Terminal,
+    // Activity, // TODO: Re-enable when Tools panel is needed
+    BookOpen,
+    // Download, // TODO: Re-enable when Tools panel is needed
+    Github,
+    // Info, // TODO: Re-enable when Tools panel is needed
+    // Monitor, // TODO: Re-enable when Terminal Stream API is ready
+    Network,
+    // RefreshCw, // TODO: Re-enable when Tools panel is needed
+    Settings,
+    Terminal,
+    Video,
 } from 'lucide-react';
 import { lazy, useEffect, useMemo, useState } from 'react';
 import { GraphQLIcon, LogoIcon, VSCodeIcon } from '../../icons';
@@ -25,7 +26,7 @@ import { GraphQLIcon, LogoIcon, VSCodeIcon } from '../../icons';
 //     exportContextPack,
 // } from '../../lib/devConsole/contextPacker';
 import {
-  useDevConsoleStore
+    useDevConsoleStore
 } from '../../utils/stores/devConsole';
 const GraphQLExplorer = lazy(() => import('../DevConsole/GraphQLExplorerV2').then(module => ({default: module.GraphQLExplorerV2})));
 
@@ -44,6 +45,7 @@ import { LogsPanel } from './panels/LogsPanel';
 import { NetworkPanel } from './panels/NetworkPanel';
 import { NotesPanel } from './panels/NotesPanel';
 // import { TerminalPanel } from './panels/TerminalPanel'; // TODO: Re-enable when Terminal Stream API is ready
+import { VideoCallPanel } from './panels/VideoCallPanel';
 import { ThemeToggle } from './ThemeToggle';
 import { UnifiedSettingsPanel } from './UnifiedSettingsPanel';
 
@@ -67,6 +69,7 @@ const CONSOLE_TABS = [
   { id: 'network', label: 'Network', icon: Network },
   // { id: 'terminal', label: 'Terminal', icon: Monitor }, // TODO: Re-enable when Terminal Stream API is ready
   { id: 'notes', label: 'Notes', icon: BookOpen },
+  { id: 'video', label: 'Video', icon: Video },
   { id: 'actions', label: 'Actions', icon: VSCodeIcon },
   { id: 'graphql', label: 'GraphQL', icon: GraphQLIcon },
   // { id: 'tools', label: 'Tools', icon: Activity }, // TODO: Re-enable Tools panel when needed
@@ -150,6 +153,7 @@ export function DevConsolePanel({ githubConfig }: DevConsolePanelProps = {}) {
               {tab.id === 'network' && <NetworkPanel />}
               {/* {tab.id === 'terminal' && <TerminalPanel />} */}{/* TODO: Re-enable when Terminal Stream API is ready */}
               {tab.id === 'notes' && <NotesPanel />}
+              {tab.id === 'video' && <VideoCallPanel onOpenSettings={() => setActiveTab('settings')} />}
               {tab.id === 'actions' && <CodeActionsPanel />}
               {tab.id === 'graphql' && <GraphQLExplorer />}
               {/* {tab.id === 'tools' && <ToolsPanel />} */}{/* TODO: Re-enable when Tools panel is needed */}

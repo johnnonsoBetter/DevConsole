@@ -1,6 +1,7 @@
 // Export all stores
 export * from "./aiSettings";
 export * from "./autofillSettings";
+export * from "./callSession";
 export * from "./codeActions";
 export * from "./devConsole";
 export * from "./githubIssueSlideout";

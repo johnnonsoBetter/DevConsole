@@ -19,6 +19,7 @@ export default defineConfig({
         popup: "src/popup/index.html",
         "page-hook-logic": "src/content/page-hook-logic.ts",
         landing: "src/landing/index.html",
+        videocall: "src/videocall/index.html",
       },
       output: {
         entryFileNames: (chunkInfo) => {

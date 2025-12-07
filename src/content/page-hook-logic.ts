@@ -1,6 +1,12 @@
 /**
  * Page-context injector: hooks console.*, fetch, and XMLHttpRequest
  * Designed to be injected directly into page context (not content-script context)
+ * 
+ * FIXES:
+ * - Unified ring buffer implementation for both console and network logs
+ * - Consistent size limit enforcement
+ * - Messages only sent if within limits
+ * - Better overflow handling
  */
 
 (() => {
@@ -48,6 +54,7 @@
     MAX_TOTAL_SIZE: 52428800, // 50MB total
     MAX_LOGS_RING_BUFFER: 1000, // Keep last 1000 logs in ring buffer
     ENABLE_ERROR_LOGGING: true, // Log internal errors to console
+    SIZE_CHECK_THRESHOLD: 0.9, // Start removing old logs at 90% capacity
   };
 
   // ============================================================================
@@ -55,11 +62,12 @@
   // ============================================================================
   let captureEnabled = true;
   let liveObjectCache = new WeakMap();
-  let objectIdCounter = 0; // Unique counter for object IDs
+  let objectIdCounter = 0;
   let messageCount = 0;
   let totalMessageSize = 0;
-  let logRingBuffer: any[] = []; // Ring buffer for logs
-  let seenObjects = new Map(); // Cache for object serialization
+  let logRingBuffer: any[] = [];
+  let seenObjects = new Map();
+  let droppedMessageCount = 0; // Track dropped messages
 
   // ============================================================================
   // HELPERS
@@ -217,13 +225,11 @@
         if (seen.has(val)) return "[Circular]";
         seen.add(val);
 
-        // Check if we've already serialized this object (within same session)
         let objId = seenObjects.get(val);
         if (!objId) {
           objId = generateObjectId();
           seenObjects.set(val, objId);
 
-          // Store live reference for potential lazy expansion (future feature)
           try {
             liveObjectCache.set(val, objId);
           } catch (e) {
@@ -250,7 +256,6 @@
         }
         return out;
       }
-      // fallback
       return String(val);
     } catch (e) {
       return "[SerializeError: " + (e && (e as Error).message) + "]";
@@ -263,7 +268,6 @@
 
   /**
    * Improved stack trace parsing with better cross-browser support
-   * Handles Chrome, Firefox, Safari, and minified code better
    */
   function getStackTrace():
     | { file?: string; line?: number; column?: number; raw?: string }
@@ -275,9 +279,8 @@
 
       const lines = raw.split("\n").map((l) => l.trim());
 
-      // Patterns to skip (our own code and browser internals)
       const skipPatterns = [
-        /\b(inject|DevConsole|getStackTrace|page-hook-logic|postConsole)\b/i,
+        /\b(inject|DevConsole|getStackTrace|page-hook-logic|postConsole|postMessage)\b/i,
         /<anonymous>/,
         /\(native\)/,
         /^Error$/,
@@ -287,50 +290,39 @@
       for (let ln of lines) {
         if (!ln) continue;
 
-        // Skip our own frames and internals
         if (skipPatterns.some((pattern) => pattern.test(ln))) {
           continue;
         }
 
-        // Try different stack trace formats
-        // Chrome: "at functionName (file:line:col)" or "at file:line:col"
-        // Firefox: "functionName@file:line:col"
-        // Safari: "functionName@file:line:col" or "file:line:col"
-
         const patterns = [
-          /at\s+(.+?)\s+\((.+?):(\d+):(\d+)\)/, // Chrome with function
-          /at\s+(.+?):(\d+):(\d+)/, // Chrome without function
-          /(.+?)@(.+?):(\d+):(\d+)/, // Firefox/Safari with function
-          /^(.+?):(\d+):(\d+)$/, // Safari without function
-          /\((.+?):(\d+):(\d+)\)/, // Standalone location
+          /at\s+(.+?)\s+\((.+?):(\d+):(\d+)\)/,
+          /at\s+(.+?):(\d+):(\d+)/,
+          /(.+?)@(.+?):(\d+):(\d+)/,
+          /^(.+?):(\d+):(\d+)$/,
+          /\((.+?):(\d+):(\d+)\)/,
         ];
 
         for (const pattern of patterns) {
           const match = ln.match(pattern);
           if (match) {
-            // Determine which group has the file path
             let file: string;
             let lineNum: number;
             let colNum: number;
 
             if (pattern.source.includes("@")) {
-              // Firefox/Safari format
               file = match[2] || match[1];
               lineNum = parseInt(match[3] || match[2], 10);
               colNum = parseInt(match[4] || match[3], 10);
             } else if (match.length === 4 && match[1].includes(":")) {
-              // Chrome without function or Safari standalone
               file = match[1];
               lineNum = parseInt(match[2], 10);
               colNum = parseInt(match[3], 10);
             } else {
-              // Chrome with function
               file = match[2] || match[1];
               lineNum = parseInt(match[3] || match[2], 10);
               colNum = parseInt(match[4] || match[3], 10);
             }
 
-            // Clean up the file path
             file = file?.trim();
             if (file && !isNaN(lineNum) && !isNaN(colNum)) {
               return { file, line: lineNum, column: colNum, raw: ln };
@@ -352,22 +344,91 @@
     return t.length > max ? t.slice(0, max) + "...[truncated]" : t;
   }
 
-  // ============================================================================
-  // CONSOLE INTERCEPTION
-  // ============================================================================
-  // Use originalConsole directly since we saved all methods early
-  const extendedOriginalConsole = originalConsole;
-
   function estimateMessageSize(msg: any): number {
     try {
-      return JSON.stringify(msg).length * 2; // rough UTF-16 byte estimate
+      return JSON.stringify(msg).length * 2;
     } catch (e) {
-      return 1000; // fallback estimate
+      return 1000;
     }
   }
 
   /**
-   * Post console message with ring buffer implementation
+   * FIXED: Unified message queueing with proper size enforcement
+   */
+  function queueMessage(message: any): boolean {
+    const msgSize = estimateMessageSize(message);
+
+    // Check if single message is too large
+    if (msgSize > CONFIG.MAX_MESSAGE_SIZE_BYTES) {
+      originalConsole.warn(
+        "[DevConsole] Message too large, dropping:",
+        msgSize,
+        "bytes"
+      );
+      droppedMessageCount++;
+      return false;
+    }
+
+    // Check if we need to free up space
+    const threshold = CONFIG.MAX_TOTAL_SIZE * CONFIG.SIZE_CHECK_THRESHOLD;
+    while (
+      logRingBuffer.length > 0 &&
+      (totalMessageSize + msgSize > CONFIG.MAX_TOTAL_SIZE ||
+        logRingBuffer.length >= CONFIG.MAX_LOGS_RING_BUFFER)
+    ) {
+      const removedLog = logRingBuffer.shift();
+      if (removedLog) {
+        const removedSize = estimateMessageSize(removedLog);
+        totalMessageSize -= removedSize;
+      }
+    }
+
+    // Final check - if still can't fit, drop the message
+    if (totalMessageSize + msgSize > CONFIG.MAX_TOTAL_SIZE) {
+      droppedMessageCount++;
+      if (droppedMessageCount % 100 === 1) {
+        originalConsole.warn(
+          `[DevConsole] Buffer full, dropped ${droppedMessageCount} messages`
+        );
+      }
+      return false;
+    }
+
+    // Add to ring buffer
+    logRingBuffer.push(message);
+    totalMessageSize += msgSize;
+    messageCount++;
+
+    // Send the message
+    try {
+      if (isWorker) {
+        (self as any).postMessage(message);
+      } else {
+        try {
+          window.postMessage(message, window.location.origin);
+        } catch (e) {
+          // Fallback for file:// protocol
+          if (window.location.protocol === "file:") {
+            window.postMessage(message, "*");
+          } else {
+            throw e;
+          }
+        }
+      }
+      return true;
+    } catch (error) {
+      logInternalError("postMessage", error);
+      return false;
+    }
+  }
+
+  // ============================================================================
+  // CONSOLE INTERCEPTION
+  // ============================================================================
+  const extendedOriginalConsole = originalConsole;
+
+  /**
+   * FIXED: Post console message using unified queue
    */
   function postConsole(level: string, args: any[]) {
     if (!captureEnabled) return;
@@ -386,67 +447,7 @@
         payload,
       };
 
-      const msgSize = estimateMessageSize(message);
-
-      // Handle oversized messages
-      if (msgSize > CONFIG.MAX_MESSAGE_SIZE_BYTES) {
-        originalConsole.warn(
-          "[DevConsole] Message too large, truncating:",
-          msgSize,
-          "bytes"
-        );
-        payload.args = ["[Message too large to capture]"];
-      }
-
-      totalMessageSize += msgSize;
-      messageCount++;
-
-      // Implement ring buffer: remove old logs when size limit reached
-      if (totalMessageSize > CONFIG.MAX_TOTAL_SIZE) {
-        // Remove oldest messages until we're under the limit
-        while (
-          logRingBuffer.length > 0 &&
-          totalMessageSize > CONFIG.MAX_TOTAL_SIZE * 0.75
-        ) {
-          const removedLog = logRingBuffer.shift();
-          if (removedLog) {
-            const removedSize = estimateMessageSize(removedLog);
-            totalMessageSize -= removedSize;
-          }
-        }
-
-        // Also enforce max count limit
-        while (logRingBuffer.length >= CONFIG.MAX_LOGS_RING_BUFFER) {
-          const removedLog = logRingBuffer.shift();
-          if (removedLog) {
-            const removedSize = estimateMessageSize(removedLog);
-            totalMessageSize -= removedSize;
-          }
-        }
-      }
-
-      // Add to ring buffer
-      logRingBuffer.push(message);
-
-      // Send message to content script
-      try {
-        if (isWorker) {
-          // In worker context, use self.postMessage
-          (self as any).postMessage(message);
-        } else {
-          // In window context
-          window.postMessage(message, window.location.origin);
-        }
-      } catch (e) {
-        // Fallback for file:// protocol or when origin is null
-        try {
-          if (!isWorker && window.location.protocol === "file:") {
-            window.postMessage(message, "*");
-          }
-        } catch (fallbackError) {
-          logInternalError("postMessage fallback", fallbackError);
-        }
-      }
+      queueMessage(message);
     } catch (error) {
       logInternalError("postConsole", error);
     }
@@ -464,7 +465,6 @@
     };
   });
 
-  // Intercept grouping methods
   (["group", "groupEnd", "groupCollapsed"] as const).forEach((level) => {
     const orig = extendedOriginalConsole[level];
     (console as any)[level] = function (...args: any[]) {
@@ -477,7 +477,6 @@
     };
   });
 
-  // Intercept table
   (console as any).table = function (tabularData?: any, properties?: string[]) {
     const args = [tabularData, properties];
     postConsole("table", args);
@@ -488,7 +487,6 @@
     }
   };
 
-  // Intercept timing methods
   (console as any).time = function (label?: string) {
     postConsole("time", [label]);
     try {
@@ -514,7 +512,6 @@
     }
   };
 
-  // Intercept counting methods
   (console as any).count = function (label?: string) {
     postConsole("count", [label]);
     try {
@@ -532,7 +529,6 @@
     }
   };
 
-  // Intercept trace
   (console as any).trace = function (...args: any[]) {
     postConsole("trace", args);
     try {
@@ -542,7 +538,6 @@
     }
   };
 
-  // Intercept assert
   (console as any).assert = function (assertion: any, ...args: any[]) {
     if (!assertion) {
       postConsole("assert", args);
@@ -554,7 +549,6 @@
     }
   };
 
-  // Intercept clear
   (console as any).clear = function () {
     postConsole("clear", []);
     try {
@@ -564,7 +558,7 @@
     }
   };
 
-  // Custom console methods (safe to add only if not already defined)
+  // Custom console methods
   if (!(console as any).ui) {
     (console as any).ui = function (...args: any[]) {
       postConsole("ui", args);
@@ -584,7 +578,6 @@
     };
   }
 
-  // Initialization message
   originalConsole.info(
     "%c🔧 DevConsole Extension Active",
     "color:#9E7AFF;font-weight:bold;",
@@ -599,9 +592,7 @@
     body: any
   ): { isGraphQL: boolean; operation?: string; operationName?: string } {
     try {
-      // Check URL patterns
       if (url.includes("/graphql") || url.includes("/gql")) {
-        // Try to extract operation from body
         if (body && typeof body === "object") {
           const operation = body.query
             ? body.query.match(/^\s*(query|mutation|subscription)/i)?.[1] ||
@@ -692,19 +683,16 @@
       }
     } catch (e) {}
 
-    // Detect GraphQL
     const gqlInfo = detectGraphQL(url, requestBody);
 
     try {
       const resp = await originalFetch(resource, config);
       const duration = performance.now() - start;
 
-      // Clone the response BEFORE any consumption
       let responseBody: any;
       try {
         const ct = resp.headers.get("content-type") || "";
 
-        // Always try to clone first - this is the safest approach
         try {
           const clone = resp.clone();
 
@@ -723,7 +711,6 @@
             const txt = await clone.text();
             responseBody = truncateText(txt);
           } else {
-            // For binary content, don't try to read it
             const contentLength = resp.headers.get("content-length");
             responseBody =
               "[Binary content: " +
@@ -732,7 +719,6 @@
               "]";
           }
         } catch (cloneErr) {
-          // Clone failed - response may have been consumed before we intercepted it
           responseBody = "[Unable to read response: body already consumed]";
         }
       } catch (e) {
@@ -745,13 +731,8 @@
         resp.headers.forEach((v, k) => (responseHeaders[k] = v));
       } catch (e) {}
 
-      // Log GraphQL operations to console
       if (gqlInfo.isGraphQL && gqlInfo.operation && gqlInfo.operationName) {
         const status = resp.status >= 200 && resp.status < 300 ? "✓" : "✗";
-        originalConsole.log("THE GRAPHQL LOG");
-        postConsole("log", [
-          `${status} ${gqlInfo.operation.toUpperCase()} ${gqlInfo.operationName} ${duration.toFixed(0)}ms`,
-        ]);
         extendedOriginalConsole.log(
           `%c${status} ${gqlInfo.operation.toUpperCase()} ${gqlInfo.operationName}%c ${duration.toFixed(0)}ms`,
           "color: " +
@@ -779,26 +760,7 @@
         },
       };
 
-      const msgSize = estimateMessageSize(message);
-      if (msgSize > CONFIG.MAX_MESSAGE_SIZE_BYTES) {
-        message.payload.responseBody = "[Response too large to capture]";
-        message.payload.requestBody = "[Request too large to capture]";
-      }
-
-      totalMessageSize += msgSize;
-      messageCount++;
-
-      if (totalMessageSize <= CONFIG.MAX_TOTAL_SIZE) {
-        try {
-          window.postMessage(message, window.location.origin);
-        } catch (e) {
-          // Fallback for file:// protocol
-          if (window.location.protocol === "file:") {
-            window.postMessage(message, "*");
-          }
-        }
-      }
-
+      queueMessage(message);
       return resp;
     } catch (error) {
       const duration = performance.now() - start;
@@ -825,21 +787,7 @@
         },
       };
 
-      const msgSize = estimateMessageSize(message);
-      totalMessageSize += msgSize;
-      messageCount++;
-
-      if (totalMessageSize <= CONFIG.MAX_TOTAL_SIZE) {
-        try {
-          window.postMessage(message, window.location.origin);
-        } catch (e) {
-          // Fallback for file:// protocol
-          if (window.location.protocol === "file:") {
-            window.postMessage(message, "*");
-          }
-        }
-      }
-
+      queueMessage(message);
       throw error;
     }
   };
@@ -869,7 +817,7 @@
     open(method: string, url: string, ...rest: any[]): void {
       this.__method = method;
       this.__url = url;
-      this.__requestHeaders = {}; // Reset headers for new request
+      this.__requestHeaders = {};
       return super.open.apply(this, [method, url, ...rest] as any);
     }
 
@@ -920,7 +868,6 @@
         });
       } catch (e) {}
 
-      // Detect GraphQL
       const gqlInfo = detectGraphQL(this.__url, this.__requestBody);
 
       if (gqlInfo.isGraphQL && gqlInfo.operation && gqlInfo.operationName) {
@@ -952,24 +899,7 @@
         },
       };
 
-      const msgSize = estimateMessageSize(message);
-      if (msgSize > CONFIG.MAX_MESSAGE_SIZE_BYTES) {
-        message.payload.responseBody = "[Response too large to capture]";
-        message.payload.requestBody = "[Request too large to capture]";
-      }
-
-      totalMessageSize += msgSize;
-      messageCount++;
-
-      if (totalMessageSize <= CONFIG.MAX_TOTAL_SIZE) {
-        try {
-          window.postMessage(message, window.location.origin);
-        } catch (e) {
-          if (window.location.protocol === "file:") {
-            window.postMessage(message, "*");
-          }
-        }
-      }
+      queueMessage(message);
     }
 
     private __onError() {
@@ -1000,19 +930,7 @@
         },
       };
 
-      const msgSize = estimateMessageSize(message);
-      totalMessageSize += msgSize;
-      messageCount++;
-
-      if (totalMessageSize <= CONFIG.MAX_TOTAL_SIZE) {
-        try {
-          window.postMessage(message, window.location.origin);
-        } catch (e) {
-          if (window.location.protocol === "file:") {
-            window.postMessage(message, "*");
-          }
-        }
-      }
+      queueMessage(message);
     }
   }
 
@@ -1051,6 +969,7 @@
         logRingBuffer = [];
         seenObjects.clear();
         objectIdCounter = 0;
+        droppedMessageCount = 0;
         captureEnabled = true;
         extendedOriginalConsole.log(
           "%c🔧 DevConsole Stats Reset",
@@ -1062,6 +981,7 @@
           "color:#9E7AFF;font-weight:bold;",
           `\nCapture: ${captureEnabled ? "ENABLED" : "DISABLED"}`,
           `\nMessages: ${messageCount}`,
+          `\nDropped: ${droppedMessageCount}`,
           `\nRing Buffer: ${logRingBuffer.length} logs`,
           `\nTotal Size: ${(totalMessageSize / 1024 / 1024).toFixed(2)}MB / ${(CONFIG.MAX_TOTAL_SIZE / 1024 / 1024).toFixed(0)}MB`,
           `\nCached Objects: ${seenObjects.size}`

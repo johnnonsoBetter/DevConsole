@@ -50,7 +50,11 @@
   
   "web_accessible_resources": [
     {
-      "resources": ["page-hook-logic.js", "src/lib/autofill/autofill.css"],
+      "resources": [
+        "page-hook-logic.js",
+        "src/lib/autofill/autofill.css",
+        "src/videocall/index.html"
+      ],
       "matches": ["<all_urls>"]
     }
   ]
