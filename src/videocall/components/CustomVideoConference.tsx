@@ -16,6 +16,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ConnectionState, Participant, RemoteTrackPublication, RoomEvent, Track } from 'livekit-client';
 import {
   Copy,
+  FileText,
   Hand,
   Mic,
   MicOff,
@@ -33,8 +34,15 @@ import {
   X
 } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { useReactionsChannel, type ReactionType } from '../hooks/useReactionsChannel';
 import type { Participant as ParticipantType } from '../types';
+import { AgentIndicator } from './AgentIndicator';
+import { FloatingReactionsV2 } from './FloatingReactionsV2';
+import { LiveCaptions } from './LiveCaptions';
 import { ParticipantToast, useParticipantEvents } from './ParticipantToast';
+import { RaisedHandsV2 } from './RaisedHandsV2';
+import { ReactionPicker as ReactionPickerV2 } from './ReactionPickerV2';
+import { TranscriptPanel } from './TranscriptPanel';
 import { ControlButton } from './ui';
 
 // Lazy load DevConsolePanel to avoid circular dependencies and reduce initial bundle
@@ -86,8 +94,21 @@ export function CustomVideoConference({
   // UI State
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isDevConsolePanelOpen, setIsDevConsolePanelOpen] = useState(false);
+  const [isTranscriptPanelOpen, setIsTranscriptPanelOpen] = useState(false);
   const [activeSpeakerId, setActiveSpeakerId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [isReactionPickerOpen, setIsReactionPickerOpen] = useState(false);
+  
+  // Real-time reactions and hand-raising via LiveKit data channel
+  const {
+    reactions,
+    raisedHands,
+    sendReaction,
+    removeReaction,
+    toggleHandRaise,
+    lowerHand,
+    isLocalHandRaised,
+  } = useReactionsChannel();
   
   // Participant events for join/leave notifications
   const { events: participantEvents, addEvent, dismissEvent } = useParticipantEvents();
@@ -136,22 +157,48 @@ export function CustomVideoConference({
     }));
   }, [participants]);
 
+  // Detect AI agent participant (identity starts with "agent-")
+  const agentParticipant = useMemo(() => {
+    const agentLkParticipant = participants.find(p => 
+      p.identity.toLowerCase().startsWith('agent-') || 
+      p.name?.toLowerCase().includes('transcription') ||
+      p.name?.toLowerCase().includes('ai agent')
+    );
+    if (!agentLkParticipant) return null;
+    
+    return {
+      id: agentLkParticipant.identity,
+      name: agentLkParticipant.name || 'AI Agent',
+      isMuted: !agentLkParticipant.isMicrophoneEnabled,
+      isCameraOn: agentLkParticipant.isCameraEnabled,
+      isSpeaking: agentLkParticipant.isSpeaking,
+      isLocal: false,
+    };
+  }, [participants]);
+
+  // Filter out agent from displayed participants (humans only)
+  const humanParticipants = useMemo(() => {
+    if (!agentParticipant) return mappedParticipants;
+    return mappedParticipants.filter(p => p.id !== agentParticipant.id);
+  }, [mappedParticipants, agentParticipant]);
+
   // Get active speaker - prioritize remote participants, but show local if alone
+  // Uses humanParticipants to exclude AI agent from main view selection
   const activeSpeaker = useMemo(() => {
     // If manually selected, use that
     if (activeSpeakerId) {
-      const selected = mappedParticipants.find((p) => p.id === activeSpeakerId);
+      const selected = humanParticipants.find((p) => p.id === activeSpeakerId);
       if (selected) return selected;
     }
     // Find speaking remote participant
-    const speakingRemote = mappedParticipants.find((p) => p.isSpeaking && !p.isLocal);
+    const speakingRemote = humanParticipants.find((p) => p.isSpeaking && !p.isLocal);
     if (speakingRemote) return speakingRemote;
     // Find any remote participant
-    const anyRemote = mappedParticipants.find((p) => !p.isLocal);
+    const anyRemote = humanParticipants.find((p) => !p.isLocal);
     if (anyRemote) return anyRemote;
     // Fall back to local participant (when alone)
-    return mappedParticipants.find((p) => p.isLocal) || mappedParticipants[0];
-  }, [mappedParticipants, activeSpeakerId]);
+    return humanParticipants.find((p) => p.isLocal) || humanParticipants[0];
+  }, [humanParticipants, activeSpeakerId]);
 
   // Check if anyone is screen sharing - prioritize screen share in main view
   const screenShareTrack = useMemo(() => {
@@ -183,11 +230,11 @@ export function CustomVideoConference({
   const mainViewParticipant = screenShareParticipant || activeSpeaker;
   const isShowingScreenShare = !!screenShareTrack;
 
-  // Sidebar participants - show ALL participants except the one in main view
-  // This includes the local participant as a self-view
+  // Sidebar participants - show ALL human participants except the one in main view
+  // This includes the local participant as a self-view, but excludes AI agents
   const sidebarParticipants = useMemo(() => {
-    return mappedParticipants.filter((p) => p.id !== activeSpeaker?.id);
-  }, [mappedParticipants, activeSpeaker]);
+    return humanParticipants.filter((p) => p.id !== activeSpeaker?.id);
+  }, [humanParticipants, activeSpeaker]);
 
   // Handlers
   const handleToggleMute = useCallback(async () => {
@@ -216,6 +263,22 @@ export function CustomVideoConference({
     room.disconnect();
     onLeave();
   }, [room, onLeave]);
+
+  // Handle raise hand toggle
+  const handleToggleRaiseHand = useCallback(() => {
+    toggleHandRaise();
+  }, [toggleHandRaise]);
+
+  // Handle reaction selection
+  const handleReaction = useCallback((reactionType: ReactionType) => {
+    sendReaction(reactionType);
+    setIsReactionPickerOpen(false);
+  }, [sendReaction]);
+
+  // Handle lowering hand (only local user can lower their own hand)
+  const handleLowerHand = useCallback(() => {
+    lowerHand();
+  }, [lowerHand]);
 
   // Connection status
   if (connectionState === ConnectionState.Connecting) {
@@ -282,9 +345,24 @@ export function CustomVideoConference({
             <div className="flex items-center gap-1.5 text-gray-400">
               <Users className="w-3.5 h-3.5" />
               <span className="text-caption2">
-                {participants.length} participant{participants.length !== 1 ? 's' : ''}
+                {humanParticipants.length} participant{humanParticipants.length !== 1 ? 's' : ''}
               </span>
             </div>
+            
+            {/* AI Agent indicator - shows when agent is in the room */}
+            {agentParticipant && (
+              <AgentIndicator
+                agent={{
+                  id: agentParticipant.id,
+                  name: agentParticipant.name,
+                  isListening: !agentParticipant.isMuted,
+                  isSpeaking: agentParticipant.isSpeaking,
+                  status: agentParticipant.isSpeaking ? 'speaking' : !agentParticipant.isMuted ? 'listening' : 'idle',
+                }}
+                onToggleTranscript={() => setIsTranscriptPanelOpen(prev => !prev)}
+                isTranscriptOpen={isTranscriptPanelOpen}
+              />
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -396,6 +474,28 @@ export function CustomVideoConference({
               </div>
             </motion.div>
           )}
+          
+          {/* Live captions overlay - shows real-time transcription */}
+          {agentParticipant && (
+            <LiveCaptions room={room} />
+          )}
+          
+          {/* Floating reactions - animated Lucide icon reactions synced via data channel */}
+          <FloatingReactionsV2
+            reactions={reactions}
+            onReactionComplete={removeReaction}
+          />
+          
+          {/* Raised hands indicator - synced via data channel */}
+          <AnimatePresence>
+            {raisedHands.length > 0 && (
+              <RaisedHandsV2
+                hands={raisedHands}
+                onLowerHand={handleLowerHand}
+                localParticipantId={localParticipant.identity}
+              />
+            )}
+          </AnimatePresence>
         </motion.div>
 
         {/* Bottom participant strip - horizontal scroll */}
@@ -560,7 +660,7 @@ export function CustomVideoConference({
               className="absolute -top-1 -right-1 min-w-[16px] h-4 flex items-center justify-center px-1 text-[10px] font-semibold text-white bg-primary rounded-full"
               aria-hidden="true"
             >
-              {participants.length}
+              {humanParticipants.length}
             </span>
           </div>
 
@@ -575,18 +675,47 @@ export function CustomVideoConference({
             label={isScreenSharing ? 'Stop sharing screen' : 'Share screen'}
           />
 
+          {/* Transcript */}
+          <ControlButton
+            icon={FileText}
+            isActive={isTranscriptPanelOpen}
+            onClick={() => setIsTranscriptPanelOpen((prev) => !prev)}
+            label={isTranscriptPanelOpen ? 'Hide transcript' : 'Show transcript'}
+          />
+
           {/* Reactions */}
-          <ControlButton
-            icon={Smile}
-            onClick={() => {}}
-            label="Send reaction"
-          />
+          <div className="relative">
+            <ControlButton
+              icon={Smile}
+              isActive={isReactionPickerOpen}
+              onClick={() => setIsReactionPickerOpen((prev) => !prev)}
+              label="Send reaction"
+            />
+            <ReactionPickerV2
+              isOpen={isReactionPickerOpen}
+              onClose={() => setIsReactionPickerOpen(false)}
+              onSelectReaction={handleReaction}
+            />
+          </div>
+          
           {/* Raise hand */}
-          <ControlButton
-            icon={Hand}
-            onClick={() => {}}
-            label="Raise hand"
-          />
+          <div className="relative">
+            <ControlButton
+              icon={Hand}
+              isActive={isLocalHandRaised}
+              onClick={handleToggleRaiseHand}
+              label={isLocalHandRaised ? 'Lower hand' : 'Raise hand'}
+            />
+            {/* Show indicator when hand is raised */}
+            {isLocalHandRaised && (
+              <motion.span
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className="absolute -top-1 -right-1 w-3 h-3 bg-warning rounded-full border-2 border-gray-800"
+                aria-hidden="true"
+              />
+            )}
+          </div>
 
           {/* More */}
           <ControlButton
@@ -630,10 +759,22 @@ export function CustomVideoConference({
               }
             >
               <div className="h-full w-[450px]">
-                <DevConsolePanel />
+                <DevConsolePanel compact />
               </div>
             </Suspense>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Transcript Panel Sidebar */}
+      <AnimatePresence>
+        {isTranscriptPanelOpen && (
+          <TranscriptPanel
+            room={room}
+            isOpen={isTranscriptPanelOpen}
+            onClose={() => setIsTranscriptPanelOpen(false)}
+            className="h-full"
+          />
         )}
       </AnimatePresence>
       

@@ -13,14 +13,27 @@ export { NotConfiguredView } from "./NotConfiguredView";
 export { PreCallView, type JoinMode } from "./PreCallView";
 
 // Video call UI components
+export { AgentIndicator } from "./AgentIndicator";
 export { ControlBar } from "./ControlBar";
 export { CustomVideoConference } from "./CustomVideoConference";
+export { FloatingReactions, useFloatingReactions } from "./FloatingReactions";
+export { FloatingReactionsV2, REACTION_CONFIG } from "./FloatingReactionsV2";
+export { LiveCaptions } from "./LiveCaptions";
 export { LiveKitErrorBoundary } from "./LiveKitErrorBoundary";
 export { MainVideoView } from "./MainVideoView";
+export {
+  DeviceSelectorButton,
+  MediaDeviceSelector,
+} from "./MediaDeviceSelector";
 export { MeetingHeader } from "./MeetingHeader";
 export { ParticipantSidebar } from "./ParticipantSidebar";
 export { ParticipantTile } from "./ParticipantTile";
 export { ParticipantToast, useParticipantEvents } from "./ParticipantToast";
+export { RaisedHands, useRaisedHands } from "./RaisedHands";
+export { RaisedHandsV2 } from "./RaisedHandsV2";
+export { ReactionPicker, REACTIONS } from "./ReactionPicker";
+export { ReactionPicker as ReactionPickerV2 } from "./ReactionPickerV2";
+export { TranscriptPanel } from "./TranscriptPanel";
 export { VideoCallLayout } from "./VideoCallLayout";
 export { VideoCallPage } from "./VideoCallPage";
 

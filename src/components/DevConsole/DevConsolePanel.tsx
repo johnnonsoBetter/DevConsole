@@ -5,17 +5,17 @@
  */
 
 import {
-    // Activity, // TODO: Re-enable when Tools panel is needed
-    BookOpen,
-    // Download, // TODO: Re-enable when Tools panel is needed
-    Github,
-    // Info, // TODO: Re-enable when Tools panel is needed
-    // Monitor, // TODO: Re-enable when Terminal Stream API is ready
-    Network,
-    // RefreshCw, // TODO: Re-enable when Tools panel is needed
-    Settings,
-    Terminal,
-    Video,
+  // Activity, // TODO: Re-enable when Tools panel is needed
+  BookOpen,
+  // Download, // TODO: Re-enable when Tools panel is needed
+  Github,
+  // Info, // TODO: Re-enable when Tools panel is needed
+  // Monitor, // TODO: Re-enable when Terminal Stream API is ready
+  Network,
+  // RefreshCw, // TODO: Re-enable when Tools panel is needed
+  Settings,
+  Terminal,
+  Video,
 } from 'lucide-react';
 import { lazy, useEffect, useMemo, useState } from 'react';
 import { GraphQLIcon, LogoIcon, VSCodeIcon } from '../../icons';
@@ -26,7 +26,7 @@ import { GraphQLIcon, LogoIcon, VSCodeIcon } from '../../icons';
 //     exportContextPack,
 // } from '../../lib/devConsole/contextPacker';
 import {
-    useDevConsoleStore
+  useDevConsoleStore
 } from '../../utils/stores/devConsole';
 const GraphQLExplorer = lazy(() => import('../DevConsole/GraphQLExplorerV2').then(module => ({default: module.GraphQLExplorerV2})));
 
@@ -84,9 +84,11 @@ const CONSOLE_TABS = [
 
 export interface DevConsolePanelProps {
   githubConfig?: GitHubConfig;
+  /** When true, uses compact mobile-like layout regardless of viewport size (e.g., when embedded in a sidebar) */
+  compact?: boolean;
 }
 
-export function DevConsolePanel({ githubConfig }: DevConsolePanelProps = {}) {
+export function DevConsolePanel({ githubConfig, compact = false }: DevConsolePanelProps = {}) {
   const { unreadErrorCount } = useDevConsoleStore();
   const [activeTab, setActiveTab] = useState<string>(CONSOLE_TABS[0].id);
 
@@ -161,6 +163,7 @@ export function DevConsolePanel({ githubConfig }: DevConsolePanelProps = {}) {
                 <GitHubIssuesTab
                   githubConfig={effectiveGithubConfig || undefined}
                   onOpenSettings={() => setActiveTab('settings')}
+                  compact={compact}
                 />
               )}
               {tab.id === 'settings' && <UnifiedSettingsPanel />}

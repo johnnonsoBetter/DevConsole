@@ -29,6 +29,8 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { useIsMobile } from "../../hooks/useMediaQuery";
+import { MobileDetailsSlideout, MobileDetailsSlideoutContent } from "./MobileDetailsSlideout";
 
 type IssueState = "open" | "closed" | "all";
 type DetailView = "preview" | "comments";
@@ -36,6 +38,8 @@ type DetailView = "preview" | "comments";
 interface GitHubIssuesTabProps {
   githubConfig?: GitHubConfig | null;
   onOpenSettings?: () => void;
+  /** When true, uses compact mobile-like layout regardless of viewport size */
+  compact?: boolean;
 }
 
 function formatRelative(dateString: string) {
@@ -54,24 +58,29 @@ function formatRelative(dateString: string) {
   return `${days}d ago`;
 }
 
-function IssueStateBadge({ state }: { state: "open" | "closed" }) {
+function IssueStateBadge({ state, compact = false }: { state: "open" | "closed"; compact?: boolean }) {
   const isOpen = state === "open";
   return (
     <span
       className={cn(
-        "flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold",
+        "flex items-center gap-1 rounded-full font-semibold",
+        compact ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-1 text-xs",
         isOpen ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
       )}
     >
-      <span className={cn("w-2 h-2 rounded-full", isOpen ? "bg-success" : "bg-destructive")} />
+      <span className={cn("rounded-full", compact ? "w-1.5 h-1.5" : "w-2 h-2", isOpen ? "bg-success" : "bg-destructive")} />
       {isOpen ? "Open" : "Closed"}
     </span>
   );
 }
 
-export function GitHubIssuesTab({ githubConfig, onOpenSettings }: GitHubIssuesTabProps) {
+export function GitHubIssuesTab({ githubConfig, onOpenSettings, compact = false }: GitHubIssuesTabProps) {
   const githubSettings = useGitHubSettingsStore();
   const slideoutStore = useGitHubIssueSlideoutStore();
+  const viewportIsMobile = useIsMobile();
+  
+  // Use compact mode if explicitly set OR if viewport is mobile-sized
+  const isMobile = compact || viewportIsMobile;
 
   const resolvedConfig = useMemo<GitHubConfig | null>(() => {
     if (githubConfig) return githubConfig;
@@ -376,24 +385,24 @@ export function GitHubIssuesTab({ githubConfig, onOpenSettings }: GitHubIssuesTa
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-gray-900">
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-gradient-to-r from-primary/5 to-secondary/5">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-white dark:bg-gray-800 flex items-center justify-center shadow-apple-sm">
-            <Github className="w-5 h-5 text-gray-800 dark:text-gray-200" />
+      <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 border-b border-gray-200 dark:border-gray-800 bg-gradient-to-r from-primary/5 to-secondary/5">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-white dark:bg-gray-800 flex items-center justify-center shadow-apple-sm">
+            <Github className="w-4 h-4 sm:w-5 sm:h-5 text-gray-800 dark:text-gray-200" />
           </div>
-          <div>
+          <div className="hidden sm:block">
             <p className="text-xs text-muted-foreground">Repository</p>
-            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 font-mono">
+            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 font-mono truncate max-w-[150px]">
               {repoInput || resolvedConfig.repo}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             {(["open", "closed", "all"] as IssueState[]).map((state) => (
               <button
                 key={state}
                 onClick={() => setStateFilter(state)}
                 className={cn(
-                  "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                  "px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-medium transition-colors",
                   stateFilter === state
                     ? "bg-primary text-white shadow-apple-sm"
                     : "bg-white/80 dark:bg-gray-800/70 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
@@ -405,32 +414,43 @@ export function GitHubIssuesTab({ githubConfig, onOpenSettings }: GitHubIssuesTa
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           <button
             onClick={() => slideoutStore.open()}
-            className="px-3 py-2 rounded-lg bg-success text-white text-sm font-medium flex items-center gap-2 shadow-apple-sm hover:bg-success/90 transition-colors"
+            className={cn(
+              "rounded-lg bg-success text-white text-xs sm:text-sm font-medium flex items-center gap-1.5 sm:gap-2 shadow-apple-sm hover:bg-success/90 transition-colors",
+              isMobile ? "p-2" : "px-3 py-2"
+            )}
+            title="New Issue"
           >
             <Plus className="w-4 h-4" />
-            New Issue
+            {!isMobile && <span>New Issue</span>}
           </button>
           <button
             onClick={() => fetchIssues()}
             disabled={isLoading}
-            className="px-3 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm font-medium flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-800/70 disabled:opacity-60"
+            className={cn(
+              "rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs sm:text-sm font-medium flex items-center gap-1.5 sm:gap-2 hover:bg-gray-50 dark:hover:bg-gray-800/70 disabled:opacity-60",
+              isMobile ? "p-2" : "px-3 py-2"
+            )}
+            title="Refresh"
           >
             {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            Refresh
+            {!isMobile && <span>Refresh</span>}
           </button>
         </div>
       </div>
 
       {/* Two-panel layout: list on the left, detail side panel on select */}
-      <div className="flex-1 flex gap-4 p-4 overflow-hidden bg-gray-50/60 dark:bg-gray-950/40">
+      <div className="flex-1 flex gap-4 p-4 overflow-hidden bg-gray-50/60 dark:bg-gray-950/40 relative">
         {/* Issues list */}
-        <div className="card flex flex-col overflow-hidden flex-[1.1] min-w-[320px]">
-          <div className="p-4 space-y-3 border-b border-gray-200 dark:border-gray-800">
+        <div className={cn(
+          "card flex flex-col overflow-hidden",
+          isMobile ? "w-full" : "flex-[1.1] min-w-[320px]"
+        )}>
+          <div className="p-3 sm:p-4 space-y-2 sm:space-y-3 border-b border-gray-200 dark:border-gray-800">
             <div className="flex items-center gap-2">
-              <Search className="w-4 h-4 text-muted-foreground" />
+              <Search className="w-4 h-4 text-muted-foreground shrink-0" />
               <input
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -442,13 +462,13 @@ export function GitHubIssuesTab({ githubConfig, onOpenSettings }: GitHubIssuesTa
               <input
                 value={repoInput}
                 onChange={(e) => setRepoInput(e.target.value)}
-                placeholder="owner/repo (leave empty to use saved repo)"
-                className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary/30 font-mono"
+                placeholder={isMobile ? "owner/repo" : "owner/repo (leave empty to use saved repo)"}
+                className="flex-1 min-w-0 px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary/30 font-mono"
               />
               <button
                 onClick={() => fetchIssues(repoInput)}
                 disabled={isLoading}
-                className="px-3 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-60"
+                className="px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-60 shrink-0"
               >
                 Load
               </button>
@@ -480,36 +500,39 @@ export function GitHubIssuesTab({ githubConfig, onOpenSettings }: GitHubIssuesTa
                     key={issue.id}
                     onClick={() => setSelectedIssue(issue)}
                     className={cn(
-                      "w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors flex flex-col gap-2",
+                      "w-full text-left px-3 sm:px-4 py-2.5 sm:py-3 hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors flex flex-col gap-1.5 sm:gap-2",
                       isActive && "bg-primary/5 border-l-2 border-primary"
                     )}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 sm:gap-2">
                         <IssueStateBadge state={issue.state === "closed" ? "closed" : "open"} />
-                        <span className="text-xs font-semibold text-muted-foreground">#{issue.number}</span>
+                        <span className="text-[11px] sm:text-xs font-semibold text-muted-foreground">#{issue.number}</span>
                       </div>
-                      <span className="text-[11px] text-muted-foreground">
-                        Updated {formatRelative(issue.updated_at)}
+                      <span className="text-[10px] sm:text-[11px] text-muted-foreground whitespace-nowrap">
+                        {formatRelative(issue.updated_at)}
                       </span>
                     </div>
-                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 line-clamp-2">
+                    <p className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-gray-100 line-clamp-2">
                       {issue.title}
                     </p>
                     <div className="flex flex-wrap gap-1">
-                      {issue.labels.slice(0, 3).map((label) => (
+                      {issue.labels.slice(0, isMobile ? 2 : 3).map((label) => (
                         <span
                           key={label.id}
-                          className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium"
+                          className="flex items-center gap-0.5 sm:gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-medium"
                           style={{
                             backgroundColor: `#${label.color}22`,
                             color: `#${label.color}`,
                           }}
                         >
-                          <Tag className="w-3 h-3" />
+                          <Tag className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                           {label.name}
                         </span>
                       ))}
+                      {isMobile && issue.labels.length > 2 && (
+                        <span className="text-[10px] text-muted-foreground">+{issue.labels.length - 2}</span>
+                      )}
                     </div>
                   </button>
                 );
@@ -518,13 +541,14 @@ export function GitHubIssuesTab({ githubConfig, onOpenSettings }: GitHubIssuesTa
           </div>
         </div>
 
-        {/* Details side panel */}
-        <div
-          className={cn(
-            "flex w-full lg:w-[42%] min-w-[320px] lg:min-w-[380px] max-w-[540px] flex-col border border-gray-200 dark:border-gray-800 rounded-xl bg-white dark:bg-gray-900 shadow-sm overflow-hidden",
-            !selectedIssue && "hidden lg:flex"
-          )}
-        >
+        {/* Details side panel - Desktop only */}
+        {!isMobile && (
+          <div
+            className={cn(
+              "flex w-full lg:w-[42%] min-w-[320px] lg:min-w-[380px] max-w-[540px] flex-col border border-gray-200 dark:border-gray-800 rounded-xl bg-white dark:bg-gray-900 shadow-sm overflow-hidden",
+              !selectedIssue && "hidden lg:flex"
+            )}
+          >
           <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800 flex flex-col gap-2 bg-gray-50/70 dark:bg-gray-900/40">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
@@ -785,6 +809,285 @@ export function GitHubIssuesTab({ githubConfig, onOpenSettings }: GitHubIssuesTa
             </div>
           )}
         </div>
+        )}
+        
+        {/* Mobile: Slideout Overlay */}
+        {isMobile && selectedIssue && (
+          <MobileDetailsSlideout
+            isOpen={!!selectedIssue}
+            onClose={() => setSelectedIssue(null)}
+            title={`Issue #${selectedIssue.number}`}
+            subtitle={`${selectedIssue.state === "open" ? "Open" : "Closed"} • Updated ${formatRelative(selectedIssue.updated_at)}`}
+            showViewTabs={false}
+            headerActions={
+              <div className="flex items-center gap-1">
+                <a
+                  href={selectedIssue.html_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  title="View on GitHub"
+                >
+                  <ExternalLink className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                </a>
+                <div className="relative" ref={actionMenuRef}>
+                  <button
+                    onClick={() => setIsActionMenuOpen((prev) => !prev)}
+                    className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  >
+                    <MoreVertical className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                  </button>
+                  {isActionMenuOpen && (
+                    <div className="absolute right-0 top-full mt-2 w-48 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-xl z-10 py-1">
+                      <button
+                        onClick={handleEditIssue}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800/70 transition-colors text-left"
+                      >
+                        <Pencil className="w-4 h-4" />
+                        Edit issue
+                      </button>
+                      <button
+                        onClick={handleToggleIssueState}
+                        disabled={isUpdating}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800/70 transition-colors text-left disabled:opacity-60"
+                      >
+                        <CircleSlash className="w-4 h-4" />
+                        {selectedIssue.state === "open" ? "Close issue" : "Reopen issue"}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setDetailView("comments");
+                          setIsActionMenuOpen(false);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800/70 transition-colors text-left"
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                        View comments
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            }
+            bottomActions={
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleEditIssue}
+                  className={cn(
+                    "flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all",
+                    "bg-primary hover:bg-primary/90",
+                    "text-white shadow-sm hover:shadow-md active:scale-[0.98]"
+                  )}
+                >
+                  <Pencil className="w-4 h-4" />
+                  <span>Edit Issue</span>
+                </button>
+                <button
+                  onClick={handleToggleIssueState}
+                  disabled={isUpdating}
+                  className={cn(
+                    "flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all",
+                    selectedIssue.state === "open" 
+                      ? "bg-destructive hover:bg-destructive/90 text-white"
+                      : "bg-success hover:bg-success/90 text-white",
+                    "shadow-sm hover:shadow-md active:scale-[0.98]",
+                    "disabled:opacity-60"
+                  )}
+                >
+                  <CircleSlash className="w-4 h-4" />
+                  <span>{selectedIssue.state === "open" ? "Close" : "Reopen"}</span>
+                </button>
+              </div>
+            }
+          >
+            <MobileDetailsSlideoutContent>
+              {/* Issue Header */}
+              <div className="space-y-3 mb-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-1 flex-1">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <IssueStateBadge state={selectedIssue.state === "closed" ? "closed" : "open"} />
+                      <span className="font-semibold">#{selectedIssue.number}</span>
+                    </div>
+                    <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 leading-tight">
+                      {selectedIssue.title}
+                    </h2>
+                    <p className="text-xs text-muted-foreground">
+                      Opened {formatRelative(selectedIssue.created_at)} by {selectedIssue.user.login}
+                    </p>
+                  </div>
+                  <img
+                    src={selectedIssue.user.avatar_url}
+                    alt={selectedIssue.user.login}
+                    className="w-9 h-9 rounded-full border border-gray-200 dark:border-gray-800 shrink-0"
+                  />
+                </div>
+
+                {/* Labels */}
+                {selectedIssue.labels.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedIssue.labels.map((label) => (
+                      <span
+                        key={label.id}
+                        className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium"
+                        style={{
+                          backgroundColor: `#${label.color}22`,
+                          color: `#${label.color}`,
+                        }}
+                      >
+                        <Tag className="w-2.5 h-2.5" />
+                        {label.name}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Status/Error Messages */}
+              {statusMessage && (
+                <div className="flex items-center gap-2 text-sm text-success bg-success/10 border border-success/20 px-3 py-2 rounded-lg mb-3">
+                  <CheckCircle2 className="w-4 h-4" />
+                  {statusMessage}
+                </div>
+              )}
+              {detailError && (
+                <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 border border-destructive/20 px-3 py-2 rounded-lg mb-3">
+                  <AlertCircle className="w-4 h-4" />
+                  {detailError}
+                </div>
+              )}
+
+              {/* View Toggle */}
+              <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 mb-3">
+                <button
+                  onClick={() => setDetailView("preview")}
+                  className={cn(
+                    "flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-colors text-center",
+                    detailView === "preview"
+                      ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm"
+                      : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+                  )}
+                >
+                  Preview
+                </button>
+                <button
+                  onClick={() => setDetailView("comments")}
+                  className={cn(
+                    "flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-colors text-center",
+                    detailView === "comments"
+                      ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm"
+                      : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+                  )}
+                >
+                  Comments ({currentComments.length})
+                </button>
+              </div>
+
+              {/* Content Area */}
+              <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-3">
+                {detailView === "preview" ? (
+                  <div className="prose prose-sm dark:prose-invert max-w-none prose-pre:bg-gray-900 prose-pre:text-gray-100 prose-pre:text-xs prose-pre:overflow-x-auto">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {sanitizedIssueBody || "*No description provided.*"}
+                    </ReactMarkdown>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Comments</h4>
+                      <button
+                        onClick={handleRefreshComments}
+                        className="text-xs text-primary hover:underline flex items-center gap-1"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        Refresh
+                      </button>
+                    </div>
+                    <div className="space-y-3 max-h-[250px] overflow-y-auto">
+                      {isLoadingComments ? (
+                        <div className="flex items-center justify-center py-6 text-sm text-muted-foreground gap-2">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Loading comments...
+                        </div>
+                      ) : currentComments.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center text-center text-sm text-muted-foreground gap-2 py-6">
+                          <MessageCircle className="w-5 h-5" />
+                          <p>No comments yet.</p>
+                        </div>
+                      ) : (
+                        currentComments.map((comment) => (
+                          <div key={comment.id} className="flex gap-2">
+                            <img
+                              src={comment.user.avatar_url}
+                              alt={comment.user.login}
+                              className="w-7 h-7 rounded-full border border-gray-200 dark:border-gray-800 shrink-0"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <span className="font-semibold text-gray-900 dark:text-gray-100">
+                                  {comment.user.login}
+                                </span>
+                                <span>·</span>
+                                <span>{formatRelative(comment.updated_at)}</span>
+                              </div>
+                              <div className="mt-1 rounded-xl bg-gray-50 dark:bg-gray-800/80 border border-gray-100 dark:border-gray-800/80 px-2.5 py-1.5 text-xs">
+                                <div className="prose prose-xs dark:prose-invert max-w-none">
+                                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                    {DOMPurify.sanitize(comment.body || "") || "*No content*"}
+                                  </ReactMarkdown>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    {commentError && (
+                      <div className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
+                        {commentError}
+                      </div>
+                    )}
+                    <div className="space-y-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+                      <textarea
+                        value={commentDraft}
+                        onChange={(e) => setCommentDraft(e.target.value)}
+                        placeholder="Add a comment..."
+                        rows={2}
+                        className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm p-2.5 focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
+                      />
+                      <div className="flex items-center justify-end">
+                        <button
+                          onClick={handlePostComment}
+                          disabled={isPostingComment || !commentDraft.trim()}
+                          className="px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-medium flex items-center gap-1.5 disabled:opacity-60"
+                        >
+                          {isPostingComment ? (
+                            <>
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                              Posting...
+                            </>
+                          ) : (
+                            <>
+                              <MessageCircle className="w-3 h-3" />
+                              Comment
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer info */}
+              <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800 text-xs text-muted-foreground flex flex-wrap gap-2">
+                <span>Updated {formatRelative(selectedIssue.updated_at)}</span>
+                <span>·</span>
+                <span>Created {new Date(selectedIssue.created_at).toLocaleDateString()}</span>
+              </div>
+            </MobileDetailsSlideoutContent>
+          </MobileDetailsSlideout>
+        )}
       </div>
     </div>
   );
