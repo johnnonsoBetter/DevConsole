@@ -15,10 +15,12 @@ export { PreCallView, type JoinMode } from "./PreCallView";
 // Video call UI components
 export { ControlBar } from "./ControlBar";
 export { CustomVideoConference } from "./CustomVideoConference";
+export { LiveKitErrorBoundary } from "./LiveKitErrorBoundary";
 export { MainVideoView } from "./MainVideoView";
 export { MeetingHeader } from "./MeetingHeader";
 export { ParticipantSidebar } from "./ParticipantSidebar";
 export { ParticipantTile } from "./ParticipantTile";
+export { ParticipantToast, useParticipantEvents } from "./ParticipantToast";
 export { VideoCallLayout } from "./VideoCallLayout";
 export { VideoCallPage } from "./VideoCallPage";
 

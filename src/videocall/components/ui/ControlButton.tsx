@@ -1,10 +1,12 @@
 /**
  * ControlButton Component
  * Reusable animated button for video call controls
+ * Features: keyboard navigation, ARIA support, visual feedback
  */
 
 import { motion } from 'framer-motion';
 import type { LucideIcon } from 'lucide-react';
+import { useCallback, type KeyboardEvent } from 'react';
 
 interface ControlButtonProps {
   icon: LucideIcon;
@@ -43,11 +45,19 @@ export function ControlButton({
     lg: 'w-5 h-5',
   };
 
+  const handleKeyDown = useCallback((e: KeyboardEvent<HTMLButtonElement>) => {
+    if ((e.key === 'Enter' || e.key === ' ') && onClick && !disabled) {
+      e.preventDefault();
+      onClick();
+    }
+  }, [onClick, disabled]);
+
   return (
     <motion.button
-      whileHover={{ scale: 1.05 }}
-      whileTap={{ scale: 0.95 }}
+      whileHover={disabled ? {} : { scale: 1.05 }}
+      whileTap={disabled ? {} : { scale: 0.95 }}
       onClick={onClick}
+      onKeyDown={handleKeyDown}
       disabled={disabled}
       className={`
         ${sizeClasses[size]}
@@ -65,8 +75,11 @@ export function ControlButton({
       `}
       title={label}
       aria-label={label}
+      aria-pressed={isActive}
+      role="button"
+      tabIndex={disabled ? -1 : 0}
     >
-      <CurrentIcon className={iconSizes[size]} />
+      <CurrentIcon className={iconSizes[size]} aria-hidden="true" />
       {showLabel && (
         <span className="ml-2 text-caption2 font-medium">{label}</span>
       )}

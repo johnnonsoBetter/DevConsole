@@ -5,7 +5,9 @@
 
 import { LiveKitRoom } from '@livekit/components-react';
 import '@livekit/components-styles';
+import { useCallback, useState } from 'react';
 import { CustomVideoConference } from './CustomVideoConference';
+import { LiveKitErrorBoundary } from './LiveKitErrorBoundary';
 
 interface InCallViewProps {
   token: string;
@@ -24,25 +26,47 @@ export function InCallView({
   onError,
   onClose,
 }: InCallViewProps) {
+  const [retryKey, setRetryKey] = useState(0);
+  
+  const handleRetry = useCallback(() => {
+    setRetryKey((prev) => prev + 1);
+  }, []);
+  
+  const handleError = useCallback((error: Error) => {
+    console.error('[InCallView] LiveKit error:', error);
+    onError(error);
+  }, [onError]);
+
   return (
-    <div className="h-screen w-screen bg-gray-900">
-      <LiveKitRoom
-        token={token}
-        serverUrl={serverUrl}
-        connect={true}
-        video={true}
-        audio={true}
-        onDisconnected={onDisconnected}
-        onError={onError}
-        style={{ height: '100%' }}
-        data-lk-theme="default"
+    <div 
+      className="h-screen w-screen bg-gray-900"
+      role="application"
+      aria-label="Video call application"
+    >
+      <LiveKitErrorBoundary
+        key={retryKey}
+        onClose={onClose}
+        onRetry={handleRetry}
+        fallbackMessage="Unable to connect to the video call. Please check your connection and try again."
       >
-        <CustomVideoConference
-          roomName={roomName}
-          onLeave={onDisconnected}
-          onClose={onClose}
-        />
-      </LiveKitRoom>
+        <LiveKitRoom
+          token={token}
+          serverUrl={serverUrl}
+          connect={true}
+          video={true}
+          audio={true}
+          onDisconnected={onDisconnected}
+          onError={handleError}
+          style={{ height: '100%' }}
+          data-lk-theme="default"
+        >
+          <CustomVideoConference
+            roomName={roomName}
+            onLeave={onDisconnected}
+            onClose={onClose}
+          />
+        </LiveKitRoom>
+      </LiveKitErrorBoundary>
     </div>
   );
 }
