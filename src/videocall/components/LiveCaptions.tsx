@@ -4,14 +4,11 @@
  * Appears at the bottom of the video view like TV subtitles
  */
 
-import { useTranscriptions } from '@livekit/components-react';
+import { useLocalParticipant, useTranscriptions } from '@livekit/components-react';
 import { AnimatePresence, motion } from 'framer-motion';
-import type { Room } from 'livekit-client';
 import { useMemo } from 'react';
 
 interface LiveCaptionsProps {
-  /** Optional room instance */
-  room?: Room;
   /** Whether captions are enabled */
   enabled?: boolean;
   /** Optional className */
@@ -21,8 +18,13 @@ interface LiveCaptionsProps {
 /**
  * Get a friendly speaker name
  */
-function getSpeakerName(identity: string | undefined): string {
+function getSpeakerName(identity: string | undefined, isLocal: boolean): string {
   if (!identity) return 'Someone';
+  
+  // If it's the local participant
+  if (isLocal) {
+    return 'You';
+  }
   
   // If it's an agent ID, return a friendly name
   if (identity.startsWith('agent-')) {
@@ -41,12 +43,15 @@ function getSpeakerName(identity: string | undefined): string {
  * LiveCaptions - Subtitle-style transcription overlay
  */
 export function LiveCaptions({
-  room,
   enabled = true,
   className = '',
 }: LiveCaptionsProps) {
-  // Use LiveKit's transcription hook
-  const transcriptions = useTranscriptions({ room });
+  // Use LiveKit's transcription hook - no filters to get ALL transcriptions
+  const transcriptions = useTranscriptions();
+  
+  // Get local participant to identify local transcriptions
+  const { localParticipant } = useLocalParticipant();
+  const localIdentity = localParticipant?.identity;
 
   // Get the current/latest transcription for live display
   const currentCaption = useMemo(() => {
@@ -55,12 +60,17 @@ export function LiveCaptions({
     const latest = transcriptions[transcriptions.length - 1];
     if (!latest?.text?.trim()) return null;
 
+    const identity = latest.participantInfo?.identity;
+    const isLocal = localIdentity ? identity === localIdentity : false;
+    const isAgent = identity?.startsWith('agent-') || false;
+
     return {
-      speaker: getSpeakerName(latest.participantInfo?.identity),
+      speaker: getSpeakerName(identity, isLocal),
       text: latest.text.trim(),
-      isAgent: latest.participantInfo?.identity?.startsWith('agent-') || false,
+      isAgent,
+      isLocal,
     };
-  }, [transcriptions]);
+  }, [transcriptions, localIdentity]);
 
   if (!enabled || !currentCaption) {
     return null;
@@ -119,11 +129,10 @@ export function LiveCaptions({
  * Compact caption pill for minimal UI
  */
 export function LiveCaptionPill({
-  room,
   enabled = true,
   className = '',
 }: Omit<LiveCaptionsProps, 'maxLines'>) {
-  const transcriptions = useTranscriptions({ room });
+  const transcriptions = useTranscriptions();
 
   const currentText = useMemo(() => {
     if (!transcriptions.length) return null;

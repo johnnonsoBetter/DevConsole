@@ -6,7 +6,7 @@
  * https://docs.livekit.io/reference/components/react/hook/usetranscriptions/
  */
 
-import { useTranscriptions } from "@livekit/components-react";
+import { useLocalParticipant, useTranscriptions } from "@livekit/components-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 
 // ============================================================================
@@ -57,7 +57,12 @@ export interface UseTranscriptionReturn {
 
 export function useTranscription(): UseTranscriptionReturn {
   // Use LiveKit's built-in hook - returns TextStreamData[]
+  // No filtering options means we get ALL transcriptions including local user
   const transcriptions = useTranscriptions();
+  
+  // Get local participant to identify local transcriptions
+  const { localParticipant } = useLocalParticipant();
+  const localIdentity = localParticipant?.identity;
 
   // Track cleared state
   const [clearedIndex, setClearedIndex] = useState(0);
@@ -68,14 +73,18 @@ export function useTranscription(): UseTranscriptionReturn {
 
   // Convert transcriptions to segments
   const segments: TranscriptSegment[] = useMemo(() => {
-    return transcriptions.slice(clearedIndex).map((t, index) => ({
-      id: `seg-${clearedIndex + index}`,
-      participantIdentity: t.participantInfo?.identity || "unknown",
-      participantName: t.participantInfo?.identity || "Unknown",
-      text: t.text || "",
-      timestamp: Date.now(),
-    }));
-  }, [transcriptions, clearedIndex]);
+    return transcriptions.slice(clearedIndex).map((t, index) => {
+      const identity = t.participantInfo?.identity || "unknown";
+      const isLocal = localIdentity ? identity === localIdentity : false;
+      return {
+        id: `seg-${clearedIndex + index}`,
+        participantIdentity: identity,
+        participantName: isLocal ? "You" : identity,
+        text: t.text || "",
+        timestamp: Date.now(),
+      };
+    });
+  }, [transcriptions, clearedIndex, localIdentity]);
 
   // Build messages from segments
   const messages: TranscriptMessage[] = useMemo(() => {
@@ -92,6 +101,7 @@ export function useTranscription(): UseTranscriptionReturn {
     newTranscriptions.forEach((t, idx) => {
       const identity = t.participantInfo?.identity || "unknown";
       const text = t.text?.trim() || "";
+      const isLocal = localIdentity ? identity === localIdentity : false;
 
       if (!text) return;
 
@@ -104,10 +114,10 @@ export function useTranscription(): UseTranscriptionReturn {
         messagesRef.current.push({
           id: `msg-${lastProcessedLength.current + idx}`,
           participantIdentity: identity,
-          participantName: identity,
+          participantName: isLocal ? "You" : identity,
           text,
           timestamp: Date.now(),
-          isLocal: false, // We don't track local in this simplified version
+          isLocal,
         });
       }
     });
@@ -115,7 +125,7 @@ export function useTranscription(): UseTranscriptionReturn {
     lastProcessedLength.current = transcriptions.length;
 
     return [...messagesRef.current];
-  }, [transcriptions, clearedIndex]);
+  }, [transcriptions, clearedIndex, localIdentity]);
 
   // State derived from transcriptions
   const isActive = transcriptions.length > clearedIndex;

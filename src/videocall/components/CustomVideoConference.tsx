@@ -477,7 +477,7 @@ export function CustomVideoConference({
           
           {/* Live captions overlay - shows real-time transcription */}
           {agentParticipant && (
-            <LiveCaptions room={room} />
+            <LiveCaptions />
           )}
           
           {/* Floating reactions - animated Lucide icon reactions synced via data channel */}
@@ -770,7 +770,6 @@ export function CustomVideoConference({
       <AnimatePresence>
         {isTranscriptPanelOpen && (
           <TranscriptPanel
-            room={room}
             isOpen={isTranscriptPanelOpen}
             onClose={() => setIsTranscriptPanelOpen(false)}
             className="h-full"

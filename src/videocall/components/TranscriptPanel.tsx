@@ -1,14 +1,12 @@
 /**
  * TranscriptPanel Component
  * Real-time transcription display panel for video calls
- * Uses LiveKit's useTranscriptions hook directly
+ * Uses the useTranscription hook for proper transcription management
  *
  * @see https://docs.livekit.io/reference/components/react/hook/usetranscriptions/
  */
 
-import { useTranscriptions } from '@livekit/components-react';
 import { AnimatePresence, motion } from 'framer-motion';
-import type { Room } from 'livekit-client';
 import {
   ChevronDown,
   Copy,
@@ -18,7 +16,8 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranscription, type TranscriptMessage } from '../hooks/useTranscription';
 
 // ============================================================================
 // TYPES
@@ -31,20 +30,6 @@ interface TranscriptPanelProps {
   onClose: () => void;
   /** Optional className for styling */
   className?: string;
-  /** Optional room instance - uses context if not provided */
-  room?: Room;
-  /** Optional participant identities to filter transcriptions */
-  participantIdentities?: string[];
-  /** Optional track SIDs to filter transcriptions */
-  trackSids?: string[];
-}
-
-interface TranscriptMessage {
-  id: string;
-  participantIdentity: string;
-  participantName: string;
-  text: string;
-  timestamp: number;
 }
 
 interface TranscriptMessageItemProps {
@@ -60,10 +45,6 @@ const LOG_PREFIX = '[TranscriptPanel]';
 
 function log(...args: unknown[]) {
   console.log(LOG_PREFIX, ...args);
-}
-
-function logWarn(...args: unknown[]) {
-  console.warn(LOG_PREFIX, ...args);
 }
 
 // ============================================================================
@@ -150,140 +131,32 @@ export function TranscriptPanel({
   isOpen,
   onClose,
   className = '',
-  room,
-  participantIdentities,
-  trackSids,
 }: TranscriptPanelProps) {
-  // Use LiveKit's useTranscriptions hook directly
-  // Returns TextStreamData[] from @livekit/components-core
-  // Pass optional filtering options
-  const transcriptions = useTranscriptions({
-    room,
-    participantIdentities,
-    trackSids,
-  });
-
-  // Log hook options on mount
-  useEffect(() => {
-    log('Hook initialized with options:', {
-      hasRoom: !!room,
-      participantIdentities,
-      trackSids,
-    });
-  }, [room, participantIdentities, trackSids]);
-
-  // Track cleared state
-  const [clearedIndex, setClearedIndex] = useState(0);
-  
-  // Keep a stable reference to accumulated messages
-  const messagesRef = useRef<TranscriptMessage[]>([]);
-  const lastProcessedLength = useRef(0);
-
-  // Log transcriptions when they change
-  useEffect(() => {
-    if (transcriptions.length > 0) {
-      log('Transcriptions updated:', {
-        total: transcriptions.length,
-        latest: transcriptions[transcriptions.length - 1],
-      });
-    }
-  }, [transcriptions]);
-
-  // Build messages from transcriptions
-  const messages: TranscriptMessage[] = useMemo(() => {
-    // Only process new transcriptions
-    const startIndex = Math.max(lastProcessedLength.current, clearedIndex);
-    const newTranscriptions = transcriptions.slice(startIndex);
-    
-    if (newTranscriptions.length === 0) {
-      return messagesRef.current;
-    }
-    
-    log('Processing new transcriptions:', {
-      startIndex,
-      count: newTranscriptions.length,
-    });
-    
-    // Process new transcriptions into messages
-    newTranscriptions.forEach((t, idx) => {
-      const identity = t.participantInfo?.identity || 'unknown';
-      const text = t.text?.trim() || '';
-      
-      if (!text) {
-        logWarn('Empty transcription text, skipping');
-        return;
-      }
-      
-      const lastMessage = messagesRef.current[messagesRef.current.length - 1];
-      
-      // Merge if same speaker
-      if (lastMessage && lastMessage.participantIdentity === identity) {
-        lastMessage.text += ' ' + text;
-        log('Merged text with previous message:', { identity, text });
-      } else {
-        const newMessage: TranscriptMessage = {
-          id: `msg-${startIndex + idx}-${Date.now()}`,
-          participantIdentity: identity,
-          participantName: identity,
-          text,
-          timestamp: Date.now(),
-        };
-        messagesRef.current.push(newMessage);
-        log('Added new message:', newMessage);
-      }
-    });
-    
-    lastProcessedLength.current = transcriptions.length;
-    
-    return [...messagesRef.current];
-  }, [transcriptions, clearedIndex]);
-
-  // Derived state
-  const isActive = transcriptions.length > clearedIndex;
-  const lastTranscription = transcriptions[transcriptions.length - 1];
-  const interimText = lastTranscription?.text || null;
-  const currentSpeaker = lastTranscription?.participantInfo?.identity || null;
-
-  // Clear transcripts
-  const clearTranscripts = useCallback(() => {
-    log('Clearing transcripts');
-    setClearedIndex(transcriptions.length);
-    messagesRef.current = [];
-    lastProcessedLength.current = transcriptions.length;
-  }, [transcriptions.length]);
-
-  // Export as text
-  const exportAsText = useCallback((): string => {
-    log('Exporting as text, message count:', messages.length);
-    return messages
-      .map((msg) => {
-        const time = new Date(msg.timestamp).toLocaleTimeString();
-        return `[${time}] ${msg.participantName}: ${msg.text}`;
-      })
-      .join('\n');
-  }, [messages]);
-
-  // Export as JSON
-  const exportAsJSON = useCallback((): string => {
-    log('Exporting as JSON, message count:', messages.length);
-    return JSON.stringify(
-      {
-        exportedAt: new Date().toISOString(),
-        messages: messages.map((msg) => ({
-          participant: msg.participantName,
-          text: msg.text,
-          timestamp: new Date(msg.timestamp).toISOString(),
-        })),
-      },
-      null,
-      2
-    );
-  }, [messages]);
+  // Use the useTranscription hook for all transcription management
+  const {
+    messages,
+    isActive,
+    interimText,
+    currentSpeaker,
+    clearTranscripts,
+    exportAsText,
+    exportAsJSON,
+  } = useTranscription();
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [copied, setCopied] = useState(false);
+  
+  // Log when transcription state changes
+  useEffect(() => {
+    if (messages.length > 0) {
+      log('Messages updated:', {
+        total: messages.length,
+        latest: messages[messages.length - 1],
+      });
+    }
+  }, [messages]);
   
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
