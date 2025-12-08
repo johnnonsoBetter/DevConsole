@@ -4,41 +4,43 @@
  */
 
 import {
-  AudioTrack,
-  useConnectionState,
-  useLocalParticipant,
-  useParticipants,
-  useRoomContext,
-  useTracks,
-  VideoTrack,
+    AudioTrack,
+    useConnectionState,
+    useLocalParticipant,
+    useParticipants,
+    useRoomContext,
+    useTracks,
+    VideoTrack,
 } from '@livekit/components-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ConnectionState, Participant, RemoteTrackPublication, RoomEvent, Track } from 'livekit-client';
 import {
-  Copy,
-  FileText,
-  Hand,
-  Mic,
-  MicOff,
-  Monitor,
-  MonitorOff,
-  MoreVertical,
-  PanelRightClose,
-  PanelRightOpen,
-  PhoneOff,
-  Smile,
-  User,
-  Users,
-  Video,
-  VideoOff,
-  X
+    Copy,
+    FileText,
+    Hand,
+    Mic,
+    MicOff,
+    Monitor,
+    MonitorOff,
+    MoreVertical,
+    PanelRightClose,
+    PanelRightOpen,
+    PhoneOff,
+    Smile,
+    User,
+    Users,
+    Video,
+    VideoOff,
+    X
 } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useReactionsChannel, type ReactionType } from '../hooks/useReactionsChannel';
 import type { Participant as ParticipantType } from '../types';
 import { AgentIndicator } from './AgentIndicator';
+import { useCallMemoryBridge } from './CallMemoryBridge';
 import { FloatingReactionsV2 } from './FloatingReactionsV2';
 import { LiveCaptions } from './LiveCaptions';
+import { MemoryBadge } from './MemoryStatusIndicator';
 import { ParticipantToast, useParticipantEvents } from './ParticipantToast';
 import { RaisedHandsV2 } from './RaisedHandsV2';
 import { ReactionPicker as ReactionPickerV2 } from './ReactionPickerV2';
@@ -109,6 +111,13 @@ export function CustomVideoConference({
     lowerHand,
     isLocalHandRaised,
   } = useReactionsChannel();
+  
+  // Call memory integration - syncs transcripts to SmartMemory
+  const callMemory = useCallMemoryBridge({
+    roomName,
+    displayName: localParticipant?.name || localParticipant?.identity || 'Unknown',
+    enabled: true,
+  });
   
   // Participant events for join/leave notifications
   const { events: participantEvents, addEvent, dismissEvent } = useParticipantEvents();
@@ -348,6 +357,14 @@ export function CustomVideoConference({
                 {humanParticipants.length} participant{humanParticipants.length !== 1 ? 's' : ''}
               </span>
             </div>
+            
+            {/* Memory status badge */}
+            {callMemory.isConfigured && (
+              <MemoryBadge
+                isActive={callMemory.isActive}
+                isSyncing={callMemory.state === 'syncing'}
+              />
+            )}
             
             {/* AI Agent indicator - shows when agent is in the room */}
             {agentParticipant && (

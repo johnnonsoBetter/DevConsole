@@ -1,0 +1,3 @@
+application "video-call-memory" {
+  smartmemory "call-memory" {}
+}

@@ -14,6 +14,7 @@ export { PreCallView, type JoinMode } from "./PreCallView";
 
 // Video call UI components
 export { AgentIndicator } from "./AgentIndicator";
+export { CallMemoryBridge, useCallMemoryBridge } from "./CallMemoryBridge";
 export { ControlBar } from "./ControlBar";
 export { CustomVideoConference } from "./CustomVideoConference";
 export { FloatingReactions, useFloatingReactions } from "./FloatingReactions";
@@ -26,6 +27,7 @@ export {
   MediaDeviceSelector,
 } from "./MediaDeviceSelector";
 export { MeetingHeader } from "./MeetingHeader";
+export { MemoryBadge, MemoryStatusIndicator } from "./MemoryStatusIndicator";
 export { ParticipantSidebar } from "./ParticipantSidebar";
 export { ParticipantTile } from "./ParticipantTile";
 export { ParticipantToast, useParticipantEvents } from "./ParticipantToast";

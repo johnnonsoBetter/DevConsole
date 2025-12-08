@@ -6,7 +6,10 @@
  * https://docs.livekit.io/reference/components/react/hook/usetranscriptions/
  */
 
-import { useLocalParticipant, useTranscriptions } from "@livekit/components-react";
+import {
+  useLocalParticipant,
+  useTranscriptions,
+} from "@livekit/components-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 
 // ============================================================================
@@ -59,7 +62,7 @@ export function useTranscription(): UseTranscriptionReturn {
   // Use LiveKit's built-in hook - returns TextStreamData[]
   // No filtering options means we get ALL transcriptions including local user
   const transcriptions = useTranscriptions();
-  
+
   // Get local participant to identify local transcriptions
   const { localParticipant } = useLocalParticipant();
   const localIdentity = localParticipant?.identity;

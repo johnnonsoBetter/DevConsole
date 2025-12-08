@@ -14,3 +14,7 @@ export {
   type ReactionMessage,
   type ReactionType,
 } from "./useReactionsChannel";
+
+export { useTranscription, type TranscriptMessage, type TranscriptSegment } from "./useTranscription";
+
+export { useCallMemory } from "./useCallMemory";
