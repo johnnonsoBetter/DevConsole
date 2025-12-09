@@ -5,7 +5,6 @@
 
 import { useCallback, useMemo } from 'react';
 import type { Participant } from '../types';
-import { VideoCallLayout } from './VideoCallLayout';
 
 // Demo participants data
 const DEMO_PARTICIPANTS: Participant[] = [
@@ -58,27 +57,18 @@ interface VideoCallPageProps {
 }
 
 export function VideoCallPage({
-  meetingTitle = 'Design Team Meeting',
   onEndCall,
 }: VideoCallPageProps) {
-  const participants = useMemo(() => DEMO_PARTICIPANTS, []);
 
-  const handleEndCall = useCallback(() => {
-    if (onEndCall) {
-      onEndCall();
-    } else {
-      console.log('End call clicked');
-    }
-  }, [onEndCall]);
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-gray-200 dark:bg-gray-900">
-      <VideoCallLayout
+      {/* <VideoCallLayout
         meetingTitle={meetingTitle}
         participants={participants}
         localParticipant={participants[0]}
         onEndCall={handleEndCall}
-      />
+      /> */}
     </div>
   );
 }

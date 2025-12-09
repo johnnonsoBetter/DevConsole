@@ -1,37 +1,38 @@
-/**
- * CustomVideoConference Component
- * Custom video conference UI that integrates LiveKit with our design system
- */
+
+
+
+
+
+
 
 import {
-    AudioTrack,
-    useConnectionState,
-    useLocalParticipant,
-    useParticipants,
-    useRoomContext,
-    useTracks,
-    VideoTrack,
+  AudioTrack,
+  useConnectionState,
+  useLocalParticipant,
+  useParticipants,
+  useRoomContext,
+  useTracks,
+  VideoTrack,
 } from '@livekit/components-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ConnectionState, Participant, RemoteTrackPublication, RoomEvent, Track } from 'livekit-client';
 import {
-    Copy,
-    FileText,
-    Hand,
-    Mic,
-    MicOff,
-    Monitor,
-    MonitorOff,
-    MoreVertical,
-    PanelRightClose,
-    PanelRightOpen,
-    PhoneOff,
-    Smile,
-    User,
-    Users,
-    Video,
-    VideoOff,
-    X
+  Copy,
+  FileText,
+  Hand,
+  Mic,
+  MicOff,
+  Monitor,
+  MonitorOff,
+  MoreVertical,
+  PanelRightClose,
+  PanelRightOpen,
+  PhoneOff,
+  User,
+  Users,
+  Video,
+  VideoOff,
+  X
 } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useReactionsChannel, type ReactionType } from '../hooks/useReactionsChannel';
@@ -40,6 +41,7 @@ import { AgentIndicator } from './AgentIndicator';
 import { useCallMemoryBridge } from './CallMemoryBridge';
 import { FloatingReactionsV2 } from './FloatingReactionsV2';
 import { LiveCaptions } from './LiveCaptions';
+import { MediaDeviceSelector } from './MediaDeviceSelector';
 import { MemoryBadge } from './MemoryStatusIndicator';
 import { ParticipantToast, useParticipantEvents } from './ParticipantToast';
 import { RaisedHandsV2 } from './RaisedHandsV2';
@@ -99,8 +101,7 @@ export function CustomVideoConference({
   const [isTranscriptPanelOpen, setIsTranscriptPanelOpen] = useState(false);
   const [activeSpeakerId, setActiveSpeakerId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [isReactionPickerOpen, setIsReactionPickerOpen] = useState(false);
-  
+
   // Real-time reactions and hand-raising via LiveKit data channel
   const {
     reactions,
@@ -281,7 +282,6 @@ export function CustomVideoConference({
   // Handle reaction selection
   const handleReaction = useCallback((reactionType: ReactionType) => {
     sendReaction(reactionType);
-    setIsReactionPickerOpen(false);
   }, [sendReaction]);
 
   // Handle lowering hand (only local user can lower their own hand)
@@ -700,20 +700,10 @@ export function CustomVideoConference({
             label={isTranscriptPanelOpen ? 'Hide transcript' : 'Show transcript'}
           />
 
-          {/* Reactions */}
-          <div className="relative">
-            <ControlButton
-              icon={Smile}
-              isActive={isReactionPickerOpen}
-              onClick={() => setIsReactionPickerOpen((prev) => !prev)}
-              label="Send reaction"
-            />
-            <ReactionPickerV2
-              isOpen={isReactionPickerOpen}
-              onClose={() => setIsReactionPickerOpen(false)}
-              onSelectReaction={handleReaction}
-            />
-          </div>
+          {/* Reactions - self-contained with trigger */}
+          <ReactionPickerV2 onSelectReaction={handleReaction} />
+
+
           
           {/* Raise hand */}
           <div className="relative">
@@ -733,7 +723,10 @@ export function CustomVideoConference({
               />
             )}
           </div>
-
+          
+          {/* Device Settings - self-contained with trigger */}
+          <MediaDeviceSelector />
+          
           {/* More */}
           <ControlButton
             icon={MoreVertical}
@@ -776,7 +769,10 @@ export function CustomVideoConference({
               }
             >
               <div className="h-full w-[450px]">
-                <DevConsolePanel compact />
+                <DevConsolePanel 
+                  compact 
+                  allowedTabs={['github', 'actions', 'notes', 'settings']}
+                />
               </div>
             </Suspense>
           </motion.div>
@@ -802,3 +798,4 @@ export function CustomVideoConference({
     </div>
   );
 }
+

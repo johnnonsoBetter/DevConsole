@@ -86,11 +86,19 @@ export interface DevConsolePanelProps {
   githubConfig?: GitHubConfig;
   /** When true, uses compact mobile-like layout regardless of viewport size (e.g., when embedded in a sidebar) */
   compact?: boolean;
+  /** Optional list of tab IDs to show. If not provided, all tabs are shown. */
+  allowedTabs?: string[];
 }
 
-export function DevConsolePanel({ githubConfig, compact = false }: DevConsolePanelProps = {}) {
+export function DevConsolePanel({ githubConfig, compact = false, allowedTabs }: DevConsolePanelProps = {}) {
   const { unreadErrorCount } = useDevConsoleStore();
-  const [activeTab, setActiveTab] = useState<string>(CONSOLE_TABS[0].id);
+  
+  // Filter tabs based on allowedTabs prop
+  const filteredTabs = allowedTabs 
+    ? CONSOLE_TABS.filter(tab => allowedTabs.includes(tab.id))
+    : CONSOLE_TABS;
+  
+  const [activeTab, setActiveTab] = useState<string>(filteredTabs[0]?.id || CONSOLE_TABS[0].id);
 
   const githubSettings = useGitHubSettingsStore();
   // Load AI and GitHub settings globally when DevConsole mounts
@@ -127,10 +135,10 @@ export function DevConsolePanel({ githubConfig, compact = false }: DevConsolePan
       : null);
 
 
-  // Transform CONSOLE_TABS into BetterTabs format
+  // Transform filteredTabs into BetterTabs format
   const betterTabs = useMemo(
     () =>
-      CONSOLE_TABS.map((tab) => {
+      filteredTabs.map((tab) => {
         const IconComponent = tab.icon;
         // Determine badge for each tab
         let badge: number | undefined;
@@ -171,7 +179,7 @@ export function DevConsolePanel({ githubConfig, compact = false }: DevConsolePan
           ),
         };
       }),
-    [effectiveGithubConfig, unreadErrorCount, pendingActionsCount]
+    [effectiveGithubConfig, unreadErrorCount, pendingActionsCount, filteredTabs, compact]
   );
 
   return (

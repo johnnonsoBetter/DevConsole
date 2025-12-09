@@ -122,18 +122,27 @@ export interface TokenRequest {
  */
 export interface TokenResponse {
   token: string;
-  serverUrl?: string;
+  serverUrl: string;
 }
+
+/**
+ * Default token server URL - can be overridden via environment or build config
+ * In production, this should point to your Vercel deployment
+ */
+const DEFAULT_TOKEN_SERVER_URL =
+  import.meta.env.VITE_LIVEKIT_TOKEN_SERVER_URL || "/api/livekit-token";
 
 /**
  * Fetch a token from the token server
  * This is the recommended approach for production
  */
 export async function fetchToken(
-  tokenServerUrl: string,
-  request: TokenRequest
+  request: TokenRequest,
+  tokenServerUrl?: string
 ): Promise<TokenResponse> {
-  const response = await fetch(tokenServerUrl, {
+  const url = tokenServerUrl || DEFAULT_TOKEN_SERVER_URL;
+
+  const response = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -150,7 +159,13 @@ export async function fetchToken(
     throw new Error(`Token server error: ${response.status} - ${errorText}`);
   }
 
-  return response.json();
+  const data = await response.json();
+
+  if (!data.token || !data.serverUrl) {
+    throw new Error("Invalid token response: missing token or serverUrl");
+  }
+
+  return data;
 }
 
 // ============================================================================
@@ -174,34 +189,35 @@ export function extractRoomName(link: string): string | null {
 }
 
 /**
- * Check if LiveKit is configured
+ * Check if LiveKit is enabled (simplified - just checks if feature is on)
+ * Since token server provides serverUrl, we don't need local config validation
  */
-export function isLiveKitConfigured(settings: LiveKitSettings): boolean {
-  return settings.enabled && !!settings.serverUrl && !!settings.tokenServerUrl;
+export function isLiveKitEnabled(): boolean {
+  // LiveKit is always available now that config is server-side
+  return true;
 }
 
 /**
- * Get token for joining a room
- * Fetches token from the configured token server
+ * @deprecated Use isLiveKitEnabled instead
+ * Kept for backwards compatibility
+ */
+export function isLiveKitConfigured(settings: LiveKitSettings): boolean {
+  return settings.enabled;
+}
+
+/**
+ * Get token and serverUrl for joining a room
+ * Fetches from the token server which provides both
  */
 export async function getJoinToken(
-  settings: LiveKitSettings,
   roomName: string,
   participantName: string
-): Promise<string> {
-  if (!settings.tokenServerUrl) {
-    throw new Error(
-      "Token Server URL is required. LiveKit tokens must be generated server-side for security. " +
-        "Please set up a token server endpoint and configure it in Settings → LiveKit."
-    );
-  }
-
+): Promise<TokenResponse> {
   const request: TokenRequest = {
     roomName,
     participantName,
     identity: participantName.replace(/[^a-zA-Z0-9-_]/g, "_"),
   };
 
-  const response = await fetchToken(settings.tokenServerUrl, request);
-  return response.token;
+  return fetchToken(request);
 }

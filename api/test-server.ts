@@ -13,6 +13,7 @@ config();
 
 const API_KEY = process.env.LIVEKIT_API_KEY;
 const API_SECRET = process.env.LIVEKIT_API_SECRET;
+const SERVER_URL = process.env.LIVEKIT_SERVER_URL;
 const PORT = 3001;
 
 const server = http.createServer(async (req, res) => {
@@ -36,11 +37,12 @@ const server = http.createServer(async (req, res) => {
   }
 
   // Check credentials
-  if (!API_KEY || !API_SECRET) {
+  if (!API_KEY || !API_SECRET || !SERVER_URL) {
     res.writeHead(500, { "Content-Type": "application/json" });
     res.end(
       JSON.stringify({
-        error: "Missing LIVEKIT_API_KEY or LIVEKIT_API_SECRET in .env",
+        error:
+          "Missing LIVEKIT_API_KEY, LIVEKIT_API_SECRET, or LIVEKIT_SERVER_URL in .env",
       })
     );
     return;
@@ -84,7 +86,7 @@ const server = http.createServer(async (req, res) => {
     const jwt = await token.toJwt();
 
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ token: jwt }));
+    res.end(JSON.stringify({ token: jwt, serverUrl: SERVER_URL }));
   } catch (error) {
     console.error("Error:", error);
     res.writeHead(500, { "Content-Type": "application/json" });
@@ -107,11 +109,12 @@ server.listen(PORT, () => {
     `     -d '{"roomName": "test-room", "participantName": "John"}'\n`
   );
 
-  if (!API_KEY || !API_SECRET) {
+  if (!API_KEY || !API_SECRET || !SERVER_URL) {
     console.log(
-      "⚠️  Warning: LIVEKIT_API_KEY or LIVEKIT_API_SECRET not set in .env\n"
+      "⚠️  Warning: LIVEKIT_API_KEY, LIVEKIT_API_SECRET, or LIVEKIT_SERVER_URL not set in .env\n"
     );
   } else {
     console.log("✅ LiveKit credentials loaded from .env\n");
+    console.log(`🌐 Server URL: ${SERVER_URL}\n`);
   }
 });

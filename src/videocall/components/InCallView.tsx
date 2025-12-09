@@ -9,6 +9,19 @@ import { useCallback, useState } from 'react';
 import { CustomVideoConference } from './CustomVideoConference';
 import { LiveKitErrorBoundary } from './LiveKitErrorBoundary';
 
+// Override LiveKit's font styles to use system fonts
+const liveKitFontOverride = `
+  [data-lk-theme] {
+    --lk-font-family: Plus Jakarta Sans, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif !important;
+  }
+  
+  [data-lk-theme] *,
+  [data-lk-theme] *::before,
+  [data-lk-theme] *::after {
+    font-family: Plus Jakarta Sans, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  }
+`;
+
 interface InCallViewProps {
   token: string;
   roomName: string;
@@ -41,8 +54,14 @@ export function InCallView({
     <div 
       className="h-screen w-screen bg-gray-900"
       role="application"
+      style={{
+        fontFamily: "Plus Jakarta Sans, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif",
+      }}
       aria-label="Video call application"
     >
+      {/* Override LiveKit's default font styles */}
+      <style dangerouslySetInnerHTML={{ __html: liveKitFontOverride }} />
+      
       <LiveKitErrorBoundary
         key={retryKey}
         onClose={onClose}
@@ -55,10 +74,14 @@ export function InCallView({
           connect={true}
           video={true}
           audio={true}
+          connectOptions={{
+            autoSubscribe: true,
+          }}
           onDisconnected={onDisconnected}
           onError={handleError}
-          style={{ height: '100%' }}
+          style={{ height: '100%', fontFamily: "Plus Jakarta Sans", }}
           data-lk-theme="default"
+          
         >
           <CustomVideoConference
             roomName={roomName}

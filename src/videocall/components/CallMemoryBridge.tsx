@@ -4,14 +4,18 @@
  * 
  * This component should be placed inside a LiveKitRoom context.
  * It automatically:
- * 1. Starts a memory session when mounted
+ * 1. Starts a memory session when mounted (if configured)
  * 2. Pipes transcription messages to SmartMemory in batches
  * 3. Ends the session and flushes to episodic memory on unmount
+ * 
+ * Memory is a room-wide feature - only one participant needs to have
+ * Raindrop configured. The transcriptions come from the AI agent and
+ * include all participants' speech.
  */
 
-import { useRoomContext } from '@livekit/components-react';
+import { useLocalParticipant, useRoomContext } from '@livekit/components-react';
 import { useEffect, useRef } from 'react';
-import { useCallMemory, useTranscription, type TranscriptMessage } from '../hooks';
+import { useCallMemory, useTranscriptionManager } from '../hooks';
 import type { TranscriptTurn } from '../lib/callMemoryTypes';
 
 // ============================================================================
@@ -60,9 +64,10 @@ export function CallMemoryBridge({
   onSyncStatsUpdate,
 }: CallMemoryBridgeProps) {
   const room = useRoomContext();
+  const { localParticipant } = useLocalParticipant();
   
   // Get transcription data
-  const { messages } = useTranscription();
+  const { segments } = useTranscriptionManager();
   
   // Get memory management
   const {
@@ -82,9 +87,11 @@ export function CallMemoryBridge({
   const unmountingRef = useRef(false);
 
   // Start memory session when room is connected
+  // Only the participant with memory configured will manage the session
   useEffect(() => {
+    // Silently skip if not configured - this is expected for participants
+    // who haven't set up Raindrop. Memory will be managed by whoever has it configured.
     if (!isConfigured) {
-      log('Memory not configured, skipping session start');
       return;
     }
 
@@ -134,28 +141,36 @@ export function CallMemoryBridge({
       return;
     }
 
-    // Get only new messages since last processing
-    const newMessages = messages.slice(lastProcessedIndexRef.current);
+    // Get only new segments since last processing
+    const newSegments = segments.slice(lastProcessedIndexRef.current);
     
-    if (newMessages.length === 0) {
+    if (newSegments.length === 0) {
       return;
     }
 
-    // Convert TranscriptMessage to TranscriptTurn
-    const turns: TranscriptTurn[] = newMessages.map((msg: TranscriptMessage) => ({
-      id: msg.id,
-      participantIdentity: msg.participantIdentity,
-      participantName: msg.participantName,
-      text: msg.text,
-      timestamp: msg.timestamp,
-      isLocal: msg.isLocal,
-    }));
+    // Convert TranscriptSegment to TranscriptTurn
+    const localIdentity = localParticipant?.identity;
+    const turns: TranscriptTurn[] = newSegments
+      .filter((seg) => seg.isFinal) // Only process final segments
+      .map((seg) => {
+        const isLocal = localIdentity ? seg.speaker === localIdentity : false;
+        return {
+          id: seg.id,
+          participantIdentity: seg.speaker,
+          participantName: isLocal ? 'You' : seg.speaker,
+          text: seg.text,
+          timestamp: seg.timestamp,
+          isLocal,
+        };
+      });
 
-    log(`Adding ${turns.length} new transcription turns to memory`);
-    addTranscripts(turns);
+    if (turns.length > 0) {
+      log(`Adding ${turns.length} new transcription turns to memory`);
+      addTranscripts(turns);
+    }
     
-    lastProcessedIndexRef.current = messages.length;
-  }, [messages, state, addTranscripts]);
+    lastProcessedIndexRef.current = segments.length;
+  }, [segments, state, addTranscripts, localParticipant?.identity]);
 
   // Report sync stats updates
   useEffect(() => {
@@ -187,7 +202,7 @@ interface UseCallMemoryBridgeOptions {
 }
 
 interface UseCallMemoryBridgeReturn {
-  /** Whether memory is configured */
+  /** Whether memory is configured locally */
   isConfigured: boolean;
   /** Whether memory is active for this call */
   isActive: boolean;
@@ -207,6 +222,9 @@ interface UseCallMemoryBridgeReturn {
 /**
  * Hook version of the CallMemoryBridge for more control
  * Use this when you need access to memory state in your component
+ * 
+ * Memory is a room-wide feature. Only participants with Raindrop configured
+ * will store transcriptions, but the AI agent captures everyone's speech.
  */
 export function useCallMemoryBridge({
   roomName,
@@ -214,7 +232,8 @@ export function useCallMemoryBridge({
   enabled = true,
 }: UseCallMemoryBridgeOptions): UseCallMemoryBridgeReturn {
   const room = useRoomContext();
-  const { messages } = useTranscription();
+  const { localParticipant } = useLocalParticipant();
+  const { segments } = useTranscriptionManager();
   
   const {
     isConfigured,
@@ -229,8 +248,11 @@ export function useCallMemoryBridge({
   
   const lastProcessedIndexRef = useRef(0);
   const sessionStartedRef = useRef(false);
+  
+  // Determine if memory is active
+  const isActive = state === 'connected' || state === 'syncing';
 
-  // Start session
+  // Start session (only if configured)
   useEffect(() => {
     if (!enabled || !isConfigured || sessionStartedRef.current) {
       return;
@@ -252,31 +274,39 @@ export function useCallMemoryBridge({
     };
   }, [endSession]);
 
-  // Pipe transcriptions
+  // Pipe transcriptions (only if configured and connected)
   useEffect(() => {
     if (!enabled || (state !== 'connected' && state !== 'syncing')) {
       return;
     }
 
-    const newMessages = messages.slice(lastProcessedIndexRef.current);
-    if (newMessages.length === 0) return;
+    const newSegments = segments.slice(lastProcessedIndexRef.current);
+    if (newSegments.length === 0) return;
 
-    const turns: TranscriptTurn[] = newMessages.map((msg) => ({
-      id: msg.id,
-      participantIdentity: msg.participantIdentity,
-      participantName: msg.participantName,
-      text: msg.text,
-      timestamp: msg.timestamp,
-      isLocal: msg.isLocal,
-    }));
+    const localIdentity = localParticipant?.identity;
+    const turns: TranscriptTurn[] = newSegments
+      .filter((seg) => seg.isFinal)
+      .map((seg) => {
+        const isLocal = localIdentity ? seg.speaker === localIdentity : false;
+        return {
+          id: seg.id,
+          participantIdentity: seg.speaker,
+          participantName: isLocal ? 'You' : seg.speaker,
+          text: seg.text,
+          timestamp: seg.timestamp,
+          isLocal,
+        };
+      });
 
-    addTranscripts(turns);
-    lastProcessedIndexRef.current = messages.length;
-  }, [enabled, messages, state, addTranscripts]);
+    if (turns.length > 0) {
+      addTranscripts(turns);
+    }
+    lastProcessedIndexRef.current = segments.length;
+  }, [enabled, segments, state, addTranscripts, localParticipant?.identity]);
 
   return {
     isConfigured,
-    isActive: state === 'connected' || state === 'syncing',
+    isActive,
     sessionId: sessionInfo?.sessionId ?? null,
     state,
     syncStats: {

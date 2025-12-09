@@ -9,7 +9,6 @@ export { InCallView } from "./InCallView";
 export { JoinCallForm } from "./JoinCallForm";
 export { LoadingView } from "./LoadingView";
 export { ModeSelector } from "./ModeSelector";
-export { NotConfiguredView } from "./NotConfiguredView";
 export { PreCallView, type JoinMode } from "./PreCallView";
 
 // Video call UI components
@@ -33,7 +32,7 @@ export { ParticipantTile } from "./ParticipantTile";
 export { ParticipantToast, useParticipantEvents } from "./ParticipantToast";
 export { RaisedHands, useRaisedHands } from "./RaisedHands";
 export { RaisedHandsV2 } from "./RaisedHandsV2";
-export { ReactionPicker, REACTIONS } from "./ReactionPicker";
+export { REACTIONS, ReactionPicker } from "./ReactionPicker";
 export { ReactionPicker as ReactionPickerV2 } from "./ReactionPickerV2";
 export { TranscriptPanel } from "./TranscriptPanel";
 export { VideoCallLayout } from "./VideoCallLayout";

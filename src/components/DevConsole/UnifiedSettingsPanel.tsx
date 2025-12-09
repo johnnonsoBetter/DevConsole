@@ -7,42 +7,40 @@
  */
 
 import {
-    Bot,
-    CheckCircle,
-    Eye,
-    EyeOff,
-    Github,
-    Loader,
-    PanelLeftClose,
-    PanelLeftOpen,
-    Save,
-    Settings,
-    TestTube,
-    Video,
-    XCircle,
+  Bot,
+  CheckCircle,
+  Eye,
+  EyeOff,
+  Github,
+  Loader,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Save,
+  Settings,
+  TestTube,
+  XCircle,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useGitHubSettings, type GitHubSettings } from "../../hooks/useGitHubSettings";
 import { GraphQLIcon, RaindropIcon, UnsplashIcon, VSCodeIcon } from "../../icons";
 import { testGitHubConnection } from "../../lib/devConsole/githubApi";
 import {
-    clearGraphQLSettings,
-    loadGraphQLSettings,
-    saveGraphQLSettings,
-    testGraphQLConnection,
-    validateGraphQLEndpoint,
-    type GraphQLSettings,
+  clearGraphQLSettings,
+  loadGraphQLSettings,
+  saveGraphQLSettings,
+  testGraphQLConnection,
+  validateGraphQLEndpoint,
+  type GraphQLSettings,
 } from "../../lib/devConsole/graphqlSettings";
 import { cn } from "../../utils";
 import {
-    clearUnsplashConfig,
-    loadUnsplashConfig,
-    saveUnsplashConfig,
-    type UnsplashConfig,
+  clearUnsplashConfig,
+  loadUnsplashConfig,
+  saveUnsplashConfig,
+  type UnsplashConfig,
 } from "../../utils/extensionSettings";
 import { Tooltip } from "../ui";
 import { AISettingsPanel } from "./AISettingsPanel";
-import { LiveKitSettingsPanel } from "./LiveKitSettingsPanel";
 import { RaindropSettingsPanel } from "./RaindropSettingsPanel";
 
 // ============================================================================
@@ -56,7 +54,7 @@ interface StatusMessage {
   message: string;
 }
 
-type SettingsSection = 'github' | 'graphql' | 'general' | 'unsplash' | 'ai' | 'webhook' | 'raindrop' | 'livekit';
+type SettingsSection = 'github' | 'graphql' | 'general' | 'unsplash' | 'ai' | 'webhook' | 'raindrop';
 
 // ============================================================================
 // MAIN UNIFIED SETTINGS PANEL
@@ -112,13 +110,6 @@ export function UnifiedSettingsPanel() {
               onClick={() => setActiveSection('raindrop')}
             />
             <SettingsNavItem
-              icon={Video}
-              label="LiveKit"
-              expanded={sidebarExpanded}
-              active={activeSection === 'livekit'}
-              onClick={() => setActiveSection('livekit')}
-            />
-            <SettingsNavItem
               icon={Github}
               label="GitHub"
               expanded={sidebarExpanded}
@@ -161,7 +152,6 @@ export function UnifiedSettingsPanel() {
       <div className="flex-1 overflow-auto">
         {activeSection === 'ai' && <AISettingsSection />}
         {activeSection === 'raindrop' && <RaindropSettingsSection />}
-        {activeSection === 'livekit' && <LiveKitSettingsSection />}
         {activeSection === 'github' && <GitHubSettingsSection />}
         {activeSection === 'graphql' && <GraphQLSettingsSection />}
         {activeSection === 'unsplash' && <UnsplashSettingsSection />}
@@ -1158,12 +1148,4 @@ export function AISettingsSection() {
 
 export function RaindropSettingsSection() {
   return <RaindropSettingsPanel />;
-}
-
-// ============================================================================
-// LIVEKIT SETTINGS SECTION
-// ============================================================================
-
-export function LiveKitSettingsSection() {
-  return <LiveKitSettingsPanel />;
 }

@@ -1,16 +1,13 @@
 /**
  * useVideoCall Hook
  * Manages video call state and operations
+ *
+ * Simplified: No local LiveKit settings needed.
+ * Token server provides both token and serverUrl.
  */
 
 import { useCallback, useEffect, useState } from "react";
-import {
-  generateRoomName,
-  getJoinToken,
-  isLiveKitConfigured,
-  loadLiveKitSettings,
-  type LiveKitSettings,
-} from "../../lib/livekit";
+import { generateRoomName, getJoinToken } from "../../lib/livekit";
 import type { JoinMode } from "../components/PreCallView";
 
 // ============================================================================
@@ -25,14 +22,13 @@ interface UseVideoCallOptions {
 }
 
 interface UseVideoCallReturn {
-  // Settings state
-  settings: LiveKitSettings | null;
-  settingsLoaded: boolean;
-  isConfigured: boolean;
+  // Ready state
+  isReady: boolean;
 
   // Call state
   callStatus: CallStatus;
   token: string | null;
+  serverUrl: string | null;
   roomName: string;
   error: string | null;
 
@@ -65,14 +61,10 @@ export function useVideoCall({
   initialRoomName = "",
   initialMode = null,
 }: UseVideoCallOptions = {}): UseVideoCallReturn {
-  // Settings state
-  const [settings, setSettings] = useState<LiveKitSettings | null>(null);
-  const [settingsLoaded, setSettingsLoaded] = useState(false);
-  const [isConfigured, setIsConfigured] = useState(false);
-
   // Call state
   const [callStatus, setCallStatus] = useState<CallStatus>("idle");
   const [token, setToken] = useState<string | null>(null);
+  const [serverUrl, setServerUrl] = useState<string | null>(null);
   const [roomName, setRoomName] = useState<string>(initialRoomName);
   const [error, setError] = useState<string | null>(null);
 
@@ -81,100 +73,66 @@ export function useVideoCall({
   const [displayName, setDisplayName] = useState("");
   const [joinMode, setJoinMode] = useState<JoinMode>(initialMode);
 
-  // Start call with specific settings
-  const startCallWithSettings = useCallback(
-    async (s: LiveKitSettings) => {
-      setCallStatus("connecting");
-      setError(null);
+  // Track if we've initialized
+  const [isReady, setIsReady] = useState(false);
 
-      try {
-        const newRoomName = generateRoomName();
-        const participantName =
-          displayName || s.displayName || "DevConsole User";
-        const newToken = await getJoinToken(s, newRoomName, participantName);
-
-        setRoomName(newRoomName);
-        setToken(newToken);
-        setCallStatus("connected");
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Failed to start call";
-        setError(message);
-        setCallStatus("error");
-      }
-    },
-    [displayName]
-  );
-
-  // Join call with specific settings
-  const joinCallWithSettings = useCallback(
-    async (s: LiveKitSettings, room: string) => {
-      setCallStatus("connecting");
-      setError(null);
-
-      try {
-        const participantName =
-          displayName || s.displayName || "DevConsole User";
-        const newToken = await getJoinToken(s, room, participantName);
-
-        setRoomName(room);
-        setToken(newToken);
-        setCallStatus("connected");
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Failed to join call";
-        setError(message);
-        setCallStatus("error");
-      }
-    },
-    [displayName]
-  );
-
-  // Load settings on mount
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const loaded = await loadLiveKitSettings();
-        setSettings(loaded);
-        setIsConfigured(isLiveKitConfigured(loaded));
-        setDisplayName(loaded.displayName || "");
-
-        // Auto-start if mode and room provided
-        if (
-          initialMode === "join" &&
-          initialRoomName &&
-          isLiveKitConfigured(loaded)
-        ) {
-          joinCallWithSettings(loaded, initialRoomName);
-        } else if (initialMode === "create" && isLiveKitConfigured(loaded)) {
-          startCallWithSettings(loaded);
-        }
-      } catch (err) {
-        console.error("[VideoCallApp] Failed to load settings:", err);
-      } finally {
-        setSettingsLoaded(true);
-      }
-    };
-    load();
-    // Only run on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Public start call
+  // Start a new call
   const startCall = useCallback(async () => {
-    if (!settings) return;
-    await startCallWithSettings(settings);
-  }, [settings, startCallWithSettings]);
+    setCallStatus("connecting");
+    setError(null);
 
-  // Public join call
+    try {
+      const newRoomName = generateRoomName();
+      const participantName = displayName.trim() || "DevConsole User";
+
+      // Token server returns both token and serverUrl
+      const response = await getJoinToken(newRoomName, participantName);
+
+      setRoomName(newRoomName);
+      setToken(response.token);
+      setServerUrl(response.serverUrl);
+      setCallStatus("connected");
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to start call";
+      setError(message);
+      setCallStatus("error");
+    }
+  }, [displayName]);
+
+  // Join an existing call
   const joinCall = useCallback(async () => {
-    if (!settings || !joinRoomName.trim()) return;
-    await joinCallWithSettings(settings, joinRoomName.trim());
-  }, [settings, joinRoomName, joinCallWithSettings]);
+    if (!joinRoomName.trim()) {
+      setError("Please enter a room name");
+      return;
+    }
+
+    setCallStatus("connecting");
+    setError(null);
+
+    try {
+      const room = joinRoomName.trim();
+      const participantName = displayName.trim() || "DevConsole User";
+
+      // Token server returns both token and serverUrl
+      const response = await getJoinToken(room, participantName);
+
+      setRoomName(room);
+      setToken(response.token);
+      setServerUrl(response.serverUrl);
+      setCallStatus("connected");
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to join call";
+      setError(message);
+      setCallStatus("error");
+    }
+  }, [displayName, joinRoomName]);
 
   // End the call
   const endCall = useCallback(() => {
     setToken(null);
+    setServerUrl(null);
     setRoomName("");
     setCallStatus("idle");
     setJoinMode(null);
@@ -183,25 +141,44 @@ export function useVideoCall({
 
   // Handle LiveKit disconnect
   const handleDisconnected = useCallback(() => {
-    console.log("[VideoCallApp] Disconnected from room");
+    console.log("[VideoCall] Disconnected from room");
     endCall();
   }, [endCall]);
 
   // Handle LiveKit error
   const handleError = useCallback((error: Error) => {
-    console.error("[VideoCallApp] LiveKit error:", error);
+    console.error("[VideoCall] LiveKit error:", error);
     setError(error.message);
   }, []);
 
+  // Initialize on mount - handle auto-join scenarios
+  useEffect(() => {
+    const init = async () => {
+      // Auto-start if mode provided via URL params
+      if (initialMode === "join" && initialRoomName) {
+        setDisplayName(""); // Will prompt for name in PreCallView
+        setJoinMode("join");
+        setJoinRoomName(initialRoomName);
+      } else if (initialMode === "create") {
+        setJoinMode("create");
+      }
+
+      setIsReady(true);
+    };
+
+    init();
+    // Only run on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return {
-    // Settings state
-    settings,
-    settingsLoaded,
-    isConfigured,
+    // Ready state
+    isReady,
 
     // Call state
     callStatus,
     token,
+    serverUrl,
     roomName,
     error,
 

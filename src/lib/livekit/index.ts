@@ -22,6 +22,7 @@ export {
   generateRoomName,
   getJoinToken,
   isLiveKitConfigured,
+  isLiveKitEnabled,
   isValidRoomName,
   loadLiveKitSettings,
   sanitizeRoomName,

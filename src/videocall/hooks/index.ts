@@ -15,6 +15,7 @@ export {
   type ReactionType,
 } from "./useReactionsChannel";
 
-export { useTranscription, type TranscriptMessage, type TranscriptSegment } from "./useTranscription";
+export type { TextStreamData } from "@livekit/components-core";
+export { useTranscriptionManager } from "./useTranscription";
 
 export { useCallMemory } from "./useCallMemory";

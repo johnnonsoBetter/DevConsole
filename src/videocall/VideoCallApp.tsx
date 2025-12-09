@@ -1,15 +1,17 @@
 /**
  * VideoCallApp Component
  * Full video call experience in a popup window with media permissions
+ * 
+ * Simplified: No local LiveKit settings required.
+ * Token server provides both token and serverUrl.
  */
 
 import '@livekit/components-styles';
 import { useCallback } from 'react';
 import {
-    InCallView,
-    LoadingView,
-    NotConfiguredView,
-    PreCallView,
+  InCallView,
+  LoadingView,
+  PreCallView,
 } from './components';
 import { useVideoCall } from './hooks';
 
@@ -25,11 +27,10 @@ export function VideoCallApp() {
 
   // Use the video call hook for all state management
   const {
-    settings,
-    settingsLoaded,
-    isConfigured,
+    isReady,
     callStatus,
     token,
+    serverUrl,
     roomName,
     error,
     joinRoomName,
@@ -56,26 +57,19 @@ export function VideoCallApp() {
   // ============================================================================
   // RENDER: Loading state
   // ============================================================================
-  if (!settingsLoaded) {
+  if (!isReady) {
     return <LoadingView />;
-  }
-
-  // ============================================================================
-  // RENDER: Not configured state
-  // ============================================================================
-  if (!isConfigured || !settings) {
-    return <NotConfiguredView onClose={handleClose} />;
   }
 
   // ============================================================================
   // RENDER: In-call view
   // ============================================================================
-  if (callStatus === 'connected' && token && roomName && settings.serverUrl) {
+  if (callStatus === 'connected' && token && roomName && serverUrl) {
     return (
       <InCallView
         token={token}
         roomName={roomName}
-        serverUrl={settings.serverUrl}
+        serverUrl={serverUrl}
         onDisconnected={handleDisconnected}
         onError={handleError}
         onClose={handleClose}

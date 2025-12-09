@@ -1,23 +1,17 @@
 /**
  * VideoCallPanel Component
  * Launcher for video calls - opens in a popup window to get proper media permissions
+ * 
+ * No local settings needed - token server handles all LiveKit configuration.
  */
 
 import {
-  Copy,
   ExternalLink,
-  Loader2,
   Phone,
-  Settings,
   Users,
-  Video,
+  Video
 } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
-import {
-  isLiveKitConfigured,
-  loadLiveKitSettings,
-  type LiveKitSettings,
-} from '../../../lib/livekit';
+import { useCallback, useState } from 'react';
 import { cn } from '../../../utils';
 
 // ============================================================================
@@ -32,28 +26,9 @@ interface VideoCallPanelProps {
 // MAIN COMPONENT
 // ============================================================================
 
-export function VideoCallPanel({ onOpenSettings }: VideoCallPanelProps) {
-  const [settings, setSettings] = useState<LiveKitSettings | null>(null);
-  const [settingsLoaded, setSettingsLoaded] = useState(false);
-  const [isConfigured, setIsConfigured] = useState(false);
+export function VideoCallPanel({ onOpenSettings: _onOpenSettings }: VideoCallPanelProps) {
   const [joinRoomName, setJoinRoomName] = useState('');
   const [joinMode, setJoinMode] = useState<'create' | 'join' | null>(null);
-
-  // Load settings on mount
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const loaded = await loadLiveKitSettings();
-        setSettings(loaded);
-        setIsConfigured(isLiveKitConfigured(loaded));
-      } catch (err) {
-        console.error('[VideoCallPanel] Failed to load settings:', err);
-      } finally {
-        setSettingsLoaded(true);
-      }
-    };
-    load();
-  }, []);
 
   // Open video call in popup window
   const openVideoCallWindow = useCallback((mode: 'create' | 'join', roomName?: string) => {
@@ -90,52 +65,6 @@ export function VideoCallPanel({ onOpenSettings }: VideoCallPanelProps) {
     setJoinMode(null);
     setJoinRoomName('');
   }, [openVideoCallWindow, joinRoomName]);
-
-  // ============================================================================
-  // RENDER: Loading state
-  // ============================================================================
-  if (!settingsLoaded) {
-    return (
-      <div className="h-full flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="flex flex-col items-center gap-3 text-gray-500 dark:text-gray-400">
-          <Loader2 className="w-6 h-6 animate-spin" />
-          <span className="text-sm">Loading...</span>
-        </div>
-      </div>
-    );
-  }
-
-  // ============================================================================
-  // RENDER: Not configured state
-  // ============================================================================
-  if (!isConfigured || !settings) {
-    return (
-      <div className="h-full flex items-center justify-center bg-gray-50 dark:bg-gray-900 p-6">
-        <div className="max-w-md text-center space-y-4">
-          <div className="w-16 h-16 mx-auto rounded-full bg-primary/10 flex items-center justify-center">
-            <Video className="w-8 h-8 text-primary" />
-          </div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            Video Calls Not Configured
-          </h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Configure LiveKit settings to enable video calling. You'll need a LiveKit server URL
-            and a token server to get started.
-          </p>
-          <button
-            onClick={onOpenSettings}
-            className={cn(
-              'inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all',
-              'bg-primary text-white hover:bg-primary/90 active:scale-[0.98]'
-            )}
-          >
-            <Settings className="w-4 h-4" />
-            Configure LiveKit
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   // ============================================================================
   // RENDER: Main view - Call launcher
@@ -301,17 +230,6 @@ export function VideoCallPanel({ onOpenSettings }: VideoCallPanelProps) {
             </div>
           </div>
         )}
-
-        {/* Settings Link */}
-        <div className="text-center">
-          <button
-            onClick={onOpenSettings}
-            className="text-xs text-gray-500 dark:text-gray-400 hover:text-primary transition-colors"
-          >
-            <Settings className="w-3 h-3 inline mr-1" />
-            LiveKit Settings
-          </button>
-        </div>
       </div>
     </div>
   );

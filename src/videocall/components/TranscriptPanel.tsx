@@ -17,7 +17,7 @@ import {
   X,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useTranscription, type TranscriptMessage } from '../hooks/useTranscription';
+import { useTranscriptionManager, type TranscriptSegment } from '../hooks/useTranscription';
 
 // ============================================================================
 // TYPES
@@ -32,9 +32,9 @@ interface TranscriptPanelProps {
   className?: string;
 }
 
-interface TranscriptMessageItemProps {
-  message: TranscriptMessage;
-  showTimestamp?: boolean;
+interface TranscriptSegmentItemProps {
+  segment: TranscriptSegment;
+  index: number;
 }
 
 // ============================================================================
@@ -51,12 +51,7 @@ function log(...args: unknown[]) {
 // HELPER COMPONENTS
 // ============================================================================
 
-function TranscriptMessageItem({ message, showTimestamp = true }: TranscriptMessageItemProps) {
-  const time = new Date(message.timestamp).toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-  
+function TranscriptSegmentItem({ segment }: TranscriptSegmentItemProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -66,14 +61,14 @@ function TranscriptMessageItem({ message, showTimestamp = true }: TranscriptMess
     >
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-medium text-gray-300">
-          {message.participantName}
+          {segment.speaker}
         </span>
-        {showTimestamp && (
-          <span className="text-xs text-gray-500">{time}</span>
+        {!segment.isFinal && (
+          <span className="text-[10px] text-gray-500 italic">typing...</span>
         )}
       </div>
       <p className="text-sm text-gray-200 leading-relaxed">
-        {message.text}
+        {segment.text}
       </p>
     </motion.div>
   );
@@ -132,16 +127,15 @@ export function TranscriptPanel({
   onClose,
   className = '',
 }: TranscriptPanelProps) {
-  // Use the useTranscription hook for all transcription management
+  // Use the useTranscriptionManager hook for all transcription management
   const {
-    messages,
-    isActive,
-    interimText,
-    currentSpeaker,
-    clearTranscripts,
-    exportAsText,
-    exportAsJSON,
-  } = useTranscription();
+    segments,
+    latestSegment,
+    clearTranscript,
+    hasTranscription,
+  } = useTranscriptionManager({
+    maxSegments: 100,
+  });
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
@@ -150,20 +144,20 @@ export function TranscriptPanel({
   
   // Log when transcription state changes
   useEffect(() => {
-    if (messages.length > 0) {
-      log('Messages updated:', {
-        total: messages.length,
-        latest: messages[messages.length - 1],
+    if (segments.length > 0) {
+      log('Segments updated:', {
+        total: segments.length,
+        latest: segments[segments.length - 1],
       });
     }
-  }, [messages]);
+  }, [segments]);
   
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     if (autoScroll && scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages, interimText, autoScroll]);
+  }, [segments, latestSegment, autoScroll]);
   
   // Detect manual scroll to disable auto-scroll
   const handleScroll = useCallback(() => {
@@ -173,6 +167,31 @@ export function TranscriptPanel({
     const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
     setAutoScroll(isAtBottom);
   }, []);
+  
+  // Export as text helper
+  const exportAsText = useCallback((): string => {
+    return segments
+      .filter((seg) => seg.isFinal)
+      .map((seg) => `${seg.speaker}: ${seg.text}`)
+      .join('\n');
+  }, [segments]);
+  
+  // Export as JSON helper
+  const exportAsJSON = useCallback((): string => {
+    return JSON.stringify(
+      {
+        exportedAt: new Date().toISOString(),
+        segments: segments
+          .filter((seg) => seg.isFinal)
+          .map((seg) => ({
+            speaker: seg.speaker,
+            text: seg.text,
+          })),
+      },
+      null,
+      2
+    );
+  }, [segments]);
   
   // Copy to clipboard
   const handleCopy = useCallback(async () => {
@@ -228,7 +247,7 @@ export function TranscriptPanel({
         <div className="flex items-center gap-2">
           <FileText className="w-4 h-4 text-primary" />
           <h2 className="text-sm font-medium text-gray-200">Transcript</h2>
-          {isActive && (
+          {hasTranscription && (
             <span className="flex items-center gap-1 px-1.5 py-0.5 bg-primary/20 rounded text-xs text-primary">
               <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
               Live
@@ -242,7 +261,7 @@ export function TranscriptPanel({
               onClick={() => setShowExportMenu(!showExportMenu)}
               className="p-1.5 rounded hover:bg-gray-800 transition-colors text-gray-400 hover:text-gray-200"
               title="Export transcript"
-              disabled={messages.length === 0}
+              disabled={segments.length === 0}
             >
               <Download className="w-4 h-4" />
             </button>
@@ -279,17 +298,17 @@ export function TranscriptPanel({
             onClick={handleCopy}
             className="p-1.5 rounded hover:bg-gray-800 transition-colors text-gray-400 hover:text-gray-200"
             title={copied ? 'Copied!' : 'Copy transcript'}
-            disabled={messages.length === 0}
+            disabled={segments.length === 0}
           >
             <Copy className={`w-4 h-4 ${copied ? 'text-success' : ''}`} />
           </button>
           
           {/* Clear button */}
           <button
-            onClick={clearTranscripts}
+            onClick={clearTranscript}
             className="p-1.5 rounded hover:bg-gray-800 transition-colors text-gray-400 hover:text-gray-200"
             title="Clear transcript"
-            disabled={messages.length === 0}
+            disabled={segments.length === 0}
           >
             <Trash2 className="w-4 h-4" />
           </button>
@@ -305,26 +324,26 @@ export function TranscriptPanel({
         </div>
       </div>
       
-      {/* Messages */}
+      {/* Segments */}
       <div
         ref={scrollRef}
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto p-3 space-y-2"
       >
-        {messages.length === 0 && !interimText ? (
+        {segments.length === 0 ? (
           <EmptyState />
         ) : (
           <>
             <AnimatePresence mode="popLayout">
-              {messages.map((message) => (
-                <TranscriptMessageItem key={message.id} message={message} />
+              {segments.map((segment, index) => (
+                <TranscriptSegmentItem key={segment.id} segment={segment} index={index} />
               ))}
             </AnimatePresence>
             
-            {/* Interim text */}
+            {/* Latest segment indicator */}
             <AnimatePresence>
-              {interimText && (
-                <InterimTranscript text={interimText} speaker={currentSpeaker} />
+              {latestSegment && !latestSegment.isFinal && (
+                <InterimTranscript text={latestSegment.text} speaker={latestSegment.speaker} />
               )}
             </AnimatePresence>
           </>
@@ -333,7 +352,7 @@ export function TranscriptPanel({
       
       {/* Scroll to bottom indicator */}
       <AnimatePresence>
-        {!autoScroll && messages.length > 0 && (
+        {!autoScroll && segments.length > 0 && (
           <motion.button
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}

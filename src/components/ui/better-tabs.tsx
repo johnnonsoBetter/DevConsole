@@ -1,8 +1,11 @@
 /**
- * Enhanced Tabs Component with animations and keyboard navigation
+ * Enhanced Tabs Component with animations using Headless UI
+ * Headless UI handles: keyboard navigation, focus management, ARIA attributes
+ * We handle: custom styling, scroll indicators, Framer Motion animations
  */
 
 import { cn } from "@/utils"
+import { Tab, TabGroup, TabList, TabPanel, TabPanels } from "@headlessui/react"
 import { AnimatePresence, motion } from "framer-motion"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import * as React from "react"
@@ -32,15 +35,13 @@ export function BetterTabs({
   className,
   variant = "default"
 }: BetterTabsProps) {
-  const [internalTab, setInternalTab] = React.useState(defaultTab || tabs[0]?.id)
   const [canScrollLeft, setCanScrollLeft] = React.useState(false)
   const [canScrollRight, setCanScrollRight] = React.useState(false)
-  
-  // Use controlled tab if provided, otherwise use internal state
-  const activeTab = controlledTab ?? internalTab
-  const activeIndex = tabs.findIndex((t) => t.id === activeTab)
-  const tabRefs = React.useRef<(HTMLButtonElement | null)[]>([])
   const containerRef = React.useRef<HTMLDivElement>(null)
+
+  // Calculate indices for Headless UI
+  const defaultIndex = defaultTab ? tabs.findIndex(t => t.id === defaultTab) : 0
+  const selectedIndex = controlledTab ? tabs.findIndex(t => t.id === controlledTab) : undefined
 
   // Check scroll state
   const updateScrollState = React.useCallback(() => {
@@ -86,42 +87,21 @@ export function BetterTabs({
     updateScrollState()
   }, [tabs.length, updateScrollState])
 
-  const handleTabChange = (newTab: string) => {
-    // Update internal state only if uncontrolled
-    if (controlledTab === undefined) {
-      setInternalTab(newTab)
-    }
-    // Always notify parent of the change
-    onTabChange?.(newTab)
-  }
-
-  // Keyboard navigation
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
-      e.preventDefault()
-      const newIndex =
-        e.key === "ArrowRight"
-          ? (activeIndex + 1) % tabs.length
-          : (activeIndex - 1 + tabs.length) % tabs.length
-      handleTabChange(tabs[newIndex].id)
-      tabRefs.current[newIndex]?.focus()
-    } else if (e.key === "Home") {
-      e.preventDefault()
-      handleTabChange(tabs[0].id)
-      tabRefs.current[0]?.focus()
-    } else if (e.key === "End") {
-      e.preventDefault()
-      const lastIndex = tabs.length - 1
-      handleTabChange(tabs[lastIndex].id)
-      tabRefs.current[lastIndex]?.focus()
+  const handleTabChange = (index: number) => {
+    const tabId = tabs[index]?.id
+    if (tabId) {
+      onTabChange?.(tabId)
     }
   }
 
   // Auto-scroll active tab into view
   React.useEffect(() => {
-    const activeTabElement = tabRefs.current[activeIndex]
-    if (activeTabElement && containerRef.current) {
-      const container = containerRef.current
+    const activeIndex = selectedIndex ?? defaultIndex
+    const container = containerRef.current
+    if (!container || activeIndex < 0) return
+
+    const activeTabElement = container.children[activeIndex] as HTMLElement
+    if (activeTabElement) {
       const tabRect = activeTabElement.getBoundingClientRect()
       const containerRect = container.getBoundingClientRect()
 
@@ -133,17 +113,17 @@ export function BetterTabs({
         })
       }
     }
-  }, [activeIndex])
+  }, [selectedIndex, defaultIndex])
 
-  const getTabClasses = (isActive: boolean) => {
-    const baseClasses = "relative flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-medium transition-all shrink-0 min-h-[40px] touch-manipulation snap-start"
+  const getTabClasses = (selected: boolean) => {
+    const baseClasses = "relative flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-medium transition-all shrink-0 min-h-[40px] touch-manipulation snap-start focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-1"
     
     switch (variant) {
       case "pills":
         return cn(
           baseClasses,
           "rounded-lg",
-          isActive
+          selected
             ? "bg-primary text-white shadow-sm scale-[0.98] sm:scale-100"
             : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800/60"
         )
@@ -151,7 +131,7 @@ export function BetterTabs({
         return cn(
           baseClasses,
           "rounded-t-lg",
-          isActive
+          selected
             ? "text-gray-900 dark:text-gray-100"
             : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
         )
@@ -159,15 +139,20 @@ export function BetterTabs({
         return cn(
           baseClasses,
           "rounded-lg",
-          isActive
+          selected
             ? "text-primary shadow-apple-sm scale-[0.98] sm:scale-100"
             : "text-gray-600 dark:text-gray-400 hover:bg-white/60 dark:hover:bg-gray-800/60 hover:text-gray-900 dark:hover:text-gray-100 active:scale-95"
         )
     }
   }
 
+  // Build TabGroup props based on controlled vs uncontrolled
+  const tabGroupProps = selectedIndex !== undefined
+    ? { selectedIndex, onChange: handleTabChange }
+    : { defaultIndex: Math.max(0, defaultIndex), onChange: handleTabChange }
+
   return (
-    <div className={cn("w-full flex flex-col overflow-hidden", className)}>
+    <TabGroup as="div" className={cn("w-full flex flex-col overflow-hidden", className)} {...tabGroupProps}>
       {/* Tab List */}
       <div className="flex items-center px-2 sm:px-4 py-2 border-b border-gray-200 dark:border-gray-800 bg-gradient-to-r from-primary/5 to-secondary/5">
         {/* Left scroll indicator - inline with tabs */}
@@ -181,73 +166,62 @@ export function BetterTabs({
               onClick={scrollLeft}
               className="shrink-0 h-8 flex items-center justify-center text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
               aria-label="Scroll tabs left"
+              type="button"
             >
               <ChevronLeft className="w-5 h-5" />
             </motion.button>
           )}
         </AnimatePresence>
 
-        <div
+        <TabList
           ref={containerRef}
           className="flex items-center gap-1 overflow-x-auto scrollbar-hide snap-x snap-mandatory flex-1 min-w-0"
-          onKeyDown={handleKeyDown}
-          role="tablist"
-          aria-label="Console tabs"
         >
-          {tabs.map((tab, i) => {
-            const isActive = activeTab === tab.id
-            
-            return (
-              <button
-                key={tab.id}
-                ref={(el) => (tabRefs.current[i] = el)}
-                onClick={() => handleTabChange(tab.id)}
-                className={getTabClasses(isActive)}
-                role="tab"
-                aria-selected={isActive}
-                aria-controls={`panel-${tab.id}`}
-                tabIndex={isActive ? 0 : -1}
-              >
-                {tab.icon && (
-                  <span className={cn(
-                    "w-4 h-4 shrink-0 flex items-center justify-center",
-                    isActive ? "text-current" : "text-current opacity-70"
-                  )}>
-                    {tab.icon}
-                  </span>
-                )}
-                <span className="truncate">{tab.label}</span>
-                
-                {tab.badge !== undefined && tab.badge !== 0 && (
-                  <span className={cn(
-                    "ml-1 px-1.5 py-0.5 text-xs rounded-full font-semibold shrink-0 min-w-[20px] text-center",
-                    isActive
-                      ? "bg-primary text-white"
-                      : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
-                  )}>
-                    {typeof tab.badge === 'number' && tab.badge > 99 ? '99+' : tab.badge}
-                  </span>
-                )}
+          {tabs.map((tab) => (
+            <Tab key={tab.id} className={({ selected }) => getTabClasses(selected)}>
+              {({ selected }) => (
+                <>
+                  {tab.icon && (
+                    <span className={cn(
+                      "w-4 h-4 shrink-0 flex items-center justify-center",
+                      selected ? "text-current" : "text-current opacity-70"
+                    )}>
+                      {tab.icon}
+                    </span>
+                  )}
+                  <span className="truncate">{tab.label}</span>
+                  
+                  {tab.badge !== undefined && tab.badge !== 0 && (
+                    <span className={cn(
+                      "ml-1 px-1.5 py-0.5 text-xs rounded-full font-semibold shrink-0 min-w-[20px] text-center",
+                      selected
+                        ? "bg-primary text-white"
+                        : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+                    )}>
+                      {typeof tab.badge === 'number' && tab.badge > 99 ? '99+' : tab.badge}
+                    </span>
+                  )}
 
-                {isActive && variant === "default" && (
-                  <motion.div
-                    layoutId="activeTab"
-                    className="absolute inset-0 bg-white dark:bg-gray-900 rounded-lg -z-10"
-                    transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                  />
-                )}
+                  {selected && variant === "default" && (
+                    <motion.div
+                      layoutId="activeTab"
+                      className="absolute inset-0 bg-white dark:bg-gray-900 rounded-lg -z-10"
+                      transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                    />
+                  )}
 
-                {isActive && variant === "underline" && (
-                  <motion.div
-                    layoutId="underline"
-                    className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary rounded-full"
-                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                  />
-                )}
-              </button>
-            )
-          })}
-        </div>
+                  {selected && variant === "underline" && (
+                    <motion.div
+                      layoutId="underline"
+                      className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary rounded-full"
+                      transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                    />
+                  )}
+                </>
+              )}
+            </Tab>
+          ))}
+        </TabList>
 
         {/* Right scroll indicator - inline with tabs */}
         <AnimatePresence>
@@ -260,6 +234,7 @@ export function BetterTabs({
               onClick={scrollRight}
               className="shrink-0 h-8 flex items-center justify-center text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
               aria-label="Scroll tabs right"
+              type="button"
             >
               <ChevronRight className="w-5 h-5" />
             </motion.button>
@@ -268,27 +243,27 @@ export function BetterTabs({
       </div>
 
       {/* Tab Content */}
-      <div className="flex-1 overflow-hidden">
-        <AnimatePresence mode="wait">
-          {tabs.map((tab) =>
-            activeTab === tab.id ? (
+      <TabPanels className="flex-1 overflow-hidden">
+        {tabs.map((tab) => (
+          <TabPanel
+            key={tab.id}
+            className="h-full focus:outline-none"
+          >
+            <AnimatePresence mode="wait">
               <motion.div
                 key={tab.id}
-                id={`panel-${tab.id}`}
-                role="tabpanel"
-                aria-labelledby={tab.id}
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.2 }}
-                className="h-full focus:outline-none"
+                className="h-full"
               >
                 {tab.content}
               </motion.div>
-            ) : null
-          )}
-        </AnimatePresence>
-      </div>
-    </div>
+            </AnimatePresence>
+          </TabPanel>
+        ))}
+      </TabPanels>
+    </TabGroup>
   )
 }

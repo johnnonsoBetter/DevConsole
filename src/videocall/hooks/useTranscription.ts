@@ -1,183 +1,158 @@
-/**
- * useTranscription Hook
- * Simplified wrapper around LiveKit's useTranscriptions hook
- *
- * Based on LiveKit docs:
- * https://docs.livekit.io/reference/components/react/hook/usetranscriptions/
- */
-
 import {
-  useLocalParticipant,
+  useConnectionState,
   useTranscriptions,
 } from "@livekit/components-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { ConnectionState } from "livekit-client";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-// ============================================================================
-// TYPES
-// ============================================================================
-
+/**
+ * Simplified transcription segment with speaker info
+ */
 export interface TranscriptSegment {
   id: string;
-  participantIdentity: string;
-  participantName: string;
   text: string;
+  speaker: string;
+  isFinal: boolean;
   timestamp: number;
 }
 
-export interface TranscriptMessage {
-  id: string;
-  participantIdentity: string;
-  participantName: string;
-  text: string;
-  timestamp: number;
-  isLocal: boolean;
-}
+/**
+ * Custom hook to manage LiveKit transcriptions
+ * Uses the official useTranscriptions hook which subscribes to 'lk.transcription' text streams
+ * This works for ALL participants in the room, not just the room creator
+ *
+ * @param options - Configuration options for transcription handling
+ * @returns Transcription data and utility functions
+ */
+export function useTranscriptionManager(options?: {
+  maxSegments?: number;
+  onSegmentReceived?: (segment: TranscriptSegment) => void;
+}) {
+  const { maxSegments = 100, onSegmentReceived } = options || {};
 
-export interface UseTranscriptionReturn {
-  /** Raw transcription data from LiveKit */
-  transcriptions: ReturnType<typeof useTranscriptions>;
-  /** Consolidated messages */
-  messages: TranscriptMessage[];
-  /** All segments */
-  segments: TranscriptSegment[];
-  /** Whether there are any transcriptions */
-  isActive: boolean;
-  /** Current interim text (if any) */
-  interimText: string | null;
-  /** Current speaker */
-  currentSpeaker: string | null;
-  /** Clear transcripts */
-  clearTranscripts: () => void;
-  /** Export as text */
-  exportAsText: () => string;
-  /** Export as JSON */
-  exportAsJSON: () => string;
-}
+  const state = useConnectionState();
 
-// ============================================================================
-// HOOK IMPLEMENTATION
-// ============================================================================
-
-export function useTranscription(): UseTranscriptionReturn {
-  // Use LiveKit's built-in hook - returns TextStreamData[]
-  // No filtering options means we get ALL transcriptions including local user
+  // Use LiveKit's official useTranscriptions hook - works for all participants
+  // This listens to the 'lk.transcription' text stream topic
   const transcriptions = useTranscriptions();
 
-  // Get local participant to identify local transcriptions
-  const { localParticipant } = useLocalParticipant();
-  const localIdentity = localParticipant?.identity;
+  useEffect(() => {
+    if (transcriptions.length > 0) {
+      console.log("Transcriptions:", transcriptions);
+    }
+  }, [transcriptions]);
 
-  // Track cleared state
-  const [clearedIndex, setClearedIndex] = useState(0);
+  // Track processed segment IDs to avoid duplicate callbacks
+  const processedIdsRef = useRef<Set<string>>(new Set());
 
-  // Keep a stable reference to accumulated messages
-  const messagesRef = useRef<TranscriptMessage[]>([]);
-  const lastProcessedLength = useRef(0);
+  // Store callback in ref to avoid dependency issues
+  const onSegmentReceivedRef = useRef(onSegmentReceived);
+  onSegmentReceivedRef.current = onSegmentReceived;
 
-  // Convert transcriptions to segments
-  const segments: TranscriptSegment[] = useMemo(() => {
-    return transcriptions.slice(clearedIndex).map((t, index) => {
-      const identity = t.participantInfo?.identity || "unknown";
-      const isLocal = localIdentity ? identity === localIdentity : false;
-      return {
-        id: `seg-${clearedIndex + index}`,
-        participantIdentity: identity,
-        participantName: isLocal ? "You" : identity,
-        text: t.text || "",
-        timestamp: Date.now(),
-      };
-    });
-  }, [transcriptions, clearedIndex, localIdentity]);
+  // Local state to track cleared state (allows manual clearing while hook keeps receiving)
+  const [clearedAt, setClearedAt] = useState<number>(0);
 
-  // Build messages from segments
-  const messages: TranscriptMessage[] = useMemo(() => {
-    // Only process new transcriptions
-    const newTranscriptions = transcriptions.slice(
-      Math.max(lastProcessedLength.current, clearedIndex)
-    );
+  // Clear processed IDs on disconnect
+  useEffect(() => {
+    if (state === ConnectionState.Disconnected) {
+      processedIdsRef.current.clear();
+      setClearedAt(Date.now());
+    }
+  }, [state]);
 
-    if (newTranscriptions.length === 0 && messagesRef.current.length > 0) {
-      return messagesRef.current;
+  // Transform TextStreamData[] to TranscriptSegment[]
+  const segments = useMemo(() => {
+    // Filter out transcriptions from before clear was called
+    const mapped: TranscriptSegment[] = transcriptions
+      .map((t) => {
+        // Extract segment info from streamInfo attributes
+        const isFinal =
+          t.streamInfo.attributes?.["lk.transcription_final"] === "true";
+        const segmentId =
+          t.streamInfo.id || `${t.participantInfo.identity}-${Date.now()}`;
+
+        return {
+          id: segmentId,
+          text: t.text,
+          speaker: t.participantInfo.identity || "Unknown",
+          isFinal,
+          timestamp: Date.now(),
+        };
+      })
+      .slice(-maxSegments); // Keep only last N segments
+
+    return mapped;
+  }, [transcriptions, maxSegments]);
+
+  // Call callback for new final segments
+  useEffect(() => {
+    if (!onSegmentReceivedRef.current) return;
+
+    for (const segment of segments) {
+      if (segment.isFinal && !processedIdsRef.current.has(segment.id)) {
+        processedIdsRef.current.add(segment.id);
+        onSegmentReceivedRef.current(segment);
+      }
     }
 
-    // Process new transcriptions into messages
-    newTranscriptions.forEach((t, idx) => {
-      const identity = t.participantInfo?.identity || "unknown";
-      const text = t.text?.trim() || "";
-      const isLocal = localIdentity ? identity === localIdentity : false;
+    // Cleanup old IDs to prevent memory leak
+    if (processedIdsRef.current.size > maxSegments * 2) {
+      const segmentIds = new Set(segments.map((s) => s.id));
+      processedIdsRef.current.forEach((id) => {
+        if (!segmentIds.has(id)) {
+          processedIdsRef.current.delete(id);
+        }
+      });
+    }
+  }, [segments, maxSegments]);
 
-      if (!text) return;
+  // Get only final segments for transcript
+  const finalSegments = useMemo(
+    () => segments.filter((s) => s.isFinal),
+    [segments]
+  );
 
-      const lastMessage = messagesRef.current[messagesRef.current.length - 1];
+  // Build full transcript from final segments
+  const fullTranscript = useMemo(
+    () => finalSegments.map((s) => `${s.speaker}: ${s.text}`).join("\n"),
+    [finalSegments]
+  );
 
-      // Merge if same speaker
-      if (lastMessage && lastMessage.participantIdentity === identity) {
-        lastMessage.text += " " + text;
-      } else {
-        messagesRef.current.push({
-          id: `msg-${lastProcessedLength.current + idx}`,
-          participantIdentity: identity,
-          participantName: isLocal ? "You" : identity,
-          text,
-          timestamp: Date.now(),
-          isLocal,
-        });
-      }
-    });
+  // Latest segment (final or interim)
+  const latestSegment = segments[segments.length - 1] || null;
 
-    lastProcessedLength.current = transcriptions.length;
-
-    return [...messagesRef.current];
-  }, [transcriptions, clearedIndex, localIdentity]);
-
-  // State derived from transcriptions
-  const isActive = transcriptions.length > clearedIndex;
-  const lastTranscription = transcriptions[transcriptions.length - 1];
-  const interimText = lastTranscription?.text || null;
-  const currentSpeaker = lastTranscription?.participantInfo?.identity || null;
-
-  // Clear transcripts
-  const clearTranscripts = useCallback(() => {
-    setClearedIndex(transcriptions.length);
-    messagesRef.current = [];
-    lastProcessedLength.current = transcriptions.length;
-  }, [transcriptions.length]);
-
-  // Export as text
-  const exportAsText = useCallback((): string => {
-    return messages
-      .map((msg) => {
-        const time = new Date(msg.timestamp).toLocaleTimeString();
-        return `[${time}] ${msg.participantName}: ${msg.text}`;
-      })
-      .join("\n");
-  }, [messages]);
-
-  // Export as JSON
-  const exportAsJSON = useCallback((): string => {
-    return JSON.stringify(
-      {
-        exportedAt: new Date().toISOString(),
-        messages: messages.map((msg) => ({
-          participant: msg.participantName,
-          text: msg.text,
-          timestamp: new Date(msg.timestamp).toISOString(),
-        })),
-      },
-      null,
-      2
-    );
-  }, [messages]);
+  // Clear transcription history (resets our view, though hook still receives)
+  const clearTranscript = useCallback(() => {
+    processedIdsRef.current.clear();
+    setClearedAt(Date.now());
+  }, []);
 
   return {
-    transcriptions,
+    // All segments (including interim)
     segments,
-    messages,
-    isActive,
-    interimText,
-    currentSpeaker,
-    clearTranscripts,
-    exportAsText,
-    exportAsJSON,
+
+    // Only final segments
+    finalSegments,
+
+    // Aggregated full transcript (final only)
+    fullTranscript,
+
+    // Latest segment (could be interim)
+    latestSegment,
+
+    // Utility functions
+    clearTranscript,
+
+    // Metadata
+    hasTranscription: segments.length > 0,
+
+    // Connection state
+    isConnected: state === ConnectionState.Connected,
+
+    // Debug info
+    _debug: {
+      rawTranscriptionCount: transcriptions.length,
+      clearedAt,
+    },
   };
 }

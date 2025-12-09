@@ -11,6 +11,7 @@ export interface Participant {
   isCameraOn: boolean;
   isSpeaking: boolean;
   isLocal?: boolean;
+  isAgent?: boolean;
 }
 
 export interface MeetingInfo {

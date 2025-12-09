@@ -13,6 +13,7 @@ import { AccessToken } from "livekit-server-sdk";
 // Environment variables (set in Vercel dashboard)
 const API_KEY = process.env.LIVEKIT_API_KEY;
 const API_SECRET = process.env.LIVEKIT_API_SECRET;
+const SERVER_URL = process.env.LIVEKIT_SERVER_URL;
 
 // CORS headers for browser requests
 const corsHeaders = {
@@ -39,9 +40,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // Check environment variables
-  if (!API_KEY || !API_SECRET) {
+  if (!API_KEY || !API_SECRET || !SERVER_URL) {
     console.error(
-      "[LiveKit Token] Missing API_KEY or API_SECRET environment variables"
+      "[LiveKit Token] Missing API_KEY, API_SECRET, or SERVER_URL environment variables"
     );
     return res.status(500).json({
       error: "Server configuration error: LiveKit credentials not configured",
@@ -90,7 +91,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       res.setHeader(key, value);
     });
 
-    return res.status(200).json({ token: jwt });
+    return res.status(200).json({ token: jwt, serverUrl: SERVER_URL });
   } catch (error) {
     console.error("[LiveKit Token] Error generating token:", error);
     return res.status(500).json({
