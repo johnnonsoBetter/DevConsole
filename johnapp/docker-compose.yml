@@ -1,0 +1,36 @@
+# Docker Compose for local development and testing
+# Usage: docker compose up --build
+
+version: '3.8'
+
+services:
+  transcriber:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: johnapp-transcriber
+    restart: unless-stopped
+    env_file:
+      - .env.local
+    environment:
+      - NODE_ENV=production
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+    # Health check (the agent doesn't expose HTTP, so we just check the process)
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "node"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s

@@ -3,8 +3,8 @@
  * Syncs state and handles real-time updates
  */
 
-import { MessageReceiver, MessageSender } from '../core/messaging';
-import { useDevConsoleStore } from '../utils/stores/devConsole';
+import { MessageReceiver, MessageSender } from "../core/messaging";
+import { useDevConsoleStore } from "../utils/stores/devConsole";
 
 let isInitialized = false;
 
@@ -14,18 +14,18 @@ let isInitialized = false;
 export function initializeDevToolsBridge(): void {
   if (isInitialized) return;
 
-  console.log('[DevTools Bridge] Initializing...');
+  console.log("[DevTools Bridge] Initializing...");
 
   // Get initial state from background
   loadInitialState();
 
   // Listen for real-time updates from background
-  MessageReceiver.on('DEVTOOLS_UPDATE', (message) => {
+  MessageReceiver.on("DEVTOOLS_UPDATE", (message) => {
     handleDevToolsUpdate(message);
   });
 
   isInitialized = true;
-  console.log('[DevTools Bridge] ✅ Initialized');
+  console.log("[DevTools Bridge] ✅ Initialized");
 }
 
 /**
@@ -34,13 +34,13 @@ export function initializeDevToolsBridge(): void {
 async function loadInitialState(): Promise<void> {
   try {
     const state = await MessageSender.send({
-      type: 'GET_STATE',
+      type: "GET_STATE",
       tabId: chrome.devtools.inspectedWindow.tabId,
     });
 
     if (state) {
       const store = useDevConsoleStore.getState();
-      
+
       // Update store with initial data
       state.logs?.forEach((log: any) => {
         store.addLog(log);
@@ -55,7 +55,7 @@ async function loadInitialState(): Promise<void> {
       }
     }
   } catch (error) {
-    console.error('[DevTools Bridge] Failed to load initial state:', error);
+    console.error("[DevTools Bridge] Failed to load initial state:", error);
   }
 }
 
@@ -66,39 +66,51 @@ function handleDevToolsUpdate(message: any): void {
   const store = useDevConsoleStore.getState();
 
   switch (message.updateType) {
-    case 'LOG_ADDED':
-      if (message.payload && message.payload.tabId === chrome.devtools.inspectedWindow.tabId) {
+    case "LOG_ADDED":
+      if (
+        message.payload &&
+        message.payload.tabId === chrome.devtools.inspectedWindow.tabId
+      ) {
         store.addLog(message.payload);
       }
       break;
 
-    case 'NETWORK_ADDED':
-      if (message.payload && message.payload.tabId === chrome.devtools.inspectedWindow.tabId) {
+    case "NETWORK_ADDED":
+      if (
+        message.payload &&
+        message.payload.tabId === chrome.devtools.inspectedWindow.tabId
+      ) {
         store.addNetworkRequest(message.payload);
       }
       break;
 
-    case 'LOGS_CLEARED':
-      if (!message.payload?.tabId || message.payload.tabId === chrome.devtools.inspectedWindow.tabId) {
+    case "LOGS_CLEARED":
+      if (
+        !message.payload?.tabId ||
+        message.payload.tabId === chrome.devtools.inspectedWindow.tabId
+      ) {
         store.clearLogs();
       }
       break;
 
-    case 'NETWORK_CLEARED':
-      if (!message.payload?.tabId || message.payload.tabId === chrome.devtools.inspectedWindow.tabId) {
+    case "NETWORK_CLEARED":
+      if (
+        !message.payload?.tabId ||
+        message.payload.tabId === chrome.devtools.inspectedWindow.tabId
+      ) {
         store.clearNetwork();
       }
       break;
 
-    case 'SETTINGS_UPDATED':
+    case "SETTINGS_UPDATED":
       if (message.payload) {
         store.updateSettings(message.payload);
       }
       break;
 
-    case 'RECORDING_TOGGLED':
+    case "RECORDING_TOGGLED":
       // Could update UI state if needed
-      console.log('[DevTools Bridge] Recording toggled:', message.payload);
+      console.log("[DevTools Bridge] Recording toggled:", message.payload);
       break;
   }
 }
@@ -108,7 +120,7 @@ function handleDevToolsUpdate(message: any): void {
  */
 export async function clearLogs(): Promise<void> {
   await MessageSender.send({
-    type: 'CLEAR_LOGS',
+    type: "CLEAR_LOGS",
     tabId: chrome.devtools.inspectedWindow.tabId,
   });
 }
@@ -118,7 +130,7 @@ export async function clearLogs(): Promise<void> {
  */
 export async function clearNetworkRequests(): Promise<void> {
   await MessageSender.send({
-    type: 'CLEAR_NETWORK',
+    type: "CLEAR_NETWORK",
     tabId: chrome.devtools.inspectedWindow.tabId,
   });
 }
@@ -128,7 +140,7 @@ export async function clearNetworkRequests(): Promise<void> {
  */
 export async function updateSettings(settings: any): Promise<void> {
   await MessageSender.send({
-    type: 'UPDATE_SETTINGS',
+    type: "UPDATE_SETTINGS",
     payload: settings,
   });
 }

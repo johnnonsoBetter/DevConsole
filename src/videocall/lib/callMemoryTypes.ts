@@ -9,11 +9,11 @@
 
 export const CALL_MEMORY_CONFIG = {
   /** SmartMemory instance name */
-  name: 'call-memory',
+  name: "call-memory",
   /** Raindrop application name */
-  applicationName: 'video-call-memory',
+  applicationName: "video-call-memory",
   /** Current deployment version - update after deploying changes */
-  version: '01kbygyc0b3nj5t4zss48tb83y',
+  version: "01kbygyc0b3nj5t4zss48tb83y",
   /** Batch interval in milliseconds */
   batchIntervalMs: 3000,
   /** Maximum retries for failed memory writes */
@@ -31,20 +31,21 @@ export const CALL_MEMORY_CONFIG = {
  */
 export const MEMORY_TIMELINES = {
   /** Session metadata (room info, participants, start time) */
-  METADATA: 'metadata',
+  METADATA: "metadata",
   /** Raw transcript conversation batches */
-  CONVERSATION: 'conversation',
+  CONVERSATION: "conversation",
   /** Detected action items and TODOs */
-  ACTION_ITEMS: 'action-items',
+  ACTION_ITEMS: "action-items",
   /** Key decisions made during the call */
-  DECISIONS: 'decisions',
+  DECISIONS: "decisions",
   /** Questions that were raised */
-  QUESTIONS: 'questions',
+  QUESTIONS: "questions",
   /** Topic markers for navigation */
-  TOPICS: 'topics',
+  TOPICS: "topics",
 } as const;
 
-export type MemoryTimeline = typeof MEMORY_TIMELINES[keyof typeof MEMORY_TIMELINES];
+export type MemoryTimeline =
+  (typeof MEMORY_TIMELINES)[keyof typeof MEMORY_TIMELINES];
 
 // ============================================================================
 // TRANSCRIPT TYPES (aligned with useTranscription.ts)
@@ -85,7 +86,7 @@ interface BaseMemoryContent {
  * Session metadata stored at call start
  */
 export interface SessionMetadataContent extends BaseMemoryContent {
-  type: 'session_metadata';
+  type: "session_metadata";
   roomName: string;
   participants: string[];
   localParticipantName: string;
@@ -97,7 +98,7 @@ export interface SessionMetadataContent extends BaseMemoryContent {
  * Transcript batch content
  */
 export interface TranscriptBatchContent extends BaseMemoryContent {
-  type: 'transcript_batch';
+  type: "transcript_batch";
   batch: TranscriptTurn[];
   batchIndex: number;
   batchTimestamp: string;
@@ -108,7 +109,7 @@ export interface TranscriptBatchContent extends BaseMemoryContent {
  * Action item detected during call
  */
 export interface ActionItemContent extends BaseMemoryContent {
-  type: 'action_item';
+  type: "action_item";
   text: string;
   speaker: string;
   detectedPattern: string;
@@ -119,7 +120,7 @@ export interface ActionItemContent extends BaseMemoryContent {
  * Decision detected during call
  */
 export interface DecisionContent extends BaseMemoryContent {
-  type: 'decision';
+  type: "decision";
   text: string;
   speaker: string;
   participants: string[];
@@ -129,7 +130,7 @@ export interface DecisionContent extends BaseMemoryContent {
  * Topic marker for navigation
  */
 export interface TopicMarkerContent extends BaseMemoryContent {
-  type: 'topic_marker';
+  type: "topic_marker";
   topic: string;
   startedAt: string;
   previousTopic?: string;
@@ -153,12 +154,12 @@ export type MemoryContent =
  * Memory session state
  */
 export type MemorySessionState =
-  | 'disconnected'   // No session active
-  | 'connecting'     // Starting session
-  | 'connected'      // Session active, ready for writes
-  | 'syncing'        // Writing batch to memory
-  | 'flushing'       // Ending session, creating episode
-  | 'error';         // Error state
+  | "disconnected" // No session active
+  | "connecting" // Starting session
+  | "connected" // Session active, ready for writes
+  | "syncing" // Writing batch to memory
+  | "flushing" // Ending session, creating episode
+  | "error"; // Error state
 
 /**
  * Information about the current memory session
@@ -204,7 +205,18 @@ export interface MemorySyncStats {
  * Return type for useCallMemory hook
  */
 export interface UseCallMemoryReturn {
-  /** Whether Raindrop is configured and available */
+  // Room context derived values
+  /** The Raindrop API key from room.metadata (set by room creator) */
+  raindropApiKey: string | undefined;
+  /** Whether memory can be used (API key exists in room metadata) */
+  canUseMemory: boolean;
+  /** Room name from room context */
+  roomName: string;
+  /** Local participant display name */
+  displayName: string;
+
+  // State
+  /** Whether Raindrop client has been instantiated */
   isConfigured: boolean;
   /** Whether memory is currently available (configured + session active) */
   isAvailable: boolean;
@@ -216,10 +228,14 @@ export interface UseCallMemoryReturn {
   syncStats: MemorySyncStats;
   /** Error message if any */
   error: string | null;
-  
+
   // Actions
-  /** Start a new memory session for a room */
-  startSession: (roomId: string, roomName: string, localParticipantName: string) => Promise<boolean>;
+  /**
+   * Start a new memory session for the current room
+   * Uses room name and participant info from room context
+   * Uses Raindrop API key from room.metadata
+   */
+  startSession: () => Promise<boolean>;
   /** Add transcript turns to be batched and stored */
   addTranscripts: (turns: TranscriptTurn[]) => void;
   /** End the session and flush to episodic memory */

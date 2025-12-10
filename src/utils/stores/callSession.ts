@@ -211,11 +211,11 @@ export const useCallSessionStore = create<CallSessionStore>((set, get) => ({
         })
       );
 
-      const token = await getJoinToken(settings, roomName, participantName);
+      const tokenResponse = await getJoinToken(roomName, participantName);
       const result = await client.connect({
         roomName,
         participantName,
-        token,
+        token: tokenResponse.token,
         enableVideo: true,
         enableAudio: true,
       });
@@ -264,11 +264,11 @@ export const useCallSessionStore = create<CallSessionStore>((set, get) => ({
         })
       );
 
-      const token = await getJoinToken(settings, roomName, participantName);
+      const tokenResponse = await getJoinToken(roomName, participantName);
       const result = await client.connect({
         roomName,
         participantName,
-        token,
+        token: tokenResponse.token,
         enableVideo: true,
         enableAudio: true,
       });

@@ -24,7 +24,6 @@ const liveKitFontOverride = `
 
 interface InCallViewProps {
   token: string;
-  roomName: string;
   serverUrl: string;
   onDisconnected: () => void;
   onError: (error: Error) => void;
@@ -33,7 +32,6 @@ interface InCallViewProps {
 
 export function InCallView({
   token,
-  roomName,
   serverUrl,
   onDisconnected,
   onError,
@@ -41,7 +39,14 @@ export function InCallView({
 }: InCallViewProps) {
   const [retryKey, setRetryKey] = useState(0);
   
+  console.log('[InCallView] Rendering', {
+    hasToken: Boolean(token),
+    serverUrl,
+    retryKey,
+  });
+  
   const handleRetry = useCallback(() => {
+    console.log('[InCallView] Retrying connection');
     setRetryKey((prev) => prev + 1);
   }, []);
   
@@ -49,6 +54,15 @@ export function InCallView({
     console.error('[InCallView] LiveKit error:', error);
     onError(error);
   }, [onError]);
+
+  const handleConnected = useCallback(() => {
+    console.log('[InCallView] LiveKit room connected');
+  }, []);
+
+  const handleDisconnected = useCallback(() => {
+    console.log('[InCallView] LiveKit room disconnected');
+    onDisconnected();
+  }, [onDisconnected]);
 
   return (
     <div 
@@ -72,19 +86,20 @@ export function InCallView({
           token={token}
           serverUrl={serverUrl}
           connect={true}
-          video={true}
+          video={false}
           audio={true}
           connectOptions={{
             autoSubscribe: true,
           }}
-          onDisconnected={onDisconnected}
+          onConnected={handleConnected}
+          onDisconnected={handleDisconnected}
           onError={handleError}
           style={{ height: '100%', fontFamily: "Plus Jakarta Sans", }}
           data-lk-theme="default"
           
         >
-          <CustomVideoConference
-            roomName={roomName}
+          <CustomVideoConference    
+           
             onLeave={onDisconnected}
             onClose={onClose}
           />

@@ -108,13 +108,31 @@ export function sanitizeRoomName(roomName: string): string {
 // ============================================================================
 
 /**
+ * Operation type for token requests
+ */
+export type TokenOperation = "create" | "join";
+
+/**
  * Token request payload
  */
 export interface TokenRequest {
+  /** Operation: create a new room or join existing */
+  operation: TokenOperation;
   roomName: string;
   participantName: string;
   /** Optional participant identity (defaults to participantName) */
   identity?: string;
+  /** Optional Raindrop API key (only for create operation) */
+  raindropApiKey?: string;
+}
+
+/**
+ * Room metadata for video calls
+ * Contains configuration that applies to all participants
+ */
+export interface RoomMetadata {
+  /** Raindrop API key for call memory feature */
+  raindropApiKey?: string;
 }
 
 /**
@@ -142,30 +160,51 @@ export async function fetchToken(
 ): Promise<TokenResponse> {
   const url = tokenServerUrl || DEFAULT_TOKEN_SERVER_URL;
 
+  console.log("[fetchToken] Requesting token:", {
+    url,
+    operation: request.operation,
+    roomName: request.roomName,
+    participantName: request.participantName,
+    hasRaindropApiKey: Boolean(request.raindropApiKey),
+  });
+
   const response = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
+      operation: request.operation,
       roomName: request.roomName,
       participantName: request.participantName,
-      identity: request.identity || request.participantName,
+      raindropApiKey: request.raindropApiKey,
     }),
   });
 
+  console.log("[fetchToken] Response status:", response.status);
+
   if (!response.ok) {
     const errorText = await response.text();
+    console.error("[fetchToken] Error response:", errorText);
     throw new Error(`Token server error: ${response.status} - ${errorText}`);
   }
 
   const data = await response.json();
 
+  console.log("[fetchToken] Token received:", {
+    hasToken: Boolean(data.token),
+    hasServerUrl: Boolean(data.serverUrl),
+    serverUrl: data.serverUrl,
+  });
+
   if (!data.token || !data.serverUrl) {
     throw new Error("Invalid token response: missing token or serverUrl");
   }
 
-  return data;
+  return {
+    token: data.token,
+    serverUrl: data.serverUrl,
+  };
 }
 
 // ============================================================================
@@ -206,18 +245,45 @@ export function isLiveKitConfigured(settings: LiveKitSettings): boolean {
 }
 
 /**
- * Get token and serverUrl for joining a room
- * Fetches from the token server which provides both
+ * Get token and serverUrl for a room
+ * @param operation - "create" for new room, "join" for existing room
+ * @param roomName - The room name
+ * @param participantName - The participant's display name
+ * @param raindropApiKey - Optional Raindrop API key (only for create operation)
  */
-export async function getJoinToken(
+export async function getToken(
+  operation: TokenOperation,
   roomName: string,
-  participantName: string
+  participantName: string,
+  raindropApiKey?: string
 ): Promise<TokenResponse> {
   const request: TokenRequest = {
+    operation,
     roomName,
     participantName,
-    identity: participantName.replace(/[^a-zA-Z0-9-_]/g, "_"),
+    raindropApiKey: operation === "create" ? raindropApiKey : undefined,
   };
 
   return fetchToken(request);
+}
+
+/**
+ * @deprecated Use getToken instead
+ * Get token for joining a room (backwards compatibility)
+ */
+export async function getJoinToken(
+  roomName: string,
+  participantName: string,
+  roomMetadata?: RoomMetadata
+): Promise<TokenResponse> {
+  // For backwards compatibility, determine operation based on whether metadata is provided
+  const operation: TokenOperation = roomMetadata?.raindropApiKey
+    ? "create"
+    : "join";
+  return getToken(
+    operation,
+    roomName,
+    participantName,
+    roomMetadata?.raindropApiKey
+  );
 }

@@ -4,17 +4,16 @@
  *
  * Simplified: No local LiveKit settings needed.
  * Token server provides both token and serverUrl.
+ * Uses token/serverUrl state to determine if in-call or pre-call view should be shown.
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { generateRoomName, getJoinToken } from "../../lib/livekit";
+import { generateRoomName, getToken } from "../../lib/livekit";
 import type { JoinMode } from "../components/PreCallView";
 
 // ============================================================================
 // TYPES
 // ============================================================================
-
-export type CallStatus = "idle" | "connecting" | "connected" | "error";
 
 interface UseVideoCallOptions {
   initialRoomName?: string;
@@ -24,9 +23,9 @@ interface UseVideoCallOptions {
 interface UseVideoCallReturn {
   // Ready state
   isReady: boolean;
+  isConnecting: boolean;
 
-  // Call state
-  callStatus: CallStatus;
+  // Call state - when both token and serverUrl are set, show InCallView
   token: string | null;
   serverUrl: string | null;
   roomName: string;
@@ -44,13 +43,30 @@ interface UseVideoCallReturn {
   setError: (error: string | null) => void;
 
   // Call actions
-  startCall: () => Promise<void>;
+  startCall: (memorySettings?: {
+    enabled: boolean;
+    apiKey: string;
+  }) => Promise<void>;
   joinCall: () => Promise<void>;
   endCall: () => void;
 
   // Event handlers
   handleDisconnected: () => void;
   handleError: (error: Error) => void;
+}
+
+// ============================================================================
+// LOGGING
+// ============================================================================
+
+const LOG_PREFIX = "[useVideoCall]";
+
+function log(...args: unknown[]) {
+  console.log(LOG_PREFIX, ...args);
+}
+
+function logError(...args: unknown[]) {
+  console.error(LOG_PREFIX, ...args);
 }
 
 // ============================================================================
@@ -62,11 +78,11 @@ export function useVideoCall({
   initialMode = null,
 }: UseVideoCallOptions = {}): UseVideoCallReturn {
   // Call state
-  const [callStatus, setCallStatus] = useState<CallStatus>("idle");
   const [token, setToken] = useState<string | null>(null);
   const [serverUrl, setServerUrl] = useState<string | null>(null);
-  const [roomName, setRoomName] = useState<string>(initialRoomName);
+  const [roomName, setRoomName] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
+  const [isConnecting, setIsConnecting] = useState(false);
 
   // Form state
   const [joinRoomName, setJoinRoomName] = useState(initialRoomName);
@@ -76,56 +92,98 @@ export function useVideoCall({
   // Track if we've initialized
   const [isReady, setIsReady] = useState(false);
 
-  // Start a new call
-  const startCall = useCallback(async () => {
-    setCallStatus("connecting");
-    setError(null);
+  // Start a new call (room creator) - uses operation: "create"
+  const startCall = useCallback(
+    async (memorySettings?: { enabled: boolean; apiKey: string }) => {
+      log("Starting call...", {
+        memoryEnabled: memorySettings?.enabled,
+        hasApiKey: Boolean(memorySettings?.apiKey),
+      });
 
-    try {
-      const newRoomName = generateRoomName();
-      const participantName = displayName.trim() || "DevConsole User";
+      setError(null);
+      setIsConnecting(true);
 
-      // Token server returns both token and serverUrl
-      const response = await getJoinToken(newRoomName, participantName);
+      try {
+        const newRoomName = generateRoomName();
+        const participantName = displayName.trim() || "DevConsole User";
 
-      setRoomName(newRoomName);
-      setToken(response.token);
-      setServerUrl(response.serverUrl);
-      setCallStatus("connected");
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to start call";
-      setError(message);
-      setCallStatus("error");
-    }
-  }, [displayName]);
+        log("Creating room:", {
+          roomName: newRoomName,
+          participantName,
+          memoryEnabled: memorySettings?.enabled,
+        });
 
-  // Join an existing call
+        // Get token with "create" operation
+        // If memory is enabled, pass the raindrop API key
+        const raindropApiKey = memorySettings?.enabled
+          ? memorySettings.apiKey
+          : undefined;
+
+        const response = await getToken(
+          "create",
+          newRoomName,
+          participantName,
+          raindropApiKey
+        );
+
+        log("Room created successfully:", {
+          roomName: newRoomName,
+          hasToken: Boolean(response.token),
+          serverUrl: response.serverUrl,
+        });
+
+        setRoomName(newRoomName);
+        setToken(response.token);
+        setServerUrl(response.serverUrl);
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Failed to start call";
+        logError("Failed to start call:", err);
+        setError(message);
+      } finally {
+        setIsConnecting(false);
+      }
+    },
+    [displayName]
+  );
+
+  // Join an existing call - uses operation: "join"
   const joinCall = useCallback(async () => {
     if (!joinRoomName.trim()) {
       setError("Please enter a room name");
       return;
     }
 
-    setCallStatus("connecting");
+    log("Joining call...", { roomName: joinRoomName });
+
     setError(null);
+    setIsConnecting(true);
 
     try {
       const room = joinRoomName.trim();
       const participantName = displayName.trim() || "DevConsole User";
 
-      // Token server returns both token and serverUrl
-      const response = await getJoinToken(room, participantName);
+      log("Requesting join token:", { roomName: room, participantName });
+
+      // Get token with "join" operation
+      const response = await getToken("join", room, participantName);
+
+      log("Join token received:", {
+        roomName: room,
+        hasToken: Boolean(response.token),
+        serverUrl: response.serverUrl,
+      });
 
       setRoomName(room);
       setToken(response.token);
       setServerUrl(response.serverUrl);
-      setCallStatus("connected");
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to join call";
+      logError("Failed to join call:", err);
       setError(message);
-      setCallStatus("error");
+    } finally {
+      setIsConnecting(false);
     }
   }, [displayName, joinRoomName]);
 
@@ -134,7 +192,6 @@ export function useVideoCall({
     setToken(null);
     setServerUrl(null);
     setRoomName("");
-    setCallStatus("idle");
     setJoinMode(null);
     setJoinRoomName("");
   }, []);
@@ -174,9 +231,9 @@ export function useVideoCall({
   return {
     // Ready state
     isReady,
+    isConnecting,
 
-    // Call state
-    callStatus,
+    // Call state - when both token and serverUrl are set, show InCallView
     token,
     serverUrl,
     roomName,

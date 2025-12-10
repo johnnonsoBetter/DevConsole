@@ -35,7 +35,7 @@ import {
   X
 } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
-import { useReactionsChannel, type ReactionType } from '../hooks/useReactionsChannel';
+import { ReactionType, useReactionsChannel } from '../hooks';
 import type { Participant as ParticipantType } from '../types';
 import { AgentIndicator } from './AgentIndicator';
 import { useCallMemoryBridge } from './CallMemoryBridge';
@@ -49,6 +49,11 @@ import { ReactionPicker as ReactionPickerV2 } from './ReactionPickerV2';
 import { TranscriptPanel } from './TranscriptPanel';
 import { ControlButton } from './ui';
 
+// ============================================================================
+// HELPERS
+// ============================================================================
+
+
 // Lazy load DevConsolePanel to avoid circular dependencies and reduce initial bundle
 const DevConsolePanel = lazy(() => 
   import('../../components/DevConsole/DevConsolePanel').then(module => ({
@@ -57,13 +62,11 @@ const DevConsolePanel = lazy(() =>
 );
 
 interface CustomVideoConferenceProps {
-  roomName: string;
   onLeave: () => void;
   onClose: () => void;
 }
 
 export function CustomVideoConference({
-  roomName,
   onLeave,
   onClose,
 }: CustomVideoConferenceProps) {
@@ -114,11 +117,8 @@ export function CustomVideoConference({
   } = useReactionsChannel();
   
   // Call memory integration - syncs transcripts to SmartMemory
-  const callMemory = useCallMemoryBridge({
-    roomName,
-    displayName: localParticipant?.name || localParticipant?.identity || 'Unknown',
-    enabled: true,
-  });
+  // Uses shared API key from room metadata if provided by room creator
+  const callMemory = useCallMemoryBridge();
   
   // Participant events for join/leave notifications
   const { events: participantEvents, addEvent, dismissEvent } = useParticipantEvents();
@@ -261,13 +261,13 @@ export function CustomVideoConference({
 
   const handleCopyRoomName = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(roomName);
+      await navigator.clipboard.writeText(room.name);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error('Failed to copy:', err);
     }
-  }, [roomName]);
+  }, [room.name]);
 
   const handleEndCall = useCallback(() => {
     room.disconnect();
@@ -325,7 +325,7 @@ export function CustomVideoConference({
             {/* Room name */}
             <div className="flex items-center gap-2">
               <code className="px-2.5 py-1 bg-gray-700/50 rounded-lg text-caption2 text-gray-300 font-mono">
-                {roomName}
+                {room.name}
               </code>
               <motion.button
                 whileHover={{ scale: 1.05 }}
@@ -358,8 +358,8 @@ export function CustomVideoConference({
               </span>
             </div>
             
-            {/* Memory status badge */}
-            {callMemory.isConfigured && (
+            {/* Memory status badge - shows when local config OR shared API key available */}
+            {callMemory.canUseMemory && (
               <MemoryBadge
                 isActive={callMemory.isActive}
                 isSyncing={callMemory.state === 'syncing'}

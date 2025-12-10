@@ -10,6 +10,11 @@ import { ModeSelector } from './ModeSelector';
 
 export type JoinMode = 'create' | 'join' | null;
 
+interface RaindropMemorySettings {
+  enabled: boolean;
+  apiKey: string;
+}
+
 interface PreCallViewProps {
   joinMode: JoinMode;
   isConnecting: boolean;
@@ -19,10 +24,12 @@ interface PreCallViewProps {
   onModeSelect: (mode: JoinMode) => void;
   onDisplayNameChange: (name: string) => void;
   onJoinRoomNameChange: (name: string) => void;
-  onStartCall: () => void;
+  onStartCall: (memorySettings?: RaindropMemorySettings) => void;
   onJoinCall: () => void;
   onDismissError: () => void;
   onClose: () => void;
+  /** Initial memory settings from local Raindrop config (for prefilling the form) */
+  initialMemorySettings?: RaindropMemorySettings;
 }
 
 export function PreCallView({
@@ -38,6 +45,7 @@ export function PreCallView({
   onJoinCall,
   onDismissError,
   onClose,
+  initialMemorySettings,
 }: PreCallViewProps) {
   return (
     <div className="h-screen flex items-center justify-center bg-gray-900 p-6">
@@ -100,6 +108,7 @@ export function PreCallView({
             onDisplayNameChange={onDisplayNameChange}
             onBack={() => onModeSelect(null)}
             onSubmit={onStartCall}
+            initialMemorySettings={initialMemorySettings}
           />
         )}
 

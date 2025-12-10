@@ -5,6 +5,16 @@ import {
 import { ConnectionState } from "livekit-client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+// ============================================================================
+// LOGGING
+// ============================================================================
+
+const LOG_PREFIX = "[useTranscriptionManager]";
+
+function log(...args: unknown[]) {
+  console.log(LOG_PREFIX, ...args);
+}
+
 /**
  * Simplified transcription segment with speaker info
  */
@@ -36,14 +46,33 @@ export function useTranscriptionManager(options?: {
   // This listens to the 'lk.transcription' text stream topic
   const transcriptions = useTranscriptions();
 
+  // Track if we've logged the initial transcription state
+  const hasLoggedRef = useRef(false);
+
   useEffect(() => {
+    // Log transcriptions when they change
     if (transcriptions.length > 0) {
-      console.log("Transcriptions:", transcriptions);
+      log("Transcriptions received:", {
+        count: transcriptions.length,
+        latest: transcriptions[transcriptions.length - 1],
+        all: transcriptions.map((t) => ({
+          text: t.text?.substring(0, 50),
+          speaker: t.participantInfo?.identity,
+          isFinal: t.streamInfo?.attributes?.["lk.transcription_final"],
+          streamId: t.streamInfo?.id,
+        })),
+      });
+    } else if (!hasLoggedRef.current) {
+      log("No transcriptions yet, hook is listening...");
+      hasLoggedRef.current = true;
     }
   }, [transcriptions]);
 
   // Track processed segment IDs to avoid duplicate callbacks
   const processedIdsRef = useRef<Set<string>>(new Set());
+
+  // Track timestamps for stable IDs
+  const segmentTimestampsRef = useRef<Map<string, number>>(new Map());
 
   // Store callback in ref to avoid dependency issues
   const onSegmentReceivedRef = useRef(onSegmentReceived);
@@ -56,33 +85,49 @@ export function useTranscriptionManager(options?: {
   useEffect(() => {
     if (state === ConnectionState.Disconnected) {
       processedIdsRef.current.clear();
+      segmentTimestampsRef.current.clear();
       setClearedAt(Date.now());
+      hasLoggedRef.current = false;
     }
   }, [state]);
 
   // Transform TextStreamData[] to TranscriptSegment[]
   const segments = useMemo(() => {
-    // Filter out transcriptions from before clear was called
     const mapped: TranscriptSegment[] = transcriptions
       .map((t) => {
         // Extract segment info from streamInfo attributes
         const isFinal =
-          t.streamInfo.attributes?.["lk.transcription_final"] === "true";
+          t.streamInfo?.attributes?.["lk.transcription_final"] === "true";
+
+        // Use streamInfo.id or segment_id attribute, fallback to generated ID
         const segmentId =
-          t.streamInfo.id || `${t.participantInfo.identity}-${Date.now()}`;
+          t.streamInfo?.id ||
+          t.streamInfo?.attributes?.["lk.segment_id"] ||
+          `${t.participantInfo?.identity || "unknown"}-${transcriptions.indexOf(t)}`;
+
+        // Get or create a stable timestamp for this segment
+        let timestamp = segmentTimestampsRef.current.get(segmentId);
+        if (!timestamp) {
+          timestamp = t.streamInfo?.timestamp
+            ? new Date(t.streamInfo.timestamp).getTime()
+            : Date.now();
+          segmentTimestampsRef.current.set(segmentId, timestamp);
+        }
 
         return {
           id: segmentId,
-          text: t.text,
-          speaker: t.participantInfo.identity || "Unknown",
+          text: t.text || "",
+          speaker: t.participantInfo?.identity || "Unknown",
           isFinal,
-          timestamp: Date.now(),
+          timestamp,
         };
       })
+      // Filter out segments from before clear was called
+      .filter((seg) => seg.timestamp > clearedAt)
       .slice(-maxSegments); // Keep only last N segments
 
     return mapped;
-  }, [transcriptions, maxSegments]);
+  }, [transcriptions, maxSegments, clearedAt]);
 
   // Call callback for new final segments
   useEffect(() => {

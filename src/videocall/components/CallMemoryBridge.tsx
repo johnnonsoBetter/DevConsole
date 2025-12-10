@@ -4,16 +4,15 @@
  * 
  * This component should be placed inside a LiveKitRoom context.
  * It automatically:
- * 1. Starts a memory session when mounted (if configured)
- * 2. Pipes transcription messages to SmartMemory in batches
- * 3. Ends the session and flushes to episodic memory on unmount
+ * 1. Uses useCallMemory which reads API key from room.metadata
+ * 2. Starts a memory session when mounted (if API key is available)
+ * 3. Pipes transcription messages to SmartMemory in batches
+ * 4. Ends the session and flushes to episodic memory on unmount
  * 
- * Memory is a room-wide feature - only one participant needs to have
- * Raindrop configured. The transcriptions come from the AI agent and
- * include all participants' speech.
+ * No props needed - everything is derived from the LiveKit room context via useCallMemory.
  */
 
-import { useLocalParticipant, useRoomContext } from '@livekit/components-react';
+import { useRoomContext } from '@livekit/components-react';
 import { useEffect, useRef } from 'react';
 import { useCallMemory, useTranscriptionManager } from '../hooks';
 import type { TranscriptTurn } from '../lib/callMemoryTypes';
@@ -33,14 +32,10 @@ function logError(...args: unknown[]) {
 }
 
 // ============================================================================
-// TYPES
+// COMPONENT
 // ============================================================================
 
 interface CallMemoryBridgeProps {
-  /** Room name for the call */
-  roomName: string;
-  /** Local participant's display name */
-  displayName: string;
   /** Optional callback when memory session starts */
   onSessionStart?: (sessionId: string) => void;
   /** Optional callback when memory session ends */
@@ -51,27 +46,19 @@ interface CallMemoryBridgeProps {
   onSyncStatsUpdate?: (stats: { batchesStored: number; turnsStored: number }) => void;
 }
 
-// ============================================================================
-// COMPONENT
-// ============================================================================
-
 export function CallMemoryBridge({
-  roomName,
-  displayName,
   onSessionStart,
   onSessionEnd,
   onError,
   onSyncStatsUpdate,
-}: CallMemoryBridgeProps) {
+}: CallMemoryBridgeProps = {}) {
   const room = useRoomContext();
-  const { localParticipant } = useLocalParticipant();
-  
-  // Get transcription data
   const { segments } = useTranscriptionManager();
   
-  // Get memory management
+  // Get memory management from hook (reads API key from room.metadata internally)
   const {
-    isConfigured,
+    canUseMemory,
+    displayName,
     state,
     sessionInfo,
     syncStats,
@@ -81,21 +68,22 @@ export function CallMemoryBridge({
     endSession,
   } = useCallMemory();
   
-  // Track last processed message index
+  // Track state
   const lastProcessedIndexRef = useRef(0);
   const sessionStartedRef = useRef(false);
-  const unmountingRef = useRef(false);
 
-  // Start memory session when room is connected
-  // Only the participant with memory configured will manage the session
+  // Start memory session when room is connected and API key is available
   useEffect(() => {
-    // Silently skip if not configured - this is expected for participants
-    // who haven't set up Raindrop. Memory will be managed by whoever has it configured.
-    if (!isConfigured) {
-      return;
-    }
+    log('Checking if should start session:', {
+      canUseMemory,
+      roomState: room.state,
+      sessionAlreadyStarted: sessionStartedRef.current,
+    });
 
-    if (sessionStartedRef.current) {
+    if (!canUseMemory || sessionStartedRef.current) {
+      if (!canUseMemory) {
+        log('Cannot start session - memory not available (no API key in room metadata)');
+      }
       return;
     }
 
@@ -103,24 +91,20 @@ export function CallMemoryBridge({
       log('Room connected, starting memory session');
       sessionStartedRef.current = true;
       
-      const roomId = room.name || roomName;
-      
-      startSession(roomId, roomName, displayName).then((success) => {
+      startSession().then((success) => {
         if (success && sessionInfo?.sessionId) {
-          log('Memory session started:', sessionInfo.sessionId);
+          log('Memory session started successfully:', sessionInfo.sessionId);
           onSessionStart?.(sessionInfo.sessionId);
         } else if (!success) {
           logError('Failed to start memory session');
         }
       });
     }
-  }, [isConfigured, room.state, room.name, roomName, displayName, startSession, sessionInfo?.sessionId, onSessionStart]);
+  }, [canUseMemory, room.state, startSession, sessionInfo?.sessionId, onSessionStart]);
 
   // End session on unmount
   useEffect(() => {
     return () => {
-      unmountingRef.current = true;
-      
       if (sessionStartedRef.current) {
         log('Component unmounting, ending memory session');
         endSession(true).then((success) => {
@@ -141,19 +125,16 @@ export function CallMemoryBridge({
       return;
     }
 
-    // Get only new segments since last processing
     const newSegments = segments.slice(lastProcessedIndexRef.current);
-    
     if (newSegments.length === 0) {
       return;
     }
 
-    // Convert TranscriptSegment to TranscriptTurn
-    const localIdentity = localParticipant?.identity;
+    // Use displayName from useCallMemory to identify local participant
     const turns: TranscriptTurn[] = newSegments
-      .filter((seg) => seg.isFinal) // Only process final segments
+      .filter((seg) => seg.isFinal)
       .map((seg) => {
-        const isLocal = localIdentity ? seg.speaker === localIdentity : false;
+        const isLocal = seg.speaker === displayName || seg.speaker === 'You';
         return {
           id: seg.id,
           participantIdentity: seg.speaker,
@@ -170,7 +151,7 @@ export function CallMemoryBridge({
     }
     
     lastProcessedIndexRef.current = segments.length;
-  }, [segments, state, addTranscripts, localParticipant?.identity]);
+  }, [segments, state, addTranscripts, displayName]);
 
   // Report sync stats updates
   useEffect(() => {
@@ -191,19 +172,10 @@ export function CallMemoryBridge({
   return null;
 }
 
-// ============================================================================
-// HOOK VERSION (for flexibility)
-// ============================================================================
-
-interface UseCallMemoryBridgeOptions {
-  roomName: string;
-  displayName: string;
-  enabled?: boolean;
-}
 
 interface UseCallMemoryBridgeReturn {
-  /** Whether memory is configured locally */
-  isConfigured: boolean;
+  /** Whether memory can be used (API key available in room metadata) */
+  canUseMemory: boolean;
   /** Whether memory is active for this call */
   isActive: boolean;
   /** Current session ID if active */
@@ -223,20 +195,17 @@ interface UseCallMemoryBridgeReturn {
  * Hook version of the CallMemoryBridge for more control
  * Use this when you need access to memory state in your component
  * 
- * Memory is a room-wide feature. Only participants with Raindrop configured
- * will store transcriptions, but the AI agent captures everyone's speech.
+ * Gets the Raindrop API key directly from room.metadata (set server-side).
+ * No need to pass props - everything is derived from the LiveKit room context via useCallMemory.
  */
-export function useCallMemoryBridge({
-  roomName,
-  displayName,
-  enabled = true,
-}: UseCallMemoryBridgeOptions): UseCallMemoryBridgeReturn {
+export function useCallMemoryBridge(): UseCallMemoryBridgeReturn {
   const room = useRoomContext();
-  const { localParticipant } = useLocalParticipant();
   const { segments } = useTranscriptionManager();
   
+  // Get memory management from hook (reads API key from room.metadata internally)
   const {
-    isConfigured,
+    canUseMemory,
+    displayName,
     state,
     sessionInfo,
     syncStats,
@@ -249,21 +218,21 @@ export function useCallMemoryBridge({
   const lastProcessedIndexRef = useRef(0);
   const sessionStartedRef = useRef(false);
   
-  // Determine if memory is active
+  // Is memory active?
   const isActive = state === 'connected' || state === 'syncing';
 
-  // Start session (only if configured)
+  // Start session when API key is available
   useEffect(() => {
-    if (!enabled || !isConfigured || sessionStartedRef.current) {
+    if (!canUseMemory || sessionStartedRef.current) {
       return;
     }
 
     if (room.state === 'connected') {
       sessionStartedRef.current = true;
-      const roomId = room.name || roomName;
-      startSession(roomId, roomName, displayName);
+      console.log('[useCallMemoryBridge] Starting session with room metadata API key');
+      startSession();
     }
-  }, [enabled, isConfigured, room.state, room.name, roomName, displayName, startSession]);
+  }, [canUseMemory, room.state, startSession]);
 
   // End session on unmount
   useEffect(() => {
@@ -274,20 +243,20 @@ export function useCallMemoryBridge({
     };
   }, [endSession]);
 
-  // Pipe transcriptions (only if configured and connected)
+  // Pipe transcriptions
   useEffect(() => {
-    if (!enabled || (state !== 'connected' && state !== 'syncing')) {
+    if (state !== 'connected' && state !== 'syncing') {
       return;
     }
 
     const newSegments = segments.slice(lastProcessedIndexRef.current);
     if (newSegments.length === 0) return;
 
-    const localIdentity = localParticipant?.identity;
+    // Use displayName from useCallMemory to identify local participant
     const turns: TranscriptTurn[] = newSegments
       .filter((seg) => seg.isFinal)
       .map((seg) => {
-        const isLocal = localIdentity ? seg.speaker === localIdentity : false;
+        const isLocal = seg.speaker === displayName || seg.speaker === 'You';
         return {
           id: seg.id,
           participantIdentity: seg.speaker,
@@ -302,10 +271,10 @@ export function useCallMemoryBridge({
       addTranscripts(turns);
     }
     lastProcessedIndexRef.current = segments.length;
-  }, [enabled, segments, state, addTranscripts, localParticipant?.identity]);
+  }, [segments, state, addTranscripts, displayName]);
 
   return {
-    isConfigured,
+    canUseMemory,
     isActive,
     sessionId: sessionInfo?.sessionId ?? null,
     state,
