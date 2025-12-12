@@ -904,7 +904,6 @@ export function CustomVideoConference({
           <InsightsPanel
             isOpen={isInsightsPanelOpen}
             onClose={() => setIsInsightsPanelOpen(false)}
-            onSearchTermChange={setTranscriptSearchTerm}
             className="h-full"
           />
         )}

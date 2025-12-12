@@ -296,36 +296,13 @@ export function useCallMemory(): UseCallMemoryReturn {
 
   const searchSession = useCallback(
     async (query: string): Promise<string[]> => {
-      // First, search local turns from ImmediateTurnManager (instant results)
-      if (turnManagerRef.current) {
-        const localResults = await turnManagerRef.current.searchTurns(query);
-        
-        if (localResults.length > 0) {
-          log("Search found local results:", {
-            query,
-            count: localResults.length,
-          });
-          
-          // Convert TurnSearchResult[] to string[] (JSON content)
-          return localResults.map((r) =>
-            JSON.stringify({
-              type: "transcript_turn",
-              roomId: roomName,
-              timestamp: new Date(r.turn.timestamp).toISOString(),
-              turn: r.turn,
-            })
-          );
-        }
-      }
-
-      // Fallback to server search if no local results
       const results = await searchMemory({ terms: query, nMostRecent: 20 });
 
       if (!results) return [];
 
       return results.map((r) => r.content);
     },
-    [searchMemory, roomName]
+    [searchMemory]
   );
 
   // --------------------------------------------------------------------------
