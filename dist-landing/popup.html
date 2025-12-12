@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>DevConsole</title>
+  
+  <!-- Optimize font loading with preconnect -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  
+  <!-- Google Fonts -->
+  <link
+    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+  
+  <style>
+    body {
+      width: 400px;
+      height: 600px;
+      padding: 20px;
+      font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: #0f172a;
+      color: white;
+      margin: 0;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+    h1 {
+      font-size: 18px;
+      margin: 0 0 10px 0;
+      color: #60a5fa;
+    }
+    p {
+      margin: 10px 0;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .status {
+      padding: 10px;
+      background: #374151;
+      border-radius: 4px;
+      margin: 10px 0;
+    }
+    .instructions {
+      background: #065f46;
+      padding: 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      margin-top: 15px;
+    }
+    .emoji {
+      font-size: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h1><span class="emoji">🚀</span> DevConsole</h1>
+  
+  <div class="status">
+    <strong>✅ Extension Loaded!</strong>
+  </div>
+  
+  <p><strong>To use DevConsole:</strong></p>
+  <ol style="font-size: 13px; padding-left: 20px;">
+    <li>Visit any website</li>
+    <li>Press <strong>F12</strong> (or right-click → Inspect)</li>
+    <li>Look for the <strong>"DevConsole"</strong> tab in DevTools</li>
+  </ol>
+  
+  <div class="instructions">
+    💡 <strong>Tip:</strong> DevConsole is a DevTools panel, not a popup extension. The main interface appears in Chrome DevTools.
+  </div>
+  
+  <script type="module" src="/popup.js"></script>
+</body>
+</html>
