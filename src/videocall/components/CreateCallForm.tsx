@@ -3,7 +3,7 @@
  * Form for starting a new video call
  */
 
-import { Brain, Eye, EyeOff, Phone } from 'lucide-react';
+import { Brain, Eye, EyeOff, Phone, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 
 interface RaindropMemorySettings {
@@ -20,6 +20,9 @@ interface CreateCallFormProps {
   initialMemorySettings?: RaindropMemorySettings;
 }
 
+// Demo API key for hackathon judges (temporary - remove after hackathon)
+const DEMO_RAINDROP_KEY = import.meta.env.VITE_DEMO_RAINDROP_KEY || '';
+
 export function CreateCallForm({
   displayName,
   onDisplayNameChange,
@@ -31,6 +34,22 @@ export function CreateCallForm({
   const [memoryEnabled, setMemoryEnabled] = useState(initialMemorySettings?.enabled ?? false);
   const [memoryApiKey, setMemoryApiKey] = useState(initialMemorySettings?.apiKey ?? '');
   const [showApiKey, setShowApiKey] = useState(false);
+  const [useDemoKey, setUseDemoKey] = useState(false);
+
+  const hasDemoKey = Boolean(DEMO_RAINDROP_KEY);
+
+  const handleUseDemoKey = () => {
+    if (DEMO_RAINDROP_KEY) {
+      setUseDemoKey(true);
+      setMemoryEnabled(true);
+      setMemoryApiKey(DEMO_RAINDROP_KEY);
+    }
+  };
+
+  const handleUseOwnKey = () => {
+    setUseDemoKey(false);
+    setMemoryApiKey('');
+  };
 
   const handleSubmit = () => {
     if (memoryEnabled && memoryApiKey.trim()) {
@@ -82,29 +101,69 @@ export function CreateCallForm({
         </p>
 
         {memoryEnabled && (
-          <div className="space-y-2">
-            <label className="block text-xs font-medium text-gray-400">
-              Raindrop API Key
-            </label>
-            <div className="relative">
-              <input
-                type={showApiKey ? 'text' : 'password'}
-                value={memoryApiKey}
-                onChange={(e) => setMemoryApiKey(e.target.value)}
-                placeholder="Enter your Raindrop API key"
-                className="w-full px-3 py-2 pr-10 text-sm rounded-lg border bg-gray-900 border-gray-600 text-white placeholder:text-gray-500 focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/50"
-              />
-              <button
-                type="button"
-                onClick={() => setShowApiKey(!showApiKey)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-300"
-              >
-                {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-            <p className="text-xs text-gray-500">
-              Your API key is securely shared with participants for this call only.
-            </p>
+          <div className="space-y-3">
+            {/* Demo Key Quick Enable Button */}
+            {hasDemoKey && (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleUseDemoKey}
+                  disabled={useDemoKey}
+                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                    useDemoKey 
+                      ? 'bg-purple-600 text-white cursor-default' 
+                      : 'bg-purple-600/20 text-purple-300 hover:bg-purple-600/30 border border-purple-500/30'
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  {useDemoKey ? 'Using Demo Key ✓' : 'Use Demo Key'}
+                </button>
+                {useDemoKey && (
+                  <button
+                    type="button"
+                    onClick={handleUseOwnKey}
+                    className="px-3 py-2 rounded-lg text-xs font-medium bg-gray-700 text-gray-300 hover:bg-gray-600"
+                  >
+                    Use Own Key
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* API Key Input (show if no demo key or using own key) */}
+            {(!hasDemoKey || !useDemoKey) && (
+              <>
+                <label className="block text-xs font-medium text-gray-400">
+                  Raindrop API Key
+                </label>
+                <div className="relative">
+                  <input
+                    type={showApiKey ? 'text' : 'password'}
+                    value={memoryApiKey}
+                    onChange={(e) => setMemoryApiKey(e.target.value)}
+                    placeholder="Enter your Raindrop API key"
+                    className="w-full px-3 py-2 pr-10 text-sm rounded-lg border bg-gray-900 border-gray-600 text-white placeholder:text-gray-500 focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/50"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-300"
+                  >
+                    {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500">
+                  Your API key is securely shared with participants for this call only.
+                </p>
+              </>
+            )}
+
+            {/* Show confirmation when using demo key */}
+            {useDemoKey && (
+              <p className="text-xs text-purple-400">
+                ✨ Demo mode enabled - SmartMemory will power your call!
+              </p>
+            )}
           </div>
         )}
       </div>

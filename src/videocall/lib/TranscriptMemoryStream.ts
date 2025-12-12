@@ -8,8 +8,8 @@ import type {
   RetryQueueItem,
   TranscriptBatchContent,
   TranscriptTurn,
-} from './callMemoryTypes';
-import { MEMORY_TIMELINES } from './callMemoryTypes';
+} from "./callMemoryTypes";
+import { MEMORY_TIMELINES } from "./callMemoryTypes";
 
 // ============================================================================
 // TYPES
@@ -56,14 +56,14 @@ export class TranscriptMemoryStream {
   private isProcessing = false;
   private isDestroyed = false;
 
-  private readonly workingMemory: TranscriptMemoryStreamOptions['workingMemory'];
+  private readonly workingMemory: TranscriptMemoryStreamOptions["workingMemory"];
   private readonly roomId: string;
   private readonly batchIntervalMs: number;
   private readonly maxRetries: number;
   private readonly retryDelayMs: number;
-  private readonly onBatchStored?: TranscriptMemoryStreamOptions['onBatchStored'];
-  private readonly onError?: TranscriptMemoryStreamOptions['onError'];
-  private readonly onRetry?: TranscriptMemoryStreamOptions['onRetry'];
+  private readonly onBatchStored?: TranscriptMemoryStreamOptions["onBatchStored"];
+  private readonly onError?: TranscriptMemoryStreamOptions["onError"];
+  private readonly onRetry?: TranscriptMemoryStreamOptions["onRetry"];
 
   constructor(options: TranscriptMemoryStreamOptions) {
     this.workingMemory = options.workingMemory;
@@ -86,9 +86,22 @@ export class TranscriptMemoryStream {
    */
   add(turns: TranscriptTurn[]): void {
     if (this.isDestroyed) {
-      console.warn('[TranscriptMemoryStream] Cannot add to destroyed stream');
+      console.warn("[TranscriptMemoryStream] Cannot add to destroyed stream");
       return;
     }
+
+    // 🔍 LOG: Incoming transcript turns BEFORE queuing
+    console.log("[TranscriptMemoryStream] 📥 RECEIVED TURNS TO QUEUE:", {
+      turnCount: turns.length,
+      currentQueueSize: this.queue.length,
+      turns: turns.map((t) => ({
+        id: t.id,
+        speaker: t.participantName,
+        text: t.text,
+        timestamp: new Date(t.timestamp).toISOString(),
+        isLocal: t.isLocal,
+      })),
+    });
 
     this.queue.push(...turns);
     this.scheduleBatchWrite();
@@ -189,7 +202,7 @@ export class TranscriptMemoryStream {
 
       // Create memory content
       const content: TranscriptBatchContent = {
-        type: 'transcript_batch',
+        type: "transcript_batch",
         roomId: this.roomId,
         timestamp: new Date().toISOString(),
         batch,
@@ -200,11 +213,34 @@ export class TranscriptMemoryStream {
 
       const contentStr = JSON.stringify(content);
 
+      // 🔍 LOG: Transcript batch content BEFORE storing to working memory
+      console.log(
+        `[TranscriptMemoryStream] 📝 STORING TRANSCRIPT BATCH ${batchIndex}:`,
+        {
+          timeline: MEMORY_TIMELINES.CONVERSATION,
+          batchIndex,
+          turnCount: batch.length,
+          speakers: [...speakers],
+          turns: batch.map((t) => ({
+            speaker: t.participantName,
+            text: t.text.substring(0, 100) + (t.text.length > 100 ? "..." : ""),
+            timestamp: t.timestamp,
+            isLocal: t.isLocal,
+          })),
+          fullContent: content,
+          contentStringLength: contentStr.length,
+        }
+      );
+      console.log(
+        `[TranscriptMemoryStream] 📝 FULL CONTENT STRING:`,
+        contentStr
+      );
+
       try {
         await this.workingMemory.putMemory({
           content: contentStr,
           timeline: MEMORY_TIMELINES.CONVERSATION,
-          agent: 'transcript_stream',
+          agent: "transcript_stream",
         });
 
         // Success
@@ -216,7 +252,7 @@ export class TranscriptMemoryStream {
           `[TranscriptMemoryStream] Stored batch ${batchIndex} with ${batch.length} turns`
         );
       } catch (error) {
-        console.error('[TranscriptMemoryStream] Failed to store batch:', error);
+        console.error("[TranscriptMemoryStream] Failed to store batch:", error);
         this.failedWrites++;
 
         // Add to retry queue
@@ -262,7 +298,7 @@ export class TranscriptMemoryStream {
         await this.workingMemory.putMemory({
           content: item.content,
           timeline: item.timeline,
-          agent: 'transcript_stream',
+          agent: "transcript_stream",
         });
 
         // Success - remove from queue
@@ -278,13 +314,13 @@ export class TranscriptMemoryStream {
           // Ignore parse errors for stats
         }
 
-        console.log('[TranscriptMemoryStream] Retry successful');
+        console.log("[TranscriptMemoryStream] Retry successful");
       } catch (error) {
         item.attempts++;
 
         if (item.attempts >= this.maxRetries) {
           console.error(
-            '[TranscriptMemoryStream] Max retries reached, dropping batch:',
+            "[TranscriptMemoryStream] Max retries reached, dropping batch:",
             error
           );
           this.retryQueue.shift();
@@ -321,9 +357,12 @@ export class TranscriptMemoryStream {
       }
 
       localStorage.setItem(key, JSON.stringify(backups));
-      console.log('[TranscriptMemoryStream] Stored to local backup');
+      console.log("[TranscriptMemoryStream] Stored to local backup");
     } catch (error) {
-      console.error('[TranscriptMemoryStream] Failed to store local backup:', error);
+      console.error(
+        "[TranscriptMemoryStream] Failed to store local backup:",
+        error
+      );
     }
   }
 }

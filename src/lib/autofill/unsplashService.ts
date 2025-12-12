@@ -3,28 +3,47 @@
  * Fetches and caches images from Unsplash API
  */
 
-import { loadUnsplashConfig } from '../../utils/extensionSettings';
-import { checkAndShowFillAllButton, closeSuggestionBox, showConfirmationMessage } from './uiManager';
+import { loadUnsplashConfig } from "../../utils/extensionSettings";
+import {
+  checkAndShowFillAllButton,
+  closeSuggestionBox,
+  showConfirmationMessage,
+} from "./uiManager";
 
 // Configuration
-const UNSPLASH_API_URL = 'https://api.unsplash.com';
+const UNSPLASH_API_URL = "https://api.unsplash.com";
+
+// Demo Unsplash API key (fallback for hackathon judges)
+const DEMO_UNSPLASH_KEY = import.meta.env.VITE_DEMO_UNSPLASH_KEY || "";
 
 // Cache for Unsplash images
 const imageCache = new Map<string, UnsplashImage[]>();
 
 /**
  * Get Unsplash access key from settings
- * Throws error if no key is configured
+ * Falls back to demo key if no user key is configured
  */
 async function getUnsplashAccessKey(): Promise<string> {
   try {
     const config = await loadUnsplashConfig();
-    if (!config?.accessKey) {
-      throw new Error('Unsplash access key not configured. Please add your key in DevConsole Settings.');
+    if (config?.accessKey) {
+      return config.accessKey;
     }
-    return config.accessKey;
+    // Fall back to demo key
+    if (DEMO_UNSPLASH_KEY) {
+      console.log("[Unsplash] Using demo API key");
+      return DEMO_UNSPLASH_KEY;
+    }
+    throw new Error(
+      "Unsplash access key not configured. Please add your key in DevConsole Settings."
+    );
   } catch (error) {
-    console.error('Failed to load Unsplash access key:', error);
+    // Try demo key as last resort
+    if (DEMO_UNSPLASH_KEY) {
+      console.log("[Unsplash] Using demo API key (fallback)");
+      return DEMO_UNSPLASH_KEY;
+    }
+    console.error("Failed to load Unsplash access key:", error);
     throw error;
   }
 }
@@ -40,43 +59,48 @@ export interface UnsplashImage {
 /**
  * Fetch images from Unsplash
  */
-export async function fetchUnsplashImages(query: string = 'random', count: number = 6): Promise<UnsplashImage[]> {
+export async function fetchUnsplashImages(
+  query: string = "random",
+  count: number = 6
+): Promise<UnsplashImage[]> {
   const cacheKey = `${query}-${count}`;
-  
+
   // Check cache first
   if (imageCache.has(cacheKey)) {
     return imageCache.get(cacheKey)!;
   }
-  
+
   try {
     const accessKey = await getUnsplashAccessKey();
     const response = await fetch(
       `${UNSPLASH_API_URL}/photos/random?query=${encodeURIComponent(query)}&count=${count}&client_id=${accessKey}`
     );
-    
+
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Unsplash API error (${response.status}): ${errorText}`);
     }
-    
+
     const data = await response.json();
     const images: UnsplashImage[] = data.map((img: any) => ({
       url: img.urls.regular,
       thumbnail: img.urls.thumb,
-      description: img.alt_description || img.description || 'Unsplash Image',
+      description: img.alt_description || img.description || "Unsplash Image",
       photographer: img.user.name,
-      downloadUrl: img.links.download_location
+      downloadUrl: img.links.download_location,
     }));
-    
+
     // Cache the results
     imageCache.set(cacheKey, images);
-    
+
     return images;
   } catch (error) {
-    console.error('Error fetching Unsplash images:', error);
+    console.error("Error fetching Unsplash images:", error);
     // Show user-friendly error message
-    if (error instanceof Error && error.message.includes('not configured')) {
-      console.warn('💡 Tip: Configure your Unsplash API key in DevConsole Settings > Unsplash Integration');
+    if (error instanceof Error && error.message.includes("not configured")) {
+      console.warn(
+        "💡 Tip: Configure your Unsplash API key in DevConsole Settings > Unsplash Integration"
+      );
     }
     return [];
   }
@@ -85,13 +109,16 @@ export async function fetchUnsplashImages(query: string = 'random', count: numbe
 /**
  * Convert image URL to File object
  */
-export async function urlToFile(url: string, filename: string): Promise<File | null> {
+export async function urlToFile(
+  url: string,
+  filename: string
+): Promise<File | null> {
   try {
     const response = await fetch(url);
     const blob = await response.blob();
     return new File([blob], filename, { type: blob.type });
   } catch (error) {
-    console.error('Error converting URL to file:', error);
+    console.error("Error converting URL to file:", error);
     return null;
   }
 }
@@ -100,22 +127,24 @@ export async function urlToFile(url: string, filename: string): Promise<File | n
  * Get search query for image input
  */
 export function getImageSearchQuery(input: HTMLInputElement): string {
-  const name = (input.name || '').toLowerCase();
-  const id = (input.id || '').toLowerCase();
-  const type = (input.type || '').toLowerCase();
-  const accept = (input.accept || '').toLowerCase();
-  const label = input.closest('label')?.textContent?.toLowerCase() || '';
-  const placeholder = (input.placeholder || '').toLowerCase();
+  const name = (input.name || "").toLowerCase();
+  const id = (input.id || "").toLowerCase();
+  const type = (input.type || "").toLowerCase();
+  const accept = (input.accept || "").toLowerCase();
+  const label = input.closest("label")?.textContent?.toLowerCase() || "";
+  const placeholder = (input.placeholder || "").toLowerCase();
   const combined = `${name} ${id} ${label} ${placeholder} ${type} ${accept} `;
-  
+
   // Try to determine context
-  if (combined.includes('profile') || combined.includes('avatar')) return 'portrait face';
-  if (combined.includes('cover') || combined.includes('banner')) return 'landscape nature';
-  if (combined.includes('product')) return 'product';
-  if (combined.includes('logo')) return 'logo design';
-  if (combined.includes('background')) return 'abstract background';
-  
-  return 'random'; // Default
+  if (combined.includes("profile") || combined.includes("avatar"))
+    return "portrait face";
+  if (combined.includes("cover") || combined.includes("banner"))
+    return "landscape nature";
+  if (combined.includes("product")) return "product";
+  if (combined.includes("logo")) return "logo design";
+  if (combined.includes("background")) return "abstract background";
+
+  return "random"; // Default
 }
 
 /**
@@ -129,28 +158,28 @@ export async function fillImageInput(
   try {
     // Download the image and convert to File
     const file = await urlToFile(imageData.url, `unsplash-${Date.now()}.jpg`);
-    
+
     if (file) {
       // Create a DataTransfer object to set files
       const dataTransfer = new DataTransfer();
       dataTransfer.items.add(file);
       input.files = dataTransfer.files;
-      
+
       // Trigger events
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      input.dispatchEvent(new Event('change', { bubbles: true }));
-      
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+
       closeSuggestionBox();
-      
+
       if (showConfirmation) {
-        showConfirmationMessage(input, 'Image loaded');
+        showConfirmationMessage(input, "Image loaded");
       }
-      
+
       // Re-check if we should show/hide Fill All button
       setTimeout(checkAndShowFillAllButton, 100);
     }
   } catch (error) {
-    console.error('Error filling image input:', error);
-    showConfirmationMessage(input, 'Error loading image', true);
+    console.error("Error filling image input:", error);
+    showConfirmationMessage(input, "Error loading image", true);
   }
 }

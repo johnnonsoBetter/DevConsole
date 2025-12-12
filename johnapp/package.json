@@ -14,7 +14,7 @@
     "test": "node --test --import tsx",
     "test:watch": "node --test --watch --import tsx",
     "dev": "tsx src/agent.ts dev",
-    "download-files": "pnpm run build && node dist/agent.js download-files",
+    "download-files": "tsc && node src/agent.ts download-files",
     "start": "node src/agent.ts start"
   },
   "engines": {

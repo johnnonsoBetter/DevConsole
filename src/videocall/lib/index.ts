@@ -20,6 +20,9 @@ export {
   type TranscriptBatchContent,
   type TranscriptTurn,
   type UseCallMemoryReturn,
-} from './callMemoryTypes';
+} from "./callMemoryTypes";
 
-export { TranscriptMemoryStream } from './TranscriptMemoryStream';
+export {
+  ImmediateTurnManager,
+  type TurnSearchResult,
+} from "./ImmediateTurnManager";

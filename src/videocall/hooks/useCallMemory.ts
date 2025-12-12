@@ -5,26 +5,28 @@
  * Features:
  * - Automatic session management tied to call lifecycle
  * - Gets Raindrop API key directly from room.metadata
- * - Batched transcript storage with debouncing
- * - Error handling with retry logic
+ * - IMMEDIATE transcript storage (no batching) for instant searchability
+ * - Uses global callMemory store for singleton client/session
  * - Episodic memory flush on call end
+ *
+ * The hook wraps the callMemory store and adds:
+ * - Room context integration (room.metadata for API key)
+ * - Turn management via ImmediateTurnManager
+ * - Convenience methods for the video call use case
  */
 
-import Raindrop from "@liquidmetal-ai/lm-raindrop";
 import { useEnsureRoom, useLocalParticipant } from "@livekit/components-react";
 import { RoomEvent } from "livekit-client";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallMemoryStore } from "../../utils/stores/callMemory";
 import {
-  CALL_MEMORY_CONFIG,
   MEMORY_TIMELINES,
-  MemorySessionInfo,
-  MemorySessionState,
-  MemorySyncStats,
+  MemoryTimeline,
   SessionMetadataContent,
   TranscriptTurn,
   UseCallMemoryReturn,
 } from "../lib";
-import { TranscriptMemoryStream } from "../lib/TranscriptMemoryStream";
+import { ImmediateTurnManager } from "../lib/ImmediateTurnManager";
 
 // ============================================================================
 // LOGGING
@@ -61,59 +63,37 @@ function parseRoomMetadata(metadataStr: string | undefined): RoomMetadata {
   }
 }
 
-interface WorkingMemorySession {
-  putMemory: (entry: {
-    content: string;
-    timeline?: string;
-    agent?: string;
-  }) => Promise<string>;
-  getMemory: (query: {
-    timeline?: string;
-    nMostRecent?: number;
-  }) => Promise<Array<{ content: string; at: Date }> | null>;
-  searchMemory: (query: {
-    terms: string;
-    nMostRecent?: number;
-  }) => Promise<Array<{ content: string; at: Date }> | null>;
-  endSession: (flush: boolean) => Promise<void>;
-}
-
 // ============================================================================
 // HOOK IMPLEMENTATION
 // ============================================================================
 
 export function useCallMemory(): UseCallMemoryReturn {
-  // Get room context directly
+  // Get room context
   const room = useEnsureRoom();
   const { localParticipant } = useLocalParticipant();
+
+  // Get store state and actions
+  const {
+    state,
+    sessionId,
+    sessionInfo,
+    syncStats,
+    error,
+    startSession: storeStartSession,
+    endSession: storeEndSession,
+    putMemory,
+    searchMemory,
+    incrementTurnsStored,
+    clearError,
+  } = useCallMemoryStore();
 
   // Track if we've already logged initialization (prevent spam)
   const hasLoggedInitRef = useRef(false);
   const lastMetadataRef = useRef<string | undefined>(undefined);
-
-  // Listen for metadata changes and track version for re-parsing
-  const [metadataVersion, setMetadataVersion] = useState(0);
-
-  useEffect(() => {
-    const handleMetadataChanged = (newMetadata: string | undefined) => {
-      log("Room metadata changed:", {
-        hasRaindropApiKey: Boolean(
-          parseRoomMetadata(newMetadata).raindropApiKey
-        ),
-        metadataLength: newMetadata?.length ?? 0,
-      });
-      // Trigger re-parse by incrementing version
-      setMetadataVersion((v) => v + 1);
-    };
-
-    room.on(RoomEvent.RoomMetadataChanged, handleMetadataChanged);
-    return () => {
-      room.off(RoomEvent.RoomMetadataChanged, handleMetadataChanged);
-    };
-  }, [room]);
+  const turnManagerRef = useRef<ImmediateTurnManager | null>(null);
+  const sessionStartedRef = useRef(false);
 
   // Parse room metadata for Raindrop API key
-  // Re-parse when metadata changes or version increments (from metadata change event)
   const parsedMetadata = useMemo(() => {
     const parsed = parseRoomMetadata(room.metadata);
 
@@ -124,7 +104,6 @@ export function useCallMemory(): UseCallMemoryReturn {
         roomName: room.name,
         roomState: room.state,
         hasMetadata: Boolean(room.metadata),
-        metadataLength: room.metadata?.length ?? 0,
         hasRaindropApiKey: Boolean(parsed.raindropApiKey),
         isInitialParse: !hasLoggedInitRef.current,
       });
@@ -133,86 +112,35 @@ export function useCallMemory(): UseCallMemoryReturn {
     }
 
     return parsed;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [room.metadata, room.name, room.state, metadataVersion]);
+  }, [room.metadata, room.name, room.state]);
 
   // Derived values from room context
   const raindropApiKey = parsedMetadata.raindropApiKey;
   const roomName = room.name;
   const displayName =
     localParticipant?.name || localParticipant?.identity || "Unknown";
-
-  // Can we use memory?
   const canUseMemory = Boolean(raindropApiKey);
 
-  // State
-  const [state, setState] = useState<MemorySessionState>("disconnected");
-  const [sessionInfo, setSessionInfo] = useState<MemorySessionInfo | null>(
-    null
-  );
-  const [syncStats, setSyncStats] = useState<MemorySyncStats>({
-    batchesStored: 0,
-    turnsStored: 0,
-    failedWrites: 0,
-    retriedWrites: 0,
-    pendingRetries: 0,
-  });
-  const [error, setError] = useState<string | null>(null);
+  // Listen for metadata changes
+  useEffect(() => {
+    const handleMetadataChanged = (newMetadata: string | undefined) => {
+      log("Room metadata changed:", {
+        hasRaindropApiKey: Boolean(
+          parseRoomMetadata(newMetadata).raindropApiKey
+        ),
+      });
+    };
 
-  // Refs
-  const clientRef = useRef<Raindrop | null>(null);
-  const sessionIdRef = useRef<string | null>(null);
-  const workingMemoryRef = useRef<WorkingMemorySession | null>(null);
-  const streamRef = useRef<TranscriptMemoryStream | null>(null);
-  const sessionStartedRef = useRef(false);
-
-  // --------------------------------------------------------------------------
-  // HELPERS
-  // --------------------------------------------------------------------------
-
-  const getSmartMemoryLocation = useCallback(
-    () => ({
-      smartMemory: {
-        name: CALL_MEMORY_CONFIG.name,
-        applicationName: CALL_MEMORY_CONFIG.applicationName,
-        version: CALL_MEMORY_CONFIG.version,
-      },
-    }),
-    []
-  );
-
-  /**
-   * Get a Raindrop client using the API key from room metadata
-   */
-  const getCallClient = useCallback((): Raindrop => {
-    if (!raindropApiKey) {
-      logError("getCallClient called but no Raindrop API key in room metadata");
-      throw new Error("No Raindrop API key in room metadata.");
-    }
-
-    // Create client with the room's API key
-    if (!clientRef.current) {
-      log("Creating new Raindrop client");
-      clientRef.current = new Raindrop({ apiKey: raindropApiKey });
-    }
-    return clientRef.current;
-  }, [raindropApiKey]);
-
-  const updateSyncStats = useCallback(() => {
-    if (streamRef.current) {
-      setSyncStats(streamRef.current.getStats());
-    }
-  }, []);
+    room.on(RoomEvent.RoomMetadataChanged, handleMetadataChanged);
+    return () => {
+      room.off(RoomEvent.RoomMetadataChanged, handleMetadataChanged);
+    };
+  }, [room]);
 
   // --------------------------------------------------------------------------
   // SESSION MANAGEMENT
   // --------------------------------------------------------------------------
 
-  /**
-   * Start a memory session for the call
-   * Uses room name and participant info from room context
-   * Uses Raindrop API key from room.metadata
-   */
   const startSession = useCallback(async (): Promise<boolean> => {
     log("startSession called", {
       hasRaindropApiKey: Boolean(raindropApiKey),
@@ -226,240 +154,141 @@ export function useCallMemory(): UseCallMemoryReturn {
       return false;
     }
 
-    if (sessionStartedRef.current) {
+    if (sessionStartedRef.current || sessionId) {
       log("Session already started");
       return true;
     }
 
-    log("Starting memory session for room:", roomName);
-    setState("connecting");
-    setError(null);
+    // Start session via store
+    const newSessionId = await storeStartSession(raindropApiKey, roomName);
 
-    try {
-      const client = getCallClient();
-      const location = getSmartMemoryLocation();
-
-      // Start SmartMemory session
-      const session = await client.startSession.create({
-        smartMemoryLocation: location,
-      });
-
-      const newSessionId = session.sessionId || `session-${Date.now()}`;
-      sessionIdRef.current = newSessionId;
-      sessionStartedRef.current = true;
-
-      // Get working memory interface wrapper around SDK
-      const workingMemory: WorkingMemorySession = {
-        putMemory: async (entry) => {
-          await client.putMemory.create({
-            smartMemoryLocation: location,
-            sessionId: newSessionId,
-            content: entry.content,
-            timeline: entry.timeline,
-            agent: entry.agent,
-          });
-          return newSessionId;
-        },
-        getMemory: async (query) => {
-          const result = await client.getMemory.retrieve({
-            smartMemoryLocation: location,
-            sessionId: newSessionId,
-            timeline: query.timeline,
-            nMostRecent: query.nMostRecent,
-          });
-          return (result.memories ?? []).map((m) => ({
-            content: m.content ?? "",
-            at: new Date(m.at ?? Date.now()),
-          }));
-        },
-        searchMemory: async (query) => {
-          const result = await client.query.memory.search({
-            smartMemoryLocation: location,
-            sessionId: newSessionId,
-            terms: query.terms,
-            nMostRecent: query.nMostRecent,
-          });
-          return (result.memories ?? []).map((m) => ({
-            content: m.content ?? "",
-            at: new Date(m.at ?? Date.now()),
-          }));
-        },
-        endSession: async (flush) => {
-          await client.endSession.create({
-            smartMemoryLocation: location,
-            sessionId: newSessionId,
-            flush,
-          });
-        },
-      };
-
-      workingMemoryRef.current = workingMemory;
-
-      // Store session metadata
-      const sessionMetadata: SessionMetadataContent = {
-        type: "session_metadata",
-        roomId: roomName,
-        roomName,
-        timestamp: new Date().toISOString(),
-        participants: [displayName],
-        localParticipantName: displayName,
-        startedAt: new Date().toISOString(),
-        userAgent:
-          typeof navigator !== "undefined" ? navigator.userAgent : undefined,
-      };
-
-      await workingMemory.putMemory({
-        content: JSON.stringify(sessionMetadata),
-        timeline: MEMORY_TIMELINES.METADATA,
-        agent: "session_manager",
-      });
-
-      // Create transcript stream
-      streamRef.current = new TranscriptMemoryStream({
-        workingMemory,
-        roomId: roomName,
-        batchIntervalMs: CALL_MEMORY_CONFIG.batchIntervalMs,
-        maxRetries: CALL_MEMORY_CONFIG.maxRetries,
-        retryDelayMs: CALL_MEMORY_CONFIG.retryDelayMs,
-        onBatchStored: (batchIndex: number, turnCount: number) => {
-          log(`Batch ${batchIndex} stored with ${turnCount} turns`);
-          updateSyncStats();
-          setSessionInfo((prev: MemorySessionInfo | null) =>
-            prev
-              ? {
-                  ...prev,
-                  batchCount: batchIndex + 1,
-                  turnCount: (prev.turnCount || 0) + turnCount,
-                  lastSyncAt: Date.now(),
-                }
-              : null
-          );
-        },
-        onError: (err: Error, retriesRemaining: number) => {
-          logError(
-            "Stream error:",
-            err.message,
-            `(${retriesRemaining} retries left)`
-          );
-          updateSyncStats();
-          if (retriesRemaining === 0) {
-            setError(`Failed to sync transcript: ${err.message}`);
-          }
-        },
-        onRetry: (attempt: number, maxAttempts: number) => {
-          log(`Retrying batch write (${attempt}/${maxAttempts})`);
-        },
-      });
-
-      // Update session info
-      setSessionInfo({
-        sessionId: newSessionId,
-        roomId: roomName,
-        startedAt: Date.now(),
-        batchCount: 0,
-        turnCount: 0,
-        lastSyncAt: null,
-        state: "connected",
-      });
-
-      setState("connected");
-      log("Session started:", newSessionId);
-      return true;
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to start memory session";
-      logError("Failed to start session:", message);
-      setError(message);
-      setState("error");
+    if (!newSessionId) {
       return false;
     }
-  }, [getCallClient, getSmartMemoryLocation, updateSyncStats]);
+
+    sessionStartedRef.current = true;
+
+    // Store session metadata
+    const sessionMetadata: SessionMetadataContent = {
+      type: "session_metadata",
+      roomId: roomName,
+      roomName,
+      timestamp: new Date().toISOString(),
+      participants: [displayName],
+      localParticipantName: displayName,
+      startedAt: new Date().toISOString(),
+      userAgent:
+        typeof navigator !== "undefined" ? navigator.userAgent : undefined,
+    };
+
+    log("📝 STORING SESSION METADATA:", {
+      timeline: MEMORY_TIMELINES.METADATA,
+      content: sessionMetadata,
+    });
+
+    await putMemory({
+      content: JSON.stringify(sessionMetadata),
+      timeline: MEMORY_TIMELINES.METADATA,
+    });
+
+    // Create immediate turn manager
+    // We create a wrapper that uses the store's putMemory
+    const workingMemoryWrapper = {
+      putMemory: async (entry: { content: string; timeline?: string }) => {
+        const result = await putMemory(entry);
+        return result ?? "";
+      },
+      getMemory: async () => null, // Not used by ImmediateTurnManager
+      searchMemory: async () => null, // Not used by ImmediateTurnManager
+      endSession: async () => {}, // Managed by hook
+    };
+
+    turnManagerRef.current = new ImmediateTurnManager({
+      workingMemory: workingMemoryWrapper,
+      roomId: roomName,
+      onTurnStored: () => {
+        incrementTurnsStored();
+      },
+      onError: (err: Error) => {
+        logError("Turn storage error:", err.message);
+      },
+    });
+
+    log("Session started:", newSessionId);
+    return true;
+  }, [
+    raindropApiKey,
+    roomName,
+    displayName,
+    sessionId,
+    storeStartSession,
+    putMemory,
+    incrementTurnsStored,
+  ]);
 
   const endSession = useCallback(
     async (flush = true): Promise<boolean> => {
-      log("endSession called", {
-        hasActiveSession: Boolean(sessionIdRef.current),
-        flush,
-      });
+      log("endSession called", { hasActiveSession: Boolean(sessionId), flush });
 
-      if (!sessionIdRef.current || !workingMemoryRef.current) {
+      if (!sessionId) {
         log("No active session to end");
         return false;
       }
 
-      log(
-        "Ending session:",
-        sessionIdRef.current,
-        flush ? "(with flush)" : "(no flush)"
-      );
-      setState("flushing");
-
-      try {
-        // Flush any pending transcript batches
-        if (streamRef.current) {
-          await streamRef.current.destroy();
-          updateSyncStats();
-        }
-
-        // End the SmartMemory session
-        await workingMemoryRef.current.endSession(flush);
-
-        log("Session ended successfully");
-
-        // Clean up
-        sessionIdRef.current = null;
-        workingMemoryRef.current = null;
-        streamRef.current = null;
-        setSessionInfo(null);
-        setState("disconnected");
-
-        return true;
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Failed to end session";
-        logError("Failed to end session:", message);
-        setError(message);
-        setState("error");
-        return false;
+      // Destroy turn manager
+      if (turnManagerRef.current) {
+        turnManagerRef.current.destroy();
+        turnManagerRef.current = null;
       }
+
+      sessionStartedRef.current = false;
+
+      // End session via store
+      return storeEndSession(flush);
     },
-    [updateSyncStats]
+    [sessionId, storeEndSession]
   );
 
   // --------------------------------------------------------------------------
   // TRANSCRIPT STORAGE
   // --------------------------------------------------------------------------
 
-  const addTranscripts = useCallback((turns: TranscriptTurn[]) => {
-    if (!streamRef.current) {
-      log("No active stream, cannot add transcripts");
-      return;
-    }
+  const addTurn = useCallback(
+    async (turn: TranscriptTurn): Promise<boolean> => {
+      if (!turnManagerRef.current) {
+        log("No active turn manager, cannot add turn");
+        return false;
+      }
 
-    log("Adding transcripts:", {
-      turnCount: turns.length,
-      speakers: [...new Set(turns.map((t) => t.participantName))],
-    });
+      return turnManagerRef.current.addTurn(turn);
+    },
+    []
+  );
 
-    streamRef.current.add(turns);
-    setState("syncing");
+  const addTranscripts = useCallback(
+    async (turns: TranscriptTurn[]): Promise<void> => {
+      if (!turnManagerRef.current) {
+        log("No active turn manager, cannot add transcripts");
+        return;
+      }
 
-    // Reset to connected after a brief delay
-    setTimeout(() => {
-      setState((current: MemorySessionState) =>
-        current === "syncing" ? "connected" : current
-      );
-    }, 500);
+      log("Adding transcripts immediately:", {
+        turnCount: turns.length,
+        speakers: [...new Set(turns.map((t) => t.participantName))],
+      });
+
+      await turnManagerRef.current.addTurns(turns);
+    },
+    []
+  );
+
+  const hasTurn = useCallback((turnId: string): boolean => {
+    return turnManagerRef.current?.hasTurn(turnId) ?? false;
   }, []);
 
-  const flushBatch = useCallback(async () => {
-    if (!streamRef.current) {
-      return;
-    }
-
-    await streamRef.current.flush();
-    updateSyncStats();
-  }, [updateSyncStats]);
+  const getLocalTurns = useCallback((): TranscriptTurn[] => {
+    return turnManagerRef.current?.getLocalTurns() ?? [];
+  }, []);
 
   // --------------------------------------------------------------------------
   // SEARCH
@@ -467,25 +296,55 @@ export function useCallMemory(): UseCallMemoryReturn {
 
   const searchSession = useCallback(
     async (query: string): Promise<string[]> => {
-      if (!workingMemoryRef.current) {
-        return [];
+      const results = await searchMemory({ terms: query, nMostRecent: 20 });
+
+      if (!results) return [];
+
+      return results.map((r) => r.content);
+    },
+    [searchMemory]
+  );
+
+  // --------------------------------------------------------------------------
+  // TIMELINE STORAGE
+  // --------------------------------------------------------------------------
+
+  const storeToTimeline = useCallback(
+    async (
+      timeline: MemoryTimeline,
+      content: Record<string, unknown>
+    ): Promise<string | null> => {
+      if (!sessionId) {
+        log("No active session, cannot store to timeline");
+        return null;
       }
 
       try {
-        const results = await workingMemoryRef.current.searchMemory({
-          terms: query,
-          nMostRecent: 20,
+        const enrichedContent = {
+          ...content,
+          roomId: roomName,
+          timestamp: new Date().toISOString(),
+          storedBy: displayName,
+        };
+
+        log(`📝 STORING TO TIMELINE "${timeline}":`, {
+          timeline,
+          enrichedContent,
         });
 
-        if (!results) return [];
+        const memoryId = await putMemory({
+          content: JSON.stringify(enrichedContent),
+          timeline,
+        });
 
-        return results.map((r) => r.content);
+        log(`Stored to timeline "${timeline}" with ID:`, memoryId);
+        return memoryId;
       } catch (err) {
-        logError("Search failed:", err);
-        return [];
+        logError(`Failed to store to timeline "${timeline}":`, err);
+        return null;
       }
     },
-    []
+    [sessionId, roomName, displayName, putMemory]
   );
 
   // --------------------------------------------------------------------------
@@ -494,9 +353,8 @@ export function useCallMemory(): UseCallMemoryReturn {
 
   useEffect(() => {
     return () => {
-      // Cleanup on unmount
-      if (streamRef.current) {
-        streamRef.current.destroy().catch(console.error);
+      if (turnManagerRef.current) {
+        turnManagerRef.current.destroy();
       }
     };
   }, []);
@@ -512,9 +370,10 @@ export function useCallMemory(): UseCallMemoryReturn {
     roomName,
     displayName,
 
-    // State
-    isConfigured: Boolean(clientRef.current),
-    isAvailable: state === "connected" || state === "syncing",
+    // State (from store)
+    sessionId,
+    isConfigured: Boolean(sessionId),
+    isAvailable: state === "connected",
     state,
     sessionInfo,
     syncStats,
@@ -522,10 +381,13 @@ export function useCallMemory(): UseCallMemoryReturn {
 
     // Actions
     startSession,
+    addTurn,
     addTranscripts,
+    hasTurn,
+    getLocalTurns,
     endSession,
-    flushBatch,
     searchSession,
-    clearError: () => setError(null),
+    storeToTimeline,
+    clearError,
   };
 }

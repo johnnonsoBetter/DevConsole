@@ -672,11 +672,17 @@ export function GraphQLSettingsSection() {
 // UNSPLASH SETTINGS SECTION
 // ============================================================================
 
+// Demo Unsplash API key (bundled for hackathon judges)
+const DEMO_UNSPLASH_KEY = import.meta.env.VITE_DEMO_UNSPLASH_KEY || '';
+
 export function UnsplashSettingsSection() {
   const [accessKey, setAccessKey] = useState("");
   const [showAccessKey, setShowAccessKey] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<StatusMessage>({ type: null, message: "" });
+
+  const hasDemoKey = Boolean(DEMO_UNSPLASH_KEY);
+  const isUsingDemoKey = !accessKey && hasDemoKey;
 
   useEffect(() => {
     loadUnsplashConfig().then((config) => {
@@ -750,6 +756,35 @@ export function UnsplashSettingsSection() {
           Configure Unsplash API for autofill image inputs
         </p>
       </div>
+
+      {/* Demo Key Status Banner */}
+      {hasDemoKey && (
+        <div className={cn(
+          "mb-5 p-3 rounded-lg border flex items-center gap-3",
+          isUsingDemoKey 
+            ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800" 
+            : "bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700"
+        )}>
+          <div className={cn(
+            "w-2 h-2 rounded-full",
+            isUsingDemoKey ? "bg-green-500 animate-pulse" : "bg-gray-400"
+          )} />
+          <div className="flex-1">
+            <p className={cn(
+              "text-sm font-medium",
+              isUsingDemoKey ? "text-green-700 dark:text-green-300" : "text-gray-600 dark:text-gray-400"
+            )}>
+              {isUsingDemoKey ? "✓ Demo API Key Active" : "Demo key available (using custom key)"}
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {isUsingDemoKey 
+                ? "Unsplash image autofill is ready to use - no configuration needed!"
+                : "Clear your custom key to use the bundled demo key."
+              }
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Status Messages */}
       {saveStatus.type && (

@@ -3,7 +3,7 @@
  * Export all video call hooks
  */
 
-export { useVideoCall, type CallStatus } from "./useVideoCall";
+export { useVideoCall } from "./useVideoCall";
 
 export {
   DATA_TOPICS,

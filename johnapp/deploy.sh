@@ -51,13 +51,14 @@ check_config() {
 }
 
 build() {
-    log_info "Building Docker image: ${DOCKER_IMAGE}:${DOCKER_TAG}"
+    log_info "Building Docker image: ${DOCKER_IMAGE}:${DOCKER_TAG} (linux/amd64)"
     
     # Get script directory (johnapp folder)
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     cd "$SCRIPT_DIR"
     
-    docker build -t "${DOCKER_IMAGE}:${DOCKER_TAG}" .
+    # Build for linux/amd64 to match Vultr server architecture
+    docker build --platform linux/amd64 -t "${DOCKER_IMAGE}:${DOCKER_TAG}" .
     
     log_info "Build complete!"
 }
@@ -123,6 +124,9 @@ transfer() {
         log_error "REMOTE_HOST not configured. Please edit deploy.sh"
         exit 1
     fi
+    
+    # Build for the correct platform first
+    build
     
     log_info "Saving Docker image..."
     docker save "${DOCKER_IMAGE}:${DOCKER_TAG}" | gzip > /tmp/johnapp-image.tar.gz

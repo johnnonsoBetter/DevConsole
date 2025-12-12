@@ -46,13 +46,24 @@ export function useTranscriptionManager(options?: {
   // This listens to the 'lk.transcription' text stream topic
   const transcriptions = useTranscriptions();
 
-  // Track if we've logged the initial transcription state
-  const hasLoggedRef = useRef(false);
+  // Track last logged state to prevent duplicate logs
+  const lastLoggedRef = useRef<{ count: number; latestId: string | undefined }>(
+    { count: 0, latestId: undefined }
+  );
+  const hasLoggedInitialRef = useRef(false);
 
   useEffect(() => {
-    // Log transcriptions when they change
-    if (transcriptions.length > 0) {
-      log("Transcriptions received:", {
+    // Only log when transcription data actually changes meaningfully
+    const latestId = transcriptions[transcriptions.length - 1]?.streamInfo?.id;
+    const hasNewData =
+      transcriptions.length !== lastLoggedRef.current.count ||
+      latestId !== lastLoggedRef.current.latestId;
+
+    if (transcriptions.length > 0 && hasNewData) {
+      // Update tracking ref
+      lastLoggedRef.current = { count: transcriptions.length, latestId };
+
+      log("📢 Transcriptions updated:", {
         count: transcriptions.length,
         latest: transcriptions[transcriptions.length - 1],
         all: transcriptions.map((t) => ({
@@ -62,9 +73,9 @@ export function useTranscriptionManager(options?: {
           streamId: t.streamInfo?.id,
         })),
       });
-    } else if (!hasLoggedRef.current) {
-      log("No transcriptions yet, hook is listening...");
-      hasLoggedRef.current = true;
+    } else if (!hasLoggedInitialRef.current && transcriptions.length === 0) {
+      log("⏳ Waiting for transcriptions, hook is listening...");
+      hasLoggedInitialRef.current = true;
     }
   }, [transcriptions]);
 
@@ -87,7 +98,8 @@ export function useTranscriptionManager(options?: {
       processedIdsRef.current.clear();
       segmentTimestampsRef.current.clear();
       setClearedAt(Date.now());
-      hasLoggedRef.current = false;
+      lastLoggedRef.current = { count: 0, latestId: undefined };
+      hasLoggedInitialRef.current = false;
     }
   }, [state]);
 

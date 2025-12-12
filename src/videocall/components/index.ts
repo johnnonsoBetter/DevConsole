@@ -13,11 +13,11 @@ export { PreCallView, type JoinMode } from "./PreCallView";
 
 // Video call UI components
 export { AgentIndicator } from "./AgentIndicator";
-export { CallMemoryBridge, useCallMemoryBridge } from "./CallMemoryBridge";
 export { ControlBar } from "./ControlBar";
 export { CustomVideoConference } from "./CustomVideoConference";
 export { FloatingReactions, useFloatingReactions } from "./FloatingReactions";
 export { FloatingReactionsV2, REACTION_CONFIG } from "./FloatingReactionsV2";
+export { InsightsPanel } from "./InsightsPanel";
 export { LiveCaptions } from "./LiveCaptions";
 export { LiveKitErrorBoundary } from "./LiveKitErrorBoundary";
 export { MainVideoView } from "./MainVideoView";

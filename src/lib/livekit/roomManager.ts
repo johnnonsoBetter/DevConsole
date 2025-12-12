@@ -147,8 +147,7 @@ export interface TokenResponse {
  * Default token server URL - can be overridden via environment or build config
  * In production, this should point to your Vercel deployment
  */
-const DEFAULT_TOKEN_SERVER_URL =
-  import.meta.env.VITE_LIVEKIT_TOKEN_SERVER_URL || "/api/livekit-token";
+const DEFAULT_TOKEN_SERVER_URL = import.meta.env.VITE_LIVEKIT_TOKEN_SERVER_URL;
 
 /**
  * Fetch a token from the token server

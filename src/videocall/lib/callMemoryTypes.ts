@@ -13,7 +13,7 @@ export const CALL_MEMORY_CONFIG = {
   /** Raindrop application name */
   applicationName: "video-call-memory",
   /** Current deployment version - update after deploying changes */
-  version: "01kbygyc0b3nj5t4zss48tb83y",
+  version: "01kc96acj29p86gpgbxzda1kpp",
   /** Batch interval in milliseconds */
   batchIntervalMs: 3000,
   /** Maximum retries for failed memory writes */
@@ -216,6 +216,8 @@ export interface UseCallMemoryReturn {
   displayName: string;
 
   // State
+  /** Current session ID (null if not started) */
+  sessionId: string | null;
   /** Whether Raindrop client has been instantiated */
   isConfigured: boolean;
   /** Whether memory is currently available (configured + session active) */
@@ -236,14 +238,34 @@ export interface UseCallMemoryReturn {
    * Uses Raindrop API key from room.metadata
    */
   startSession: () => Promise<boolean>;
-  /** Add transcript turns to be batched and stored */
-  addTranscripts: (turns: TranscriptTurn[]) => void;
+  /**
+   * Add a single transcript turn - stored immediately to working memory
+   * This is the preferred method for real-time storage
+   */
+  addTurn: (turn: TranscriptTurn) => Promise<boolean>;
+  /**
+   * Add multiple transcript turns - each stored immediately in parallel
+   * @deprecated Use addTurn for each turn as they arrive for best real-time search
+   */
+  addTranscripts: (turns: TranscriptTurn[]) => Promise<void>;
+  /** Check if a turn has already been stored (prevents duplicates) */
+  hasTurn: (turnId: string) => boolean;
+  /** Get all locally cached turns (for instant UI access) */
+  getLocalTurns: () => TranscriptTurn[];
   /** End the session and flush to episodic memory */
   endSession: (flush?: boolean) => Promise<boolean>;
-  /** Force flush current batch without ending session */
-  flushBatch: () => Promise<void>;
   /** Search within current session */
   searchSession: (query: string) => Promise<string[]>;
+  /**
+   * Store a tagged insight to a specific timeline
+   * @param timeline - The timeline to store to (decisions, action-items, questions, topics)
+   * @param content - The content to store (will be JSON stringified)
+   * @returns The memory ID if successful
+   */
+  storeToTimeline: (
+    timeline: MemoryTimeline,
+    content: Record<string, unknown>
+  ) => Promise<string | null>;
   /** Clear error state */
   clearError: () => void;
 }

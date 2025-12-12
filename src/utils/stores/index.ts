@@ -1,6 +1,7 @@
 // Export all stores
 export * from "./aiSettings";
 export * from "./autofillSettings";
+export * from "./callMemory";
 export * from "./callSession";
 export * from "./codeActions";
 export * from "./devConsole";
