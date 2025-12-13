@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <title>DevConsole</title>
+  <meta http-equiv="refresh" content="0; url=src/popup/index.html" />
   
   <!-- Optimize font loading with preconnect -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -56,22 +57,20 @@
 </head>
 <body>
   <h1><span class="emoji">🚀</span> DevConsole</h1>
-  
   <div class="status">
-    <strong>✅ Extension Loaded!</strong>
+    <strong>Opening popup…</strong>
   </div>
   
-  <p><strong>To use DevConsole:</strong></p>
-  <ol style="font-size: 13px; padding-left: 20px;">
-    <li>Visit any website</li>
-    <li>Press <strong>F12</strong> (or right-click → Inspect)</li>
-    <li>Look for the <strong>"DevConsole"</strong> tab in DevTools</li>
-  </ol>
-  
-  <div class="instructions">
-    💡 <strong>Tip:</strong> DevConsole is a DevTools panel, not a popup extension. The main interface appears in Chrome DevTools.
-  </div>
-  
-  <script type="module" src="/popup.js"></script>
+  <p style="font-size: 13px;">
+    If you are not redirected automatically, open
+    <a href="src/popup/index.html" style="color:#60a5fa;">src/popup/index.html</a>.
+  </p>
+
+  <script>
+    try {
+      const url = chrome?.runtime?.getURL?.('src/popup/index.html');
+      if (url) location.replace(url);
+    } catch {}
+  </script>
 </body>
 </html>

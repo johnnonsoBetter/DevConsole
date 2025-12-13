@@ -15,7 +15,7 @@ interface ControlButtonProps {
   isDestructive?: boolean;
   onClick?: () => void;
   label: string;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'xs' | 'sm' | 'md' | 'lg';
   showLabel?: boolean;
   disabled?: boolean;
 }
@@ -33,15 +33,18 @@ export function ControlButton({
 }: ControlButtonProps) {
   const CurrentIcon = isActive && ActiveIcon ? ActiveIcon : Icon;
 
+  // Responsive sizes: mobile-first approach
   const sizeClasses = {
-    sm: 'w-9 h-9',
-    md: 'w-11 h-11',
-    lg: 'w-12 h-12',
+    xs: 'w-8 h-8 sm:w-9 sm:h-9',
+    sm: 'w-9 h-9 sm:w-10 sm:h-10',
+    md: 'w-10 h-10 sm:w-11 sm:h-11',
+    lg: 'w-11 h-11 sm:w-12 sm:h-12',
   };
 
   const iconSizes = {
-    sm: 'w-4 h-4',
-    md: 'w-5 h-5',
+    xs: 'w-3.5 h-3.5 sm:w-4 sm:h-4',
+    sm: 'w-4 h-4 sm:w-[18px] sm:h-[18px]',
+    md: 'w-[18px] h-[18px] sm:w-5 sm:h-5',
     lg: 'w-5 h-5',
   };
 

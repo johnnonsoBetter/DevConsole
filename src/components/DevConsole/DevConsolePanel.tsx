@@ -77,6 +77,12 @@ const CONSOLE_TABS = [
   { id: 'settings', label: 'Settings', icon: Settings },
 ] as const;
 
+type DevConsoleTabId = (typeof CONSOLE_TABS)[number]['id'];
+
+const DEVTOOLS_REQUESTED_TAB_KEY = 'devconsole.requestedTab';
+const DEVTOOLS_REQUESTED_TAB_AT_KEY = 'devconsole.requestedTabAt';
+const DEVTOOLS_REQUEST_TTL_MS = 2 * 60 * 1000;
+
 
 // ============================================================================
 // MAIN DEVELOPER CONSOLE COMPONENT
@@ -110,6 +116,48 @@ export function DevConsolePanel({ githubConfig, compact = false, allowedTabs }: 
     loadAISettings();
     loadGitHubSettings();
   }, [loadAISettings, loadGitHubSettings]);
+
+  // Allow the extension popup to "queue" a tab to focus when DevTools opens.
+  useEffect(() => {
+    const isAllowedTab = (tabId: DevConsoleTabId) => !allowedTabs || allowedTabs.includes(tabId);
+
+    const applyRequestedTab = async (requestedTab?: unknown, requestedAt?: unknown) => {
+      if (typeof requestedTab !== 'string') return;
+      const tabId = requestedTab as DevConsoleTabId;
+      if (!isAllowedTab(tabId)) return;
+
+      const atMs = typeof requestedAt === 'number' ? requestedAt : undefined;
+      if (atMs && Date.now() - atMs > DEVTOOLS_REQUEST_TTL_MS) {
+        await chrome.storage.local.remove([DEVTOOLS_REQUESTED_TAB_KEY, DEVTOOLS_REQUESTED_TAB_AT_KEY]);
+        return;
+      }
+
+      setActiveTab(tabId);
+      await chrome.storage.local.remove([DEVTOOLS_REQUESTED_TAB_KEY, DEVTOOLS_REQUESTED_TAB_AT_KEY]);
+    };
+
+    (async () => {
+      try {
+        const result = await chrome.storage.local.get([
+          DEVTOOLS_REQUESTED_TAB_KEY,
+          DEVTOOLS_REQUESTED_TAB_AT_KEY,
+        ]);
+        await applyRequestedTab(result[DEVTOOLS_REQUESTED_TAB_KEY], result[DEVTOOLS_REQUESTED_TAB_AT_KEY]);
+      } catch {
+        // ignore
+      }
+    })();
+
+    const handleStorageChange = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
+      if (area !== 'local') return;
+      const change = changes[DEVTOOLS_REQUESTED_TAB_KEY];
+      if (!change?.newValue) return;
+      void applyRequestedTab(change.newValue, changes[DEVTOOLS_REQUESTED_TAB_AT_KEY]?.newValue);
+    };
+
+    chrome.storage.onChanged.addListener(handleStorageChange);
+    return () => chrome.storage.onChanged.removeListener(handleStorageChange);
+  }, [allowedTabs]);
 
   const githubSlideoutStore = useGitHubIssueSlideoutStore();
 

@@ -113,6 +113,37 @@ export function detectEnvironmentFromUrl(
  * Use this in DevTools panel context
  */
 export async function getInspectedPageEnvironment(): Promise<EnvironmentInfo> {
+  // Popup / extension pages don't have chrome.devtools. Fall back to the active tab URL.
+  if (!chrome.devtools?.inspectedWindow?.eval) {
+    try {
+      const tabs = await chrome.tabs?.query?.({ active: true, currentWindow: true });
+      const url = tabs?.[0]?.url;
+      if (url) {
+        const parsed = new URL(url);
+        return detectEnvironmentFromUrl(
+          parsed.hostname,
+          parsed.port,
+          parsed.protocol,
+          parsed.origin
+        );
+      }
+    } catch {
+      // fall through to safe default below
+    }
+
+    // Safe default
+    return {
+      environment: "remote",
+      isDevelopment: false,
+      isRemote: true,
+      hostname: "",
+      port: "",
+      origin: "",
+      protocol: "",
+      reason: "DevTools API unavailable",
+    };
+  }
+
   return new Promise((resolve) => {
     chrome.devtools.inspectedWindow.eval(
       `({

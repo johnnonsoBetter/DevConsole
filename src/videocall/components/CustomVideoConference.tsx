@@ -5,35 +5,36 @@
 
 
 
+import { useCallMemoryStore } from '@/utils/stores';
 import {
-    AudioTrack,
-    useConnectionState,
-    useLocalParticipant,
-    useParticipants,
-    useRoomContext,
-    useTracks,
-    VideoTrack,
+  AudioTrack,
+  useConnectionState,
+  useLocalParticipant,
+  useParticipants,
+  useRoomContext,
+  useTracks,
+  VideoTrack,
 } from '@livekit/components-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ConnectionState, Participant, RemoteTrackPublication, RoomEvent, Track } from 'livekit-client';
 import {
-    Brain,
-    Copy,
-    FileText,
-    Hand,
-    Mic,
-    MicOff,
-    Monitor,
-    MonitorOff,
-    MoreVertical,
-    PanelRightClose,
-    PanelRightOpen,
-    PhoneOff,
-    User,
-    Users,
-    Video,
-    VideoOff,
-    X
+  Brain,
+  Copy,
+  FileText,
+  Hand,
+  Mic,
+  MicOff,
+  Monitor,
+  MonitorOff,
+  MoreVertical,
+  PanelRightClose,
+  PanelRightOpen,
+  PhoneOff,
+  User,
+  Users,
+  Video,
+  VideoOff,
+  X
 } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ReactionType, useCallMemory, useReactionsChannel } from '../hooks';
@@ -50,7 +51,6 @@ import { RaisedHandsV2 } from './RaisedHandsV2';
 import { ReactionPicker as ReactionPickerV2 } from './ReactionPickerV2';
 import { TranscriptPanel } from './TranscriptPanel';
 import { ControlButton } from './ui';
-import { useCallMemoryStore } from '@/utils/stores';
 
 // ============================================================================
 // HELPERS
@@ -134,7 +134,7 @@ export function CustomVideoConference({
     
   } = useCallMemory();
 
-  const {_client} = useCallMemoryStore()
+  useCallMemoryStore()
   
   // Track if memory session has been started
   const memorySessionStartedRef = useRef(false);
@@ -414,28 +414,28 @@ export function CustomVideoConference({
         animate={{ opacity: 1 }}
         className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${isDevConsolePanelOpen ? 'mr-0' : ''}`}
       >
-        {/* Header */}
-        <header className="flex items-center justify-between px-4 py-2.5 bg-gray-800/80 backdrop-blur-sm border-b border-white/5" role="banner">
-          <div className="flex items-center gap-4">
-            {/* Connection status */}
-            <div className="flex items-center gap-1.5" role="status" aria-label="Connection status: Connected">
+        {/* Header - Compact on mobile */}
+        <header className="flex items-center justify-between px-2 sm:px-4 py-2 sm:py-2.5 bg-gray-800/80 backdrop-blur-sm border-b border-white/5 safe-area-inset-top" role="banner">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
+            {/* Connection status - hidden on very small screens, icon only on mobile */}
+            <div className="hidden xs:flex items-center gap-1.5 flex-shrink-0" role="status" aria-label="Connection status: Connected">
               <div className="w-2 h-2 rounded-full bg-success animate-pulse" aria-hidden="true" />
-              <span className="text-caption2 text-gray-300">Connected</span>
+              <span className="hidden sm:inline text-caption2 text-gray-300">Connected</span>
             </div>
 
-            {/* Room name */}
-            <div className="flex items-center gap-2">
-              <code className="px-2.5 py-1 bg-gray-700/50 rounded-lg text-caption2 text-gray-300 font-mono">
+            {/* Room name - truncated on mobile */}
+            <div className="flex items-center gap-1 sm:gap-2 min-w-0 flex-shrink">
+              <code className="px-2 sm:px-2.5 py-1 bg-gray-700/50 rounded-lg text-[10px] sm:text-caption2 text-gray-300 font-mono truncate max-w-[80px] sm:max-w-[120px] md:max-w-none">
                 {room.name}
               </code>
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={handleCopyRoomName}
-                className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
+                className="p-1 sm:p-1.5 hover:bg-white/10 rounded-lg transition-colors flex-shrink-0"
                 title="Copy room name"
               >
-                <Copy className="w-3.5 h-3.5 text-gray-400" />
+                <Copy className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-gray-400" />
               </motion.button>
               <AnimatePresence>
                 {copied && (
@@ -443,7 +443,7 @@ export function CustomVideoConference({
                     initial={{ opacity: 0, x: -5 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0 }}
-                    className="text-caption2 text-success"
+                    className="text-caption2 text-success hidden sm:inline"
                   >
                     Copied!
                   </motion.span>
@@ -451,45 +451,50 @@ export function CustomVideoConference({
               </AnimatePresence>
             </div>
 
-            {/* Participant count */}
-            <div className="flex items-center gap-1.5 text-gray-400">
-              <Users className="w-3.5 h-3.5" />
-              <span className="text-caption2">
-                {humanParticipants.length} participant{humanParticipants.length !== 1 ? 's' : ''}
+            {/* Participant count - compact on mobile */}
+            <div className="flex items-center gap-1 sm:gap-1.5 text-gray-400 flex-shrink-0">
+              <Users className="w-3 sm:w-3.5 h-3 sm:h-3.5" />
+              <span className="text-[10px] sm:text-caption2">
+                {humanParticipants.length}
+                <span className="hidden sm:inline"> participant{humanParticipants.length !== 1 ? 's' : ''}</span>
               </span>
             </div>
             
-            {/* Memory status badge - shows when local config OR shared API key available */}
+            {/* Memory status badge - hidden on mobile */}
             {canUseMemory && (
-              <MemoryBadge
-                isActive={memoryState === 'connected'}
-                isSyncing={false}
-              />
+              <div className="hidden md:block flex-shrink-0">
+                <MemoryBadge
+                  isActive={memoryState === 'connected'}
+                  isSyncing={false}
+                />
+              </div>
             )}
             
-            {/* AI Agent indicator - shows when agent is in the room */}
+            {/* AI Agent indicator - hidden on small screens */}
             {agentParticipant && (
-              <AgentIndicator
-                agent={{
-                  id: agentParticipant.id,
-                  name: agentParticipant.name,
-                  isListening: !agentParticipant.isMuted,
-                  isSpeaking: agentParticipant.isSpeaking,
-                  status: agentParticipant.isSpeaking ? 'speaking' : !agentParticipant.isMuted ? 'listening' : 'idle',
-                }}
-                onToggleTranscript={() => setIsTranscriptPanelOpen(prev => !prev)}
-                isTranscriptOpen={isTranscriptPanelOpen}
-              />
+              <div className="hidden lg:block flex-shrink-0">
+                <AgentIndicator
+                  agent={{
+                    id: agentParticipant.id,
+                    name: agentParticipant.name,
+                    isListening: !agentParticipant.isMuted,
+                    isSpeaking: agentParticipant.isSpeaking,
+                    status: agentParticipant.isSpeaking ? 'speaking' : !agentParticipant.isMuted ? 'listening' : 'idle',
+                  }}
+                  onToggleTranscript={() => setIsTranscriptPanelOpen(prev => !prev)}
+                  isTranscriptOpen={isTranscriptPanelOpen}
+                />
+              </div>
             )}
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* DevConsole Panel Toggle */}
+          <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+            {/* DevConsole Panel Toggle - hidden on mobile */}
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setIsDevConsolePanelOpen((prev) => !prev)}
-              className={`p-1.5 rounded-lg transition-colors ${
+              className={`hidden sm:flex p-1.5 rounded-lg transition-colors ${
                 isDevConsolePanelOpen 
                   ? 'bg-primary/20 text-primary' 
                   : 'hover:bg-white/10 text-gray-400'
@@ -507,7 +512,7 @@ export function CustomVideoConference({
 
             <button
               onClick={onClose}
-              className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
+              className="p-1 sm:p-1.5 hover:bg-white/10 rounded-lg transition-colors"
               title="Close window"
               aria-label="Close video call window"
             >
@@ -518,14 +523,14 @@ export function CustomVideoConference({
 
       {/* Main content - vertical layout with main view + bottom strip */}
       <div 
-        className="flex-1 flex flex-col min-h-0 p-3 gap-3"
+        className="flex-1 flex flex-col min-h-0 p-1.5 sm:p-2 md:p-3 gap-1.5 sm:gap-2 md:gap-3"
         role="main"
         aria-label="Video call main content"
       >
         {/* Main video view - takes most space */}
         <motion.div
           layout
-          className={`flex-1 relative bg-gray-800 rounded-2xl overflow-hidden ${isShowingScreenShare ? 'ring-2 ring-primary/40' : ''}`}
+          className={`flex-1 relative bg-gray-800 rounded-xl sm:rounded-2xl overflow-hidden min-h-[200px] ${isShowingScreenShare ? 'ring-2 ring-primary/40' : ''}`}
           role="region"
           aria-label={isShowingScreenShare 
             ? `Screen share from ${mainViewParticipant?.name || 'participant'}`
@@ -537,11 +542,11 @@ export function CustomVideoConference({
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="absolute top-4 left-4 z-10 flex items-center gap-2 px-3 py-1.5 bg-primary/90 backdrop-blur-sm rounded-full"
+              className="absolute top-2 sm:top-4 left-2 sm:left-4 z-10 flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 bg-primary/90 backdrop-blur-sm rounded-full"
             >
-              <Monitor className="w-4 h-4 text-white" aria-hidden="true" />
-              <span className="text-caption2 font-medium text-white">
-                {mainViewParticipant?.name || 'Someone'} is sharing their screen
+              <Monitor className="w-3 sm:w-4 h-3 sm:h-4 text-white" aria-hidden="true" />
+              <span className="text-[10px] sm:text-caption2 font-medium text-white">
+                <span className="hidden sm:inline">{mainViewParticipant?.name || 'Someone'} is </span>Sharing
               </span>
             </motion.div>
           )}
@@ -553,41 +558,41 @@ export function CustomVideoConference({
             />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-700 to-gray-800">
-              <div className="w-24 h-24 rounded-full bg-gray-600 flex items-center justify-center">
-                <User className="w-12 h-12 text-gray-400" aria-hidden="true" />
+              <div className="w-16 sm:w-20 md:w-24 h-16 sm:h-20 md:h-24 rounded-full bg-gray-600 flex items-center justify-center">
+                <User className="w-8 sm:w-10 md:w-12 h-8 sm:h-10 md:h-12 text-gray-400" aria-hidden="true" />
               </div>
             </div>
           )}
 
           {/* Gradient overlay */}
-          <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/60 to-transparent" aria-hidden="true" />
+          <div className="absolute inset-x-0 bottom-0 h-16 sm:h-20 bg-gradient-to-t from-black/60 to-transparent" aria-hidden="true" />
 
           {/* Speaker name with badge */}
           {mainViewParticipant && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="absolute bottom-4 left-4 flex items-center gap-3"
+              className="absolute bottom-2 sm:bottom-4 left-2 sm:left-4 flex items-center gap-1.5 sm:gap-3"
             >
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-black/40 backdrop-blur-sm rounded-full">
-                <span className="text-body font-medium text-white">
+              <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 bg-black/40 backdrop-blur-sm rounded-full">
+                <span className="text-xs sm:text-body font-medium text-white max-w-[100px] sm:max-w-none truncate">
                   {mainViewParticipant.name}
                 </span>
                 {mainViewParticipant.isLocal && (
-                  <span className="text-caption2 text-white/70">(You)</span>
+                  <span className="text-[10px] sm:text-caption2 text-white/70">(You)</span>
                 )}
               </div>
               
               {/* Mute indicator badge */}
               <div 
-                className={`w-8 h-8 rounded-full flex items-center justify-center ${mainViewParticipant.isMuted ? 'bg-gray-700/80' : 'bg-white/20'} backdrop-blur-sm`}
+                className={`w-6 sm:w-8 h-6 sm:h-8 rounded-full flex items-center justify-center ${mainViewParticipant.isMuted ? 'bg-gray-700/80' : 'bg-white/20'} backdrop-blur-sm`}
                 role="status"
                 aria-label={mainViewParticipant.isMuted ? 'Microphone muted' : 'Microphone on'}
               >
                 {mainViewParticipant.isMuted ? (
-                  <MicOff className="w-4 h-4 text-white" aria-hidden="true" />
+                  <MicOff className="w-3 sm:w-4 h-3 sm:h-4 text-white" aria-hidden="true" />
                 ) : (
-                  <Mic className="w-4 h-4 text-white" aria-hidden="true" />
+                  <Mic className="w-3 sm:w-4 h-3 sm:h-4 text-white" aria-hidden="true" />
                 )}
               </div>
             </motion.div>
@@ -628,7 +633,7 @@ export function CustomVideoConference({
               aria-label="Other participants"
             >
               <div 
-                className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent"
+                className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent snap-x snap-mandatory"
                 role="list"
                 aria-label="Participant video tiles"
               >
@@ -658,8 +663,8 @@ export function CustomVideoConference({
                       aria-label={`${participant.name}${participant.isLocal ? ' (You)' : ''}${participant.isMuted ? ', muted' : ''}${participant.isSpeaking ? ', speaking' : ''}. Click to view in main area.`}
                       tabIndex={0}
                       className={`
-                        relative flex-shrink-0 w-40 h-24 md:w-48 md:h-28 lg:w-56 lg:h-32
-                        rounded-xl overflow-hidden bg-gray-800
+                        relative flex-shrink-0 w-28 h-20 sm:w-36 sm:h-24 md:w-44 md:h-28 lg:w-52 lg:h-32
+                        rounded-lg sm:rounded-xl overflow-hidden bg-gray-800 snap-start
                         focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900
                         ${participant.isSpeaking ? 'ring-2 ring-success/60' : ''}
                       `}
@@ -671,32 +676,32 @@ export function CustomVideoConference({
                         />
                       ) : (
                         <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-700 to-gray-800">
-                          <div className="w-12 h-12 rounded-full bg-gray-600 flex items-center justify-center">
-                            <User className="w-6 h-6 text-gray-400" aria-hidden="true" />
+                          <div className="w-8 sm:w-10 md:w-12 h-8 sm:h-10 md:h-12 rounded-full bg-gray-600 flex items-center justify-center">
+                            <User className="w-4 sm:w-5 md:w-6 h-4 sm:h-5 md:h-6 text-gray-400" aria-hidden="true" />
                           </div>
                         </div>
                       )}
 
                       {/* Gradient overlay */}
-                      <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/70 to-transparent" aria-hidden="true" />
+                      <div className="absolute inset-x-0 bottom-0 h-10 sm:h-12 bg-gradient-to-t from-black/70 to-transparent" aria-hidden="true" />
 
                       {/* Name */}
-                      <div className="absolute bottom-2 left-2 right-8 flex items-center gap-1">
-                        <span className="text-caption2 font-medium text-white truncate">
+                      <div className="absolute bottom-1.5 sm:bottom-2 left-1.5 sm:left-2 right-6 sm:right-8 flex items-center gap-0.5 sm:gap-1">
+                        <span className="text-[10px] sm:text-caption2 font-medium text-white truncate">
                           {participant.name}
                         </span>
                         {participant.isLocal && (
-                          <span className="text-caption2 text-white/60">(You)</span>
+                          <span className="text-[10px] sm:text-caption2 text-white/60">(You)</span>
                         )}
                       </div>
 
                       {/* Mic indicator */}
-                      <div className="absolute bottom-2 right-2" aria-hidden="true">
-                        <div className={`w-5 h-5 rounded-full flex items-center justify-center ${participant.isMuted ? 'bg-gray-700/80' : 'bg-white/20'}`}>
+                      <div className="absolute bottom-1.5 sm:bottom-2 right-1.5 sm:right-2" aria-hidden="true">
+                        <div className={`w-4 sm:w-5 h-4 sm:h-5 rounded-full flex items-center justify-center ${participant.isMuted ? 'bg-gray-700/80' : 'bg-white/20'}`}>
                           {participant.isMuted ? (
-                            <MicOff className="w-2.5 h-2.5 text-white" />
+                            <MicOff className="w-2 sm:w-2.5 h-2 sm:h-2.5 text-white" />
                           ) : (
-                            <Mic className="w-2.5 h-2.5 text-white" />
+                            <Mic className="w-2 sm:w-2.5 h-2 sm:h-2.5 text-white" />
                           )}
                         </div>
                       </div>
@@ -709,7 +714,7 @@ export function CustomVideoConference({
                   <motion.div
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    className="relative flex-shrink-0 w-40 h-24 md:w-48 md:h-28 lg:w-56 lg:h-32 rounded-xl overflow-hidden bg-gray-800"
+                    className="relative flex-shrink-0 w-28 h-20 sm:w-36 sm:h-24 md:w-44 md:h-28 lg:w-52 lg:h-32 rounded-lg sm:rounded-xl overflow-hidden bg-gray-800 snap-start"
                     role="listitem"
                     aria-label={`${sidebarParticipants.length - 4} more participants`}
                   >
@@ -718,10 +723,10 @@ export function CustomVideoConference({
                     
                     {/* Overlay with count */}
                     <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-                      <div className="flex items-center gap-2 px-3 py-1.5 bg-white/10 rounded-full">
-                        <Users className="w-4 h-4 text-white" aria-hidden="true" />
-                        <span className="text-body font-semibold text-white">
-                          {sidebarParticipants.length - 4}+
+                      <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 bg-white/10 rounded-full">
+                        <Users className="w-3 sm:w-4 h-3 sm:h-4 text-white" aria-hidden="true" />
+                        <span className="text-xs sm:text-body font-semibold text-white">
+                          +{sidebarParticipants.length - 4}
                         </span>
                       </div>
                     </div>
@@ -745,17 +750,18 @@ export function CustomVideoConference({
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
-        className="flex justify-center pb-4"
+        className="flex justify-center pb-2 sm:pb-4 px-1.5 sm:px-0 safe-area-inset-bottom"
         role="toolbar"
         aria-label="Video call controls"
       >
-        <div className="flex items-center gap-1 px-3 py-2 bg-gray-800/95 backdrop-blur-md rounded-full shadow-apple-lg border border-white/5">
+        <div className="flex items-center gap-0.5 sm:gap-1 px-2 sm:px-3 py-1.5 sm:py-2 bg-gray-800/95 backdrop-blur-md rounded-full shadow-apple-lg border border-white/5 max-w-full overflow-x-auto scrollbar-none">
           {/* Mic */}
           <ControlButton
             icon={isMuted ? MicOff : Mic}
             isActive={isMuted}
             onClick={handleToggleMute}
             label={isMuted ? 'Unmute microphone' : 'Mute microphone'}
+            size="sm"
           />
 
           {/* Camera */}
@@ -764,6 +770,7 @@ export function CustomVideoConference({
             isActive={!isCameraOn}
             onClick={handleToggleCamera}
             label={isCameraOn ? 'Turn off camera' : 'Turn on camera'}
+            size="sm"
           />
 
           {/* Participants toggle */}
@@ -773,25 +780,29 @@ export function CustomVideoConference({
               isActive={isSidebarOpen}
               onClick={() => setIsSidebarOpen((prev) => !prev)}
               label={isSidebarOpen ? 'Hide participants' : 'Show participants'}
+              size="sm"
             />
             <span 
-              className="absolute -top-1 -right-1 min-w-[16px] h-4 flex items-center justify-center px-1 text-[10px] font-semibold text-white bg-primary rounded-full"
+              className="absolute -top-0.5 sm:-top-1 -right-0.5 sm:-right-1 min-w-[14px] sm:min-w-[16px] h-3.5 sm:h-4 flex items-center justify-center px-0.5 sm:px-1 text-[9px] sm:text-[10px] font-semibold text-white bg-primary rounded-full"
               aria-hidden="true"
             >
               {humanParticipants.length}
             </span>
           </div>
 
-          {/* Divider */}
-          <div className="w-px h-6 bg-white/10 mx-1" role="separator" aria-hidden="true" />
+          {/* Divider - hidden on very small screens */}
+          <div className="hidden xs:block w-px h-5 sm:h-6 bg-white/10 mx-0.5 sm:mx-1" role="separator" aria-hidden="true" />
 
-          {/* Screen share */}
-          <ControlButton
-            icon={isScreenSharing ? MonitorOff : Monitor}
-            isActive={isScreenSharing}
-            onClick={handleToggleScreenShare}
-            label={isScreenSharing ? 'Stop sharing screen' : 'Share screen'}
-          />
+          {/* Screen share - hidden on mobile (not supported well) */}
+          <div className="hidden sm:block">
+            <ControlButton
+              icon={isScreenSharing ? MonitorOff : Monitor}
+              isActive={isScreenSharing}
+              onClick={handleToggleScreenShare}
+              label={isScreenSharing ? 'Stop sharing screen' : 'Share screen'}
+              size="sm"
+            />
+          </div>
 
           {/* Transcript */}
           <ControlButton
@@ -799,22 +810,24 @@ export function CustomVideoConference({
             isActive={isTranscriptPanelOpen}
             onClick={() => setIsTranscriptPanelOpen((prev) => !prev)}
             label={isTranscriptPanelOpen ? 'Hide transcript' : 'Show transcript'}
+            size="sm"
           />
 
-          {/* Insights - AI-powered search through call memory */}
+          {/* Insights - AI-powered search through call memory (hidden on small mobile) */}
           {canUseMemory && (
-            <ControlButton
-              icon={Brain}
-              isActive={isInsightsPanelOpen}
-              onClick={() => setIsInsightsPanelOpen((prev) => !prev)}
-              label={isInsightsPanelOpen ? 'Hide insights' : 'Search insights'}
-            />
+            <div className="hidden xs:block">
+              <ControlButton
+                icon={Brain}
+                isActive={isInsightsPanelOpen}
+                onClick={() => setIsInsightsPanelOpen((prev) => !prev)}
+                label={isInsightsPanelOpen ? 'Hide insights' : 'Search insights'}
+                size="sm"
+              />
+            </div>
           )}
 
           {/* Reactions - self-contained with trigger */}
           <ReactionPickerV2 onSelectReaction={handleReaction} />
-
-
           
           {/* Raise hand */}
           <div className="relative">
@@ -823,30 +836,36 @@ export function CustomVideoConference({
               isActive={isLocalHandRaised}
               onClick={handleToggleRaiseHand}
               label={isLocalHandRaised ? 'Lower hand' : 'Raise hand'}
+              size="sm"
             />
             {/* Show indicator when hand is raised */}
             {isLocalHandRaised && (
               <motion.span
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
-                className="absolute -top-1 -right-1 w-3 h-3 bg-warning rounded-full border-2 border-gray-800"
+                className="absolute -top-0.5 sm:-top-1 -right-0.5 sm:-right-1 w-2.5 sm:w-3 h-2.5 sm:h-3 bg-warning rounded-full border-2 border-gray-800"
                 aria-hidden="true"
               />
             )}
           </div>
           
-          {/* Device Settings - self-contained with trigger */}
-          <MediaDeviceSelector />
+          {/* Device Settings - hidden on small mobile */}
+          <div className="hidden xs:block">
+            <MediaDeviceSelector />
+          </div>
           
-          {/* More */}
-          <ControlButton
-            icon={MoreVertical}
-            onClick={() => {}}
-            label="More options"
-          />
+          {/* More - only show on mobile for additional options */}
+          <div className="sm:hidden">
+            <ControlButton
+              icon={MoreVertical}
+              onClick={() => {}}
+              label="More options"
+              size="sm"
+            />
+          </div>
 
           {/* Divider */}
-          <div className="w-px h-6 bg-white/10 mx-1" role="separator" aria-hidden="true" />
+          <div className="w-px h-5 sm:h-6 bg-white/10 mx-0.5 sm:mx-1" role="separator" aria-hidden="true" />
 
           {/* End call */}
           <ControlButton
@@ -854,7 +873,7 @@ export function CustomVideoConference({
             isDestructive
             onClick={handleEndCall}
             label="Leave call"
-            size="lg"
+            size="md"
           />
         </div>
       </motion.div>

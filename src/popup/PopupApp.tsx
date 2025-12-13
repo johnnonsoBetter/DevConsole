@@ -1,11 +1,11 @@
 /**
  * DevConsole Popup Application
- * Modern, clean popup interface with feature carousel,
- * quick toggles, and settings access
+ * Compact control center for the extension popup menu.
  */
 
 import { AnimatePresence, motion } from 'framer-motion';
 import {
+  AlertTriangle,
   BookOpen,
   CheckCircle2,
   ChevronLeft,
@@ -13,11 +13,14 @@ import {
   Github,
   Keyboard,
   Network,
+  RefreshCcw,
   Settings,
   Terminal,
+  Trash2,
+  Video,
   Zap,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AutofillToggle } from '../components/DevConsole/AutofillToggle';
 import {
   AISettingsSection,
@@ -29,79 +32,425 @@ import {
   WebhookSettingsSection,
 } from '../components/DevConsole/UnifiedSettingsPanel';
 import { BetterTabs } from '../components/ui/better-tabs';
-import { NotesService, useNotesStore } from '../features/notes';
+import { NotesService, type Note, useNotesStore } from '../features/notes';
 import { GraphQLIcon, LogoIcon, RaindropIcon, UnsplashIcon, VSCodeIcon } from '../icons';
 import { cn } from '../utils';
+import { formatEndpoint, getDomain } from '../utils/formatUtils';
 import { useAutofillSettingsStore } from '../utils/stores/autofillSettings';
-import { useCodeActionsStore } from '../utils/stores/codeActions';
-import { useDevConsoleStore } from '../utils/stores/devConsole';
+import { type CodeAction, useCodeActionsStore } from '../utils/stores/codeActions';
 import { humanizeTime } from '../utils/timeUtils';
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
-type PopupView = 'main' | 'settings';
+type PopupViewMode = 'main' | 'settings' | 'notes';
+
+type DevConsoleTabId =
+  | 'logs'
+  | 'network'
+  | 'notes'
+  | 'video'
+  | 'actions'
+  | 'graphql'
+  | 'github'
+  | 'settings';
+
+interface ActiveTabInfo {
+  id: number;
+  url?: string;
+  title?: string;
+  domain?: string;
+  protocol?: string;
+  isSupported: boolean;
+  unsupportedReason?: string;
+}
+
+type BackgroundLogLevel =
+  | 'log'
+  | 'info'
+  | 'warn'
+  | 'error'
+  | 'debug'
+  | 'ui'
+  | 'db'
+  | 'api';
+
+interface BackgroundLogEntry {
+  id: string;
+  timestamp: number;
+  level: BackgroundLogLevel;
+  message: string;
+  args?: any[];
+  source?: { file?: string; line?: number; column?: number; raw?: string };
+  tabId: number;
+}
+
+interface BackgroundNetworkRequest {
+  id: string;
+  timestamp: number;
+  url: string;
+  method: string;
+  status?: number;
+  duration?: number;
+  tabId: number;
+}
+
+interface BackgroundSettings {
+  autoScroll?: boolean;
+  maxLogs?: number;
+  networkMonitoring?: boolean;
+  darkMode?: boolean;
+}
+
+interface BackgroundStateResponse {
+  logs: BackgroundLogEntry[];
+  networkRequests: BackgroundNetworkRequest[];
+  isRecording: boolean;
+  settings: BackgroundSettings;
+}
+
+interface AutofillStats {
+  fillCount: number;
+}
 
 // ============================================================================
 // CONSTANTS
 // ============================================================================
+
+const DEVTOOLS_REQUESTED_TAB_KEY = 'devconsole.requestedTab';
+const DEVTOOLS_REQUESTED_TAB_AT_KEY = 'devconsole.requestedTabAt';
+
+const BLOCKED_PROTOCOLS = new Set([
+  'chrome:',
+  'chrome-extension:',
+  'about:',
+  'moz-extension:',
+  'edge:',
+  'devtools:',
+]);
+
+// ============================================================================
+// RUNTIME MESSAGE HELPERS
+// ============================================================================
+
+function sendRuntimeMessageNoResponse(message: any) {
+  try {
+    chrome.runtime.sendMessage(message, () => {
+      const err = chrome.runtime.lastError;
+      if (!err) return;
+      if (/message channel closed/i.test(err.message ?? '')) return;
+      console.warn('[Popup] Message failed:', err.message);
+    });
+  } catch (error) {
+    console.warn('[Popup] Message failed:', error);
+  }
+}
+
+function sendRuntimeMessageWithResponse<TResponse>(message: any): Promise<TResponse> {
+  return new Promise((resolve, reject) => {
+    try {
+      chrome.runtime.sendMessage(message, (response: TResponse) => {
+        const err = chrome.runtime.lastError;
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve(response);
+      });
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+async function getActiveTabInfo(): Promise<ActiveTabInfo | null> {
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  const tab = tabs[0];
+  if (!tab?.id) return null;
+
+  const url = tab.url;
+  let domain = '';
+  let protocol = '';
+
+  if (url) {
+    try {
+      const parsed = new URL(url);
+      domain = parsed.hostname;
+      protocol = parsed.protocol;
+    } catch {
+      // ignore parse issues; fallback below
+    }
+  }
+
+  let isSupported = true;
+  let unsupportedReason: string | undefined;
+
+  if (!url) {
+    isSupported = false;
+    unsupportedReason = 'No URL available for this tab.';
+  } else if (!protocol) {
+    isSupported = false;
+    unsupportedReason = 'Unsupported URL format.';
+  } else if (BLOCKED_PROTOCOLS.has(protocol)) {
+    isSupported = false;
+    unsupportedReason = 'Chrome internal pages are not supported.';
+  } else if (protocol === 'file:') {
+    // Content scripts can run on file URLs only if the user enables it for the extension.
+    isSupported = false;
+    unsupportedReason = 'File URLs require enabling “Allow access to file URLs”.';
+  } else if (protocol !== 'http:' && protocol !== 'https:') {
+    isSupported = false;
+    unsupportedReason = `Unsupported protocol: ${protocol}`;
+  }
+
+  return {
+    id: tab.id,
+    url,
+    title: tab.title,
+    domain,
+    protocol,
+    isSupported,
+    unsupportedReason,
+  };
+}
+
+function formatLogPreview(entry: BackgroundLogEntry): string {
+  if (entry.message) return entry.message;
+  const args = entry.args || [];
+  if (args.length === 0) return 'Log entry';
+
+  return args
+    .map((arg) => {
+      if (typeof arg === 'string') return arg;
+      if (arg === null) return 'null';
+      if (arg === undefined) return 'undefined';
+      if (typeof arg === 'object') {
+        try {
+          return JSON.stringify(arg);
+        } catch {
+          return String(arg);
+        }
+      }
+      return String(arg);
+    })
+    .join(' ');
+}
 
 // ============================================================================
 // MAIN POPUP APP
 // ============================================================================
 
 export function PopupApp() {
-  const [view, setView] = useState<PopupView>('main');
-  const [storedLogs, setStoredLogs] = useState<any[]>([]);
-  const [viewMode, setViewMode] = useState<PopupView | 'notes'>('main');
+  const [viewMode, setViewMode] = useState<PopupViewMode>('main');
+  const [activeTab, setActiveTab] = useState<ActiveTabInfo | null>(null);
+  const [bgState, setBgState] = useState<BackgroundStateResponse | null>(null);
+  const [isStateLoading, setIsStateLoading] = useState(true);
+  const [autofillStats, setAutofillStats] = useState<AutofillStats | null>(null);
+  const [queuedDevToolsTab, setQueuedDevToolsTab] = useState<DevConsoleTabId | null>(null);
+
   const actions = useCodeActionsStore((state) => state.actions);
-  const logs = useDevConsoleStore((state) => state.logs);
-  const networkRequests = useDevConsoleStore((state) => state.networkRequests);
   const notes = useNotesStore((state) => state.notes);
   const isNotesLoading = useNotesStore((state) => state.isLoading);
-  const {
-    isEnabled: isAutofillEnabled,
-    loadSettings: loadAutofillSettings,
-  } = useAutofillSettingsStore();
+  const { isEnabled: isAutofillEnabled, loadSettings: loadAutofillSettings } =
+    useAutofillSettingsStore();
 
-  // Load settings on mount
+  const isDarkMode = bgState?.settings?.darkMode ?? true;
+
+  const refreshBackgroundState = useCallback(async (tabId: number) => {
+    setIsStateLoading(true);
+    try {
+      const response = await sendRuntimeMessageWithResponse<BackgroundStateResponse>({
+        type: 'GET_STATE',
+        tabId,
+      });
+      setBgState({
+        logs: Array.isArray(response?.logs) ? response.logs : [],
+        networkRequests: Array.isArray(response?.networkRequests) ? response.networkRequests : [],
+        isRecording: Boolean(response?.isRecording),
+        settings: response?.settings || {},
+      });
+    } catch (error) {
+      console.warn('[Popup] Failed to load background state:', error);
+      setBgState((prev) =>
+        prev || {
+          logs: [],
+          networkRequests: [],
+          isRecording: true,
+          settings: {},
+        }
+      );
+    } finally {
+      setIsStateLoading(false);
+    }
+  }, []);
+
+  const loadAutofillUsage = useCallback(async () => {
+    try {
+      const stats = await sendRuntimeMessageWithResponse<AutofillStats>({
+        type: 'AUTOFILL_GET_STATS',
+      });
+      if (stats && typeof stats.fillCount === 'number') {
+        setAutofillStats({ fillCount: stats.fillCount });
+      }
+    } catch {
+      // optional
+    }
+  }, []);
+
+  const queueDevToolsTab = useCallback(async (tab: DevConsoleTabId) => {
+    setQueuedDevToolsTab(tab);
+    try {
+      await chrome.storage.local.set({
+        [DEVTOOLS_REQUESTED_TAB_KEY]: tab,
+        [DEVTOOLS_REQUESTED_TAB_AT_KEY]: Date.now(),
+      });
+    } catch (error) {
+      console.warn('[Popup] Failed to queue DevTools tab:', error);
+    }
+  }, []);
+
+  const openVideoCallWindow = useCallback(async () => {
+    const width = 1000;
+    const height = 700;
+    const left = Math.round((window.screen.width - width) / 2);
+    const top = Math.round((window.screen.height - height) / 2);
+
+    const url = chrome.runtime.getURL('src/videocall/index.html');
+
+    try {
+      await chrome.windows.create({
+        url,
+        type: 'popup',
+        width,
+        height,
+        left,
+        top,
+      });
+    } catch {
+      window.open(
+        url,
+        'DevConsoleVideoCall',
+        `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
+      );
+    }
+  }, []);
+
+  // Load state on mount
   useEffect(() => {
-    loadPopupState();
     loadAutofillSettings();
     NotesService.loadNotes();
-  }, [loadAutofillSettings]);
+    loadAutofillUsage();
 
-  const loadPopupState = async () => {
-    try {
-      const result = await chrome.storage.local.get(['devConsoleRecentLogs']);
-      setStoredLogs(result.devConsoleRecentLogs || []);
-    } catch (error) {
-      console.warn('Failed to load settings:', error);
-    }
-  };
+    (async () => {
+      const tab = await getActiveTabInfo();
+      setActiveTab(tab);
+      if (tab?.id) {
+        await refreshBackgroundState(tab.id);
+      }
+    })();
+  }, [loadAutofillSettings, loadAutofillUsage, refreshBackgroundState]);
+
+  // Listen for background updates while popup is open
+  useEffect(() => {
+    const tabId = activeTab?.id;
+    if (!tabId) return;
+
+    const handler = (message: any) => {
+      if (!message || message.type !== 'DEVTOOLS_UPDATE') return;
+
+      const updateType = message.updateType as string | undefined;
+      const payload = message.payload;
+
+      setBgState((prev) => {
+        if (!prev) return prev;
+
+        switch (updateType) {
+          case 'LOG_ADDED': {
+            if (!payload || payload.tabId !== tabId) return prev;
+            const next = [payload as BackgroundLogEntry, ...prev.logs];
+            return { ...prev, logs: next.slice(0, 200) };
+          }
+          case 'NETWORK_ADDED': {
+            if (!payload || payload.tabId !== tabId) return prev;
+            const next = [payload as BackgroundNetworkRequest, ...prev.networkRequests];
+            return { ...prev, networkRequests: next.slice(0, 200) };
+          }
+          case 'LOGS_CLEARED': {
+            if (payload && payload.tabId !== tabId) return prev;
+            return { ...prev, logs: [] };
+          }
+          case 'NETWORK_CLEARED': {
+            if (payload && payload.tabId !== tabId) return prev;
+            return { ...prev, networkRequests: [] };
+          }
+          case 'SETTINGS_UPDATED': {
+            return { ...prev, settings: payload || prev.settings };
+          }
+          case 'RECORDING_TOGGLED': {
+            return { ...prev, isRecording: Boolean(payload) };
+          }
+          default:
+            return prev;
+        }
+      });
+    };
+
+    chrome.runtime.onMessage.addListener(handler);
+    return () => chrome.runtime.onMessage.removeListener(handler);
+  }, [activeTab?.id]);
+
+  const isRecording = bgState?.isRecording ?? true;
+  const networkMonitoring = bgState?.settings?.networkMonitoring ?? true;
+  const logs = bgState?.logs ?? [];
+  const networkRequests = bgState?.networkRequests ?? [];
 
   return (
     <div
       className={cn(
-        'w-[400px] h-[600px] max-w-[400px]  max-h-[600px] overflow-hidden dark dark:border-gray-800 shadow-2xl',
-    
+        'w-[400px] h-[600px] max-w-[400px] max-h-[600px] overflow-hidden shadow-2xl border border-gray-200/60 dark:border-gray-800/80',
+        isDarkMode ? 'dark' : undefined
       )}
       style={{
         fontFamily:
           '"Plus Jakarta Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
       }}
     >
-      <div className=" dark:bg-gray-900 text-gray-900  h-full min-h-full flex flex-col">
+      <div className="h-full min-h-full flex flex-col bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
         <AnimatePresence mode="wait">
           {viewMode === 'main' ? (
             <MainView
               key="main"
-              logs={logs && logs.length ? logs : storedLogs}
+              activeTab={activeTab}
+              isStateLoading={isStateLoading}
+              isRecording={isRecording}
+              networkMonitoring={networkMonitoring}
+              logs={logs}
               networkRequests={networkRequests}
               actions={actions}
               notes={notes}
               isNotesLoading={isNotesLoading}
+              autofillFillCount={autofillStats?.fillCount}
+              isAutofillEnabled={isAutofillEnabled}
+              queuedDevToolsTab={queuedDevToolsTab}
+              onRefresh={() => activeTab?.id && refreshBackgroundState(activeTab.id)}
+              onToggleRecording={() => sendRuntimeMessageNoResponse({ type: 'TOGGLE_RECORDING' })}
+              onToggleNetworkMonitoring={() =>
+                sendRuntimeMessageNoResponse({
+                  type: 'UPDATE_SETTINGS',
+                  payload: { networkMonitoring: !networkMonitoring },
+                })
+              }
+              onClearLogs={() =>
+                activeTab?.id &&
+                sendRuntimeMessageNoResponse({ type: 'CLEAR_LOGS', tabId: activeTab.id })
+              }
+              onClearNetwork={() =>
+                activeTab?.id &&
+                sendRuntimeMessageNoResponse({ type: 'CLEAR_NETWORK', tabId: activeTab.id })
+              }
+              onQueueDevToolsTab={queueDevToolsTab}
+              onOpenVideoCall={openVideoCallWindow}
               onCreateNote={async () =>
                 NotesService.createNote({
                   title: 'Quick Note',
@@ -110,15 +459,11 @@ export function PopupApp() {
                   pinned: false,
                 })
               }
-              isAutofillEnabled={isAutofillEnabled}
               onOpenSettings={() => setViewMode('settings')}
               onOpenNotes={() => setViewMode('notes')}
             />
           ) : viewMode === 'settings' ? (
-            <SettingsView
-              key="settings"
-              onBack={() => setViewMode('main')}
-            />
+            <SettingsView key="settings" onBack={() => setViewMode('main')} />
           ) : (
             <NotesView key="notes" onBack={() => setViewMode('main')} />
           )}
@@ -133,23 +478,49 @@ export function PopupApp() {
 // ============================================================================
 
 interface MainViewProps {
-  logs: any[];
-  networkRequests: any[];
-  actions: any[];
-  notes: any[];
+  activeTab: ActiveTabInfo | null;
+  isStateLoading: boolean;
+  isRecording: boolean;
+  networkMonitoring: boolean;
+  logs: BackgroundLogEntry[];
+  networkRequests: BackgroundNetworkRequest[];
+  actions: CodeAction[];
+  notes: Note[];
   isNotesLoading: boolean;
-  onCreateNote: () => Promise<any>;
+  autofillFillCount?: number;
   isAutofillEnabled: boolean;
+  queuedDevToolsTab: DevConsoleTabId | null;
+  onRefresh: () => void;
+  onToggleRecording: () => void;
+  onToggleNetworkMonitoring: () => void;
+  onClearLogs: () => void;
+  onClearNetwork: () => void;
+  onQueueDevToolsTab: (tab: DevConsoleTabId) => void;
+  onOpenVideoCall: () => void;
+  onCreateNote: () => Promise<any>;
   onOpenSettings: () => void;
   onOpenNotes: () => void;
 }
 
 function MainView({
+  activeTab,
+  isStateLoading,
+  isRecording,
+  networkMonitoring,
   logs,
   networkRequests,
   actions,
   notes,
   isNotesLoading,
+  autofillFillCount,
+  queuedDevToolsTab,
+  onRefresh,
+  onToggleRecording,
+  onToggleNetworkMonitoring,
+  onClearLogs,
+  onClearNetwork,
+  onQueueDevToolsTab,
+  onOpenVideoCall,
   onCreateNote,
   isAutofillEnabled,
   onOpenSettings,
@@ -158,7 +529,10 @@ function MainView({
   const [activePeek, setActivePeek] = useState<'logs' | 'network' | 'actions'>('logs');
 
   const latestLogs = useMemo(
-    () => [...(logs || [])].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)).slice(0, 3),
+    () =>
+      [...(logs || [])]
+        .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+        .slice(0, 3),
     [logs]
   );
   const latestNetwork = useMemo(
@@ -177,22 +551,25 @@ function MainView({
   );
   const latestNote = useMemo(
     () =>
-      [...(notes || [])]
-        .sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0))[0],
+      [...(notes || [])].sort(
+        (a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0)
+      )[0],
     [notes]
   );
+
+  const tabLabel = activeTab?.domain || (activeTab?.url ? getDomain(activeTab.url) : '') || 'Current tab';
 
   const peekTabs = [
     { id: 'logs', icon: <Terminal className="w-4 h-4" />, label: 'Logs' },
     { id: 'network', icon: <Network className="w-4 h-4" />, label: 'Network' },
-    { id: 'actions', icon: <VSCodeIcon size={14} />, label: 'VS Code' },
+    { id: 'actions', icon: <VSCodeIcon size={14} />, label: 'Actions' },
   ] as const;
 
   return (
     <motion.div
-      initial={{ opacity: 0, x: -20 }}
+      initial={{ opacity: 0, x: -12 }}
       animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -20 }}
+      exit={{ opacity: 0, x: -12 }}
       className="flex flex-col h-full"
     >
       {/* Header */}
@@ -202,24 +579,32 @@ function MainView({
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/25">
               <LogoIcon size={24} className="text-white" />
             </div>
-            <div>
-              <h1 className="text-lg font-semibold">DevConsole</h1>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Advanced Developer Tools
+            <div className="min-w-0">
+              <h1 className="text-lg font-semibold leading-tight">DevConsole</h1>
+              <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                {tabLabel}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <AutofillToggle
-              size="sm"
-              className={cn(
-                'h-9 w-9 border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80',
-                isAutofillEnabled && 'ring-2 ring-emerald-400/50'
+            <div className="relative">
+              <AutofillToggle
+                size="sm"
+                className={cn(
+                  'h-9 w-9 border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80',
+                  isAutofillEnabled && 'ring-2 ring-emerald-400/50'
+                )}
+              />
+              {typeof autofillFillCount === 'number' && autofillFillCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-emerald-500 text-white text-[10px] font-semibold flex items-center justify-center shadow">
+                  {autofillFillCount > 99 ? '99+' : autofillFillCount}
+                </span>
               )}
-            />
+            </div>
             <button
               onClick={onOpenSettings}
               className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              title="Settings"
             >
               <Settings className="w-5 h-5 text-gray-500 dark:text-gray-400" />
             </button>
@@ -227,75 +612,226 @@ function MainView({
         </div>
       </div>
 
-      {/* Activity Peek */}
-      <div className="px-5 pb-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-primary"></span>
-            Recent Signals
-          </h3>
-          <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/70 rounded-full px-2 py-1 border border-gray-200 dark:border-gray-700">
-            {peekTabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActivePeek(tab.id)}
+      {/* Scrollable content */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-5 pb-5 space-y-4 scrollbar-hide">
+        {/* Controls */}
+        <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Capture Controls
+              </h3>
+              <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate mt-1">
+                {activeTab?.title || tabLabel}
+              </p>
+              {!activeTab?.isSupported && activeTab?.unsupportedReason && (
+                <div className="mt-2 flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300">
+                  <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <p className="leading-snug">{activeTab.unsupportedReason}</p>
+                </div>
+              )}
+            </div>
+            <button
+              onClick={onRefresh}
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              title="Refresh"
+            >
+              <RefreshCcw
+                className={cn('w-4 h-4 text-gray-500', isStateLoading && 'animate-spin')}
+              />
+            </button>
+          </div>
+
+          <div className="mt-3 flex items-center gap-2 flex-wrap">
+            <span
+              className={cn(
+                'inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-semibold border',
+                isRecording
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20'
+                  : 'bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-800/60 dark:text-gray-200 dark:border-gray-700'
+              )}
+            >
+              <span
                 className={cn(
-                  'h-8 w-8 rounded-full flex items-center justify-center transition-all',
-                  activePeek === tab.id
-                    ? 'bg-primary text-white shadow-apple-sm'
-                    : 'text-gray-500 hover:text-gray-900 dark:hover:text-gray-100'
+                  'w-1.5 h-1.5 rounded-full',
+                  isRecording ? 'bg-emerald-500' : 'bg-gray-400'
                 )}
-                title={tab.label}
-              >
-                {tab.icon}
-              </button>
-            ))}
+              />
+              {isRecording ? 'Recording' : 'Paused'}
+            </span>
+
+            <span
+              className={cn(
+                'inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-semibold border',
+                networkMonitoring
+                  ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-500/20'
+                  : 'bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-800/60 dark:text-gray-200 dark:border-gray-700'
+              )}
+            >
+              <span
+                className={cn(
+                  'w-1.5 h-1.5 rounded-full',
+                  networkMonitoring ? 'bg-blue-500' : 'bg-gray-400'
+                )}
+              />
+              {networkMonitoring ? 'Network On' : 'Network Off'}
+            </span>
+
+            <span className="ml-auto text-[11px] text-gray-500 dark:text-gray-400">
+              Logs: <span className="font-semibold text-gray-700 dark:text-gray-200">{logs.length}</span> ·
+              Net:{' '}
+              <span className="font-semibold text-gray-700 dark:text-gray-200">
+                {networkRequests.length}
+              </span>
+            </span>
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button
+              onClick={onToggleRecording}
+              className={cn(
+                'h-10 rounded-xl border text-sm font-semibold transition-colors flex items-center justify-center gap-2',
+                isRecording
+                  ? 'bg-white hover:bg-gray-50 border-gray-200 text-gray-900 dark:bg-gray-800/60 dark:hover:bg-gray-800 dark:border-gray-700 dark:text-gray-100'
+                  : 'bg-emerald-600 hover:bg-emerald-500 border-emerald-600 text-white'
+              )}
+            >
+              <Terminal className="w-4 h-4" />
+              {isRecording ? 'Pause Capture' : 'Resume Capture'}
+            </button>
+            <button
+              onClick={onToggleNetworkMonitoring}
+              className={cn(
+                'h-10 rounded-xl border text-sm font-semibold transition-colors flex items-center justify-center gap-2',
+                networkMonitoring
+                  ? 'bg-white hover:bg-gray-50 border-gray-200 text-gray-900 dark:bg-gray-800/60 dark:hover:bg-gray-800 dark:border-gray-700 dark:text-gray-100'
+                  : 'bg-blue-600 hover:bg-blue-500 border-blue-600 text-white'
+              )}
+            >
+              <Network className="w-4 h-4" />
+              {networkMonitoring ? 'Disable Network' : 'Enable Network'}
+            </button>
+            <button
+              onClick={onClearLogs}
+              className="h-10 rounded-xl border border-gray-200 dark:border-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-800/60 dark:hover:bg-gray-800 text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+            >
+              <Trash2 className="w-4 h-4 text-gray-500 dark:text-gray-300" />
+              Clear Logs
+            </button>
+            <button
+              onClick={onClearNetwork}
+              className="h-10 rounded-xl border border-gray-200 dark:border-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-800/60 dark:hover:bg-gray-800 text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+            >
+              <Trash2 className="w-4 h-4 text-gray-500 dark:text-gray-300" />
+              Clear Network
+            </button>
           </div>
         </div>
 
-        <div className="rounded-2xl dark dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm p-3 space-y-2">
-          {activePeek === 'logs' && (
-            <PeekList
-              emptyLabel="No logs yet"
-              items={latestLogs.map((log) => ({
-                id: log.id,
-                title: log.message || 'Log entry',
-                meta: humanizeTime(log.timestamp),
-                pill: (log.level || 'log').toUpperCase(),
-              }))}
-              onOpen={() => chrome.runtime.sendMessage({ type: 'OPEN_DEVTOOLS', tab: 'logs' })}
-            />
-          )}
-          {activePeek === 'network' && (
-            <PeekList
-              emptyLabel="No requests yet"
-              items={latestNetwork.map((req) => ({
-                id: req.id,
-                title: req.url || req.type || 'Request',
-                meta: humanizeTime(req.timestamp),
-                pill: req.method || 'REQ',
-                status: req.status,
-              }))}
-              onOpen={() => chrome.runtime.sendMessage({ type: 'OPEN_DEVTOOLS', tab: 'network' })}
-            />
-          )}
-          {activePeek === 'actions' && (
-            <PeekList
-              emptyLabel="No actions yet"
-              items={latestActions.map((action) => ({
-                id: action.id,
-                title: action.promptPreview || 'Code action',
-                meta: humanizeTime(action.createdAt),
-                pill: action.status,
-              }))}
-              onOpen={() => chrome.runtime.sendMessage({ type: 'OPEN_DEVTOOLS', tab: 'actions' })}
-            />
-          )}
-        </div>
-      </div>
+        {/* Activity Peek */}
+        <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary"></span>
+              Recent Signals
+            </h3>
+            <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/70 rounded-full px-2 py-1 border border-gray-200 dark:border-gray-700">
+              {peekTabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActivePeek(tab.id)}
+                  className={cn(
+                    'h-8 w-8 rounded-full flex items-center justify-center transition-all',
+                    activePeek === tab.id
+                      ? 'bg-primary text-white shadow-apple-sm'
+                      : 'text-gray-500 hover:text-gray-900 dark:hover:text-gray-100'
+                  )}
+                  title={tab.label}
+                >
+                  {tab.icon}
+                </button>
+              ))}
+            </div>
+          </div>
 
-      {/* Quick Notes */}
-      <div className="px-5 pb-4">
+          <div className="space-y-2">
+            {activePeek === 'logs' && (
+              <PeekList
+                emptyLabel="No logs yet"
+                items={latestLogs.map((log) => ({
+                  id: log.id,
+                  title: formatLogPreview(log),
+                  meta: humanizeTime(log.timestamp),
+                  pill: (log.level || 'log').toUpperCase(),
+                }))}
+                onViewInDevTools={() => onQueueDevToolsTab('logs')}
+              />
+            )}
+            {activePeek === 'network' && (
+              <PeekList
+                emptyLabel="No requests yet"
+                items={latestNetwork.map((req) => ({
+                  id: req.id,
+                  title: formatEndpoint(req.url || 'Request'),
+                  meta: humanizeTime(req.timestamp),
+                  pill: req.method || 'REQ',
+                  status: req.status,
+                }))}
+                onViewInDevTools={() => onQueueDevToolsTab('network')}
+              />
+            )}
+            {activePeek === 'actions' && (
+              <PeekList
+                emptyLabel="No actions yet"
+                items={latestActions.map((action) => ({
+                  id: action.id,
+                  title: action.promptPreview || 'Code action',
+                  meta: humanizeTime(action.createdAt),
+                  pill: action.status,
+                }))}
+                onViewInDevTools={() => onQueueDevToolsTab('actions')}
+              />
+            )}
+
+            {queuedDevToolsTab && (
+              <div className="mt-2 rounded-xl border border-dashed border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60 px-3 py-2 text-xs text-gray-600 dark:text-gray-300 flex items-center gap-2">
+                <Keyboard className="w-4 h-4 text-gray-400" />
+                <span>
+                  Open DevTools (<span className="font-mono text-[11px]">F12</span>) →
+                  DevConsole will jump to <span className="font-semibold">{queuedDevToolsTab}</span>.
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Video Call */}
+        <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                <Video className="w-4 h-4 text-purple-500" />
+                Video Call
+              </h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Opens in a separate window for camera/mic permissions.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                onQueueDevToolsTab('video');
+                onOpenVideoCall();
+              }}
+              className="h-10 px-3 rounded-xl bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 text-white text-sm font-semibold transition-all shadow-lg shadow-primary/20 flex items-center gap-2"
+            >
+              <ExternalLink className="w-4 h-4" />
+              Open
+            </button>
+          </div>
+        </div>
+
+        {/* Quick Notes */}
+        <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm p-4">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
@@ -310,41 +846,35 @@ function MainView({
               Notes
             </button>
           </div>
-        <QuickNoteCard
-          note={latestNote}
-          isLoading={isNotesLoading}
-          onOpenNotes={() => chrome.runtime.sendMessage({ type: 'OPEN_DEVTOOLS', tab: 'notes' })}
-          onCreateNote={onCreateNote}
-        />
-      </div>
-
-      {/* Status Indicator */}
-      <div className="px-5 pb-3">
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20">
-          <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-          <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">Extension Active</span>
-          <span className="ml-auto text-[10px] text-emerald-600/70 dark:text-emerald-400/70">v1.0</span>
+          <QuickNoteCard
+            note={latestNote}
+            isLoading={isNotesLoading}
+            onOpenNotes={onOpenNotes}
+            onCreateNote={onCreateNote}
+          />
         </div>
-      </div>
 
-      {/* Open DevTools CTA */}
-      <div className="mt-auto px-5 pb-5">
-        <button
-          onClick={() => {
-            chrome.runtime.sendMessage({ type: 'OPEN_DEVTOOLS' });
-            window.close();
-          }}
-          className="w-full py-3.5 px-4 bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 text-white rounded-xl font-semibold transition-all shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 hover:-translate-y-0.5 flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
-        >
-          <Terminal className="w-4 h-4" />
-          <span>Open DevConsole</span>
-          <ExternalLink className="w-4 h-4" />
-        </button>
-        <div className="flex items-center justify-center gap-1.5 mt-2">
-          <Keyboard className="w-3 h-3 text-gray-400" />
-          <p className="text-xs text-gray-400">
-            Press <kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[10px] font-mono">F12</kbd> → DevConsole tab
-          </p>
+        {/* Status + Help */}
+        <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm p-4 space-y-3">
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20">
+            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+            <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">
+              Extension Active
+            </span>
+            <span className="ml-auto text-[10px] text-emerald-600/70 dark:text-emerald-300/70">
+              v1.0
+            </span>
+          </div>
+          <div className="flex items-start gap-2 text-xs text-gray-600 dark:text-gray-300">
+            <Keyboard className="w-4 h-4 text-gray-400 mt-0.5" />
+            <p className="leading-snug">
+              DevConsole lives in Chrome DevTools. Press{' '}
+              <kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[10px] font-mono">
+                F12
+              </kbd>{' '}
+              and select the <span className="font-semibold">DevConsole</span> tab.
+            </p>
+          </div>
         </div>
       </div>
     </motion.div>
@@ -366,9 +896,11 @@ interface PeekItem {
 function PeekList({
   items,
   emptyLabel,
+  onViewInDevTools,
 }: {
   items: PeekItem[];
   emptyLabel: string;
+  onViewInDevTools?: () => void;
 }) {
   const hasItems = items.length > 0;
   return (
@@ -404,6 +936,15 @@ function PeekList({
             )}
           </div>
         ))}
+      {onViewInDevTools && (
+        <button
+          onClick={onViewInDevTools}
+          className="w-full h-9 rounded-xl border border-gray-200 dark:border-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:hover:bg-gray-800 text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+        >
+          <ExternalLink className="w-4 h-4 text-gray-500 dark:text-gray-300" />
+          View in DevTools
+        </button>
+      )}
     </div>
   );
 }
@@ -415,9 +956,10 @@ function PeekList({
 function QuickNoteCard({
   note,
   isLoading,
+  onOpenNotes,
   onCreateNote,
 }: {
-  note?: any;
+  note?: Note;
   isLoading: boolean;
   onOpenNotes: () => void;
   onCreateNote: () => Promise<any>;
@@ -425,12 +967,57 @@ function QuickNoteCard({
   const [draftTitle, setDraftTitle] = useState(note?.title || '');
   const [draftContent, setDraftContent] = useState(note?.content || '');
   const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const lastSavedRef = useRef<{ noteId: string; title: string; content: string } | null>(null);
 
+  // Reset drafts when switching notes
   useEffect(() => {
-    setDraftTitle(note?.title || '');
-    setDraftContent(note?.content || '');
-  }, [note?.title, note?.content]);
+    if (!note) {
+      lastSavedRef.current = null;
+      setDraftTitle('');
+      setDraftContent('');
+      setIsSaving(false);
+      setSaveError(null);
+      return;
+    }
 
+    const title = note.title || '';
+    const content = note.content || '';
+    setDraftTitle(title);
+    setDraftContent(content);
+    lastSavedRef.current = { noteId: note.id, title, content };
+    setIsSaving(false);
+    setSaveError(null);
+  }, [note?.id]);
+
+  // Autosave with debounce
+  useEffect(() => {
+    if (!note) return;
+    const lastSaved = lastSavedRef.current;
+    if (!lastSaved || lastSaved.noteId !== note.id) return;
+
+    const hasChanges = draftTitle !== lastSaved.title || draftContent !== lastSaved.content;
+    if (!hasChanges) return;
+
+    setIsSaving(true);
+    const timer = window.setTimeout(async () => {
+      try {
+        await NotesService.updateNote(note.id, {
+          title: draftTitle,
+          content: draftContent,
+        });
+        lastSavedRef.current = { noteId: note.id, title: draftTitle, content: draftContent };
+        setSaveError(null);
+      } catch (error) {
+        console.warn('[Popup] Failed to save note:', error);
+        setSaveError('Save failed');
+      } finally {
+        setIsSaving(false);
+      }
+    }, 650);
+
+    return () => window.clearTimeout(timer);
+  }, [draftTitle, draftContent, note?.id]);
 
   if (isLoading) {
     return (
@@ -446,11 +1033,11 @@ function QuickNoteCard({
 
   if (!note) {
     return (
-      <div className="rounded-2xl border border-dashed border-amber-300 dark:border-amber-600 bg-amber-50/40 dark:bg-amber-500/10 px-3 py-4 text-xs text-amber-700 dark:text-amber-300 flex items-center justify-between">
-        <span>No notes yet. Start with a quick note.</span>
+      <div className="rounded-2xl border border-dashed border-amber-300 dark:border-amber-600 bg-amber-50/40 dark:bg-amber-500/10 px-3 py-4 text-xs text-amber-700 dark:text-amber-300 flex items-center justify-between gap-3">
+        <span className="leading-snug">No notes yet. Start with a quick note.</span>
         <button
           onClick={onCreateNote}
-          className="px-3 py-1 rounded-lg bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 transition-all"
+          className="px-3 py-1.5 rounded-lg bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 transition-all"
         >
           Create
         </button>
@@ -475,17 +1062,24 @@ function QuickNoteCard({
             {humanizeTime(note.updatedAt || note.createdAt)}
           </p>
         </div>
+        <button
+          onClick={onOpenNotes}
+          className="p-2 rounded-lg hover:bg-gray-200/60 dark:hover:bg-gray-800/60 transition-colors"
+          title="Open Notes"
+        >
+          <BookOpen className="w-4 h-4 text-gray-500 dark:text-gray-300" />
+        </button>
       </div>
       <textarea
         value={draftContent}
         onChange={(e) => setDraftContent(e.target.value)}
         rows={4}
-        className="w-full bg-white/60 dark:bg-gray-800/60 border border-transparent rounded-xl p-3 text-sm text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-400/60"
+        className="w-full bg-white/70 dark:bg-gray-800/60 border border-transparent rounded-xl p-3 text-sm text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-400/60"
         placeholder="Jot something quickly..."
       />
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex items-center justify-between gap-2">
         <span className="text-[11px] text-gray-500 dark:text-gray-400">
-          {isSaving ? 'Saving…' : 'Autosaved'}
+          {saveError ? saveError : isSaving ? 'Saving…' : 'Saved'}
         </span>
       </div>
     </div>
@@ -589,13 +1183,13 @@ function SettingsView({ onBack }: SettingsViewProps) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, x: 20 }}
+      initial={{ opacity: 0, x: 12 }}
       animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: 20 }}
+      exit={{ opacity: 0, x: 12 }}
       className="flex flex-col h-full"
     >
       {/* Header */}
-      <div className="px-5 pt-5 pb-4 border-b border-gray-200 dark:border-gray-700">
+      <div className="px-5 pt-5 pb-4 border-b border-gray-200 dark:border-gray-800">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <button
@@ -606,7 +1200,9 @@ function SettingsView({ onBack }: SettingsViewProps) {
             </button>
             <div>
               <h2 className="text-lg font-semibold">Settings</h2>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Same controls as the DevConsole panel</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Same controls as the DevConsole panel
+              </p>
             </div>
           </div>
         </div>
@@ -615,7 +1211,12 @@ function SettingsView({ onBack }: SettingsViewProps) {
       {/* Settings Content */}
       <div className="flex-1 min-h-0 p-5 pt-3">
         <div className="h-full rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm overflow-hidden flex flex-col">
-          <BetterTabs tabs={settingsTabs} defaultTab="ai" variant="pills" className="flex-1 min-h-0 overflow-hidden" />
+          <BetterTabs
+            tabs={settingsTabs}
+            defaultTab="ai"
+            variant="pills"
+            className="flex-1 min-h-0 overflow-hidden"
+          />
         </div>
       </div>
     </motion.div>
@@ -688,12 +1289,12 @@ function NotesListPanel() {
 function NotesView({ onBack }: { onBack: () => void }) {
   return (
     <motion.div
-      initial={{ opacity: 0, x: 20 }}
+      initial={{ opacity: 0, x: 12 }}
       animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: 20 }}
+      exit={{ opacity: 0, x: 12 }}
       className="flex flex-col h-full"
     >
-      <div className="px-5 pt-5 pb-4 border-b border-gray-200 dark:border-gray-700 flex items-center gap-3">
+      <div className="px-5 pt-5 pb-4 border-b border-gray-200 dark:border-gray-800 flex items-center gap-3">
         <button
           onClick={onBack}
           className="p-2 -ml-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
@@ -712,3 +1313,4 @@ function NotesView({ onBack }: { onBack: () => void }) {
 }
 
 export default PopupApp;
+
