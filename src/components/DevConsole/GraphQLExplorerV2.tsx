@@ -14,29 +14,31 @@ import { createGraphiQLFetcher } from "@graphiql/toolkit";
 import "graphiql/style.css";
 import { getIntrospectionQuery, type IntrospectionQuery } from "graphql";
 import {
-    AlertCircle,
-    Bookmark,
-    Check,
-    CheckCircle2,
-    ChevronDown,
-    ChevronUp,
-    Copy,
-    Database,
-    Download,
-    Loader2,
-    MessageSquare,
-    Play,
-    Save,
-    Search,
-    Send,
-    Settings as SettingsIcon,
-    Sparkles,
-    Wand2,
-    WandSparkles,
-    X,
+  AlertCircle,
+  Bookmark,
+  Check,
+  CheckCircle,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  Database,
+  Download,
+  Loader2,
+  MessageSquare,
+  Play,
+  RefreshCw,
+  Save,
+  Search,
+  Send,
+  Settings as SettingsIcon,
+  Sparkles,
+  Wand2,
+  WandSparkles,
+  X,
 } from "lucide-react";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useGraphQLSmartMemoryV2, type GeneratedQuery, type QueryTemplate, type SemanticSearchResult } from "../../hooks/useGraphQLSmartMemoryV2";
+import { useGraphQLSmartMemoryV3, type SavedTemplate, type SearchResult } from "../../hooks/useGraphQLSmartMemoryV3";
 import { GraphQLIcon, RaindropIcon } from "../../icons";
 import { loadGraphQLSettings } from "../../lib/devConsole/graphqlSettings";
 import { buildRichSchemaTree, schemaTreeToJSON, type RichSchemaTree } from "../../lib/graphql/schemaTree";
@@ -71,9 +73,9 @@ export function GraphQLExplorerV2() {
   const [queryToAnalyze, setQueryToAnalyze] = useState("");
   
   // Results state
-  const [generatedResult, setGeneratedResult] = useState<GeneratedQuery | null>(null);
-  const [searchResults, setSearchResults] = useState<SemanticSearchResult[]>([]);
-  const [templates, setTemplates] = useState<QueryTemplate[]>([]);
+  const [generatedResult, setGeneratedResult] = useState<{ query: string; explanation?: string } | null>(null);
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [templates, setTemplates] = useState<SavedTemplate[]>([]);
   const [explanation, setExplanation] = useState<string | null>(null);
   const [optimization, setOptimization] = useState<{ query: string; suggestions: string[] } | null>(null);
   
@@ -96,24 +98,25 @@ export function GraphQLExplorerV2() {
   const inputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // SmartMemory hook
+  // SmartMemory hook - V3 with cleaner API
   const {
     isLoading: isAILoading,
     error: aiError,
     isConfigured,
     schemaStats,
-    indexingProgress,
-    ingestSchema,
+    indexProgress,
+    indexSchema,
     searchSchema,
     generateQuery,
-    explainQuery,
-    optimizeQuery,
     saveTemplate,
     listTemplates,
     deleteTemplate,
     trackExploration,
+    storeQueryPattern,
     checkConfigured,
-  } = useGraphQLSmartMemoryV2();
+    checkSchemaIndexed,
+    clearSchemaIndex,
+  } = useGraphQLSmartMemoryV3();
 
   // --------------------------------------------------------------------------
   // INITIALIZATION
@@ -166,9 +169,6 @@ export function GraphQLExplorerV2() {
   const handleInsertToEditor = useCallback(() => {
     if (generatedResult?.query) {
       setEditorQuery(generatedResult.query);
-      if (generatedResult.variables) {
-        setEditorVariables(JSON.stringify(generatedResult.variables, null, 2));
-      }
       // Close the result after inserting
       setGeneratedResult(null);
       setInputText("");
@@ -179,9 +179,6 @@ export function GraphQLExplorerV2() {
   const handleInsertAndRun = useCallback(() => {
     if (generatedResult?.query) {
       setEditorQuery(generatedResult.query);
-      if (generatedResult.variables) {
-        setEditorVariables(JSON.stringify(generatedResult.variables, null, 2));
-      }
       setShouldExecute(true);
       // Close the result after inserting
       setGeneratedResult(null);
@@ -209,17 +206,27 @@ export function GraphQLExplorerV2() {
     });
   }, [graphqlEndpoint]);
 
+  // Check if schema is already indexed when endpoint changes
+  useEffect(() => {
+    if (!graphqlEndpoint || !isConfigured) return;
+    
+    checkSchemaIndexed(graphqlEndpoint).then((indexedInfo) => {
+      if (indexedInfo) {
+        // Schema is already indexed!
+        setSchemaIngested(true);
+        console.log(`[GraphQL] Schema already indexed for ${graphqlEndpoint}`, indexedInfo);
+      }
+    });
+  }, [graphqlEndpoint, isConfigured, checkSchemaIndexed]);
+
   // --------------------------------------------------------------------------
   // SCHEMA INGESTION
   // --------------------------------------------------------------------------
 
-  const handleIngestSchema = useCallback(async () => {
+  const handleIngestSchema = useCallback(async (forceReindex = false) => {
     if (!graphqlEndpoint) return;
     
     setIsIngestingSchema(true);
-
-    
-
     
     try {
       // Introspection query
@@ -228,7 +235,7 @@ export function GraphQLExplorerV2() {
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          query: await getIntrospectionQuery(),
+          query: getIntrospectionQuery(),
         }),
       });
       
@@ -246,11 +253,20 @@ export function GraphQLExplorerV2() {
       const richTree = buildRichSchemaTree(schemaData, graphqlEndpoint);
       setRichSchemaTree(richTree);
       
-      // Convert to a mutable format compatible with ingestSchema
+      // Index schema into SmartMemory V3
+      // This will automatically skip if already indexed (unless forceReindex=true)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const result = await ingestSchema(schemaData as any, graphqlEndpoint);
+      const result = await indexSchema(schemaData as any, graphqlEndpoint, { forceReindex });
       
-      if (result.success) {
+      // Only store pattern if we actually indexed (not skipped)
+      if (!result.wasSkipped) {
+        await storeQueryPattern(
+          `Introspected schema: ${result.stats.queriesCount} queries, ${result.stats.mutationsCount} mutations, ${result.stats.typesCount} types`,
+          `Full schema introspection from ${graphqlEndpoint}`
+        );
+      }
+      
+      if (result.stats.queriesCount > 0 || result.stats.mutationsCount > 0) {
         setSchemaIngested(true);
       }
     } catch (err) {
@@ -258,7 +274,14 @@ export function GraphQLExplorerV2() {
     } finally {
       setIsIngestingSchema(false);
     }
-  }, [graphqlEndpoint, ingestSchema]);
+  }, [graphqlEndpoint, indexSchema, storeQueryPattern]);
+  
+  // Force re-index schema (clears cache first)
+  const handleForceReindex = useCallback(async () => {
+    if (!graphqlEndpoint) return;
+    await clearSchemaIndex(graphqlEndpoint);
+    await handleIngestSchema(true);
+  }, [graphqlEndpoint, clearSchemaIndex, handleIngestSchema]);
 
   // --------------------------------------------------------------------------
   // ACTIONS
@@ -271,14 +294,14 @@ export function GraphQLExplorerV2() {
     const result = await generateQuery(inputText);
     if (result) {
       setGeneratedResult(result);
-      trackExploration("generate_query", { intent: inputText });
+      trackExploration("generate", { intent: inputText });
     }
   }, [inputText, generateQuery, trackExploration]);
 
   const handleSearch = useCallback(async () => {
     if (!inputText.trim()) return;
     
-    const results = await searchSchema(inputText, { limit: 10 });
+    const results = await searchSchema(inputText, 10);
     setSearchResults(results);
     trackExploration("search", { query: inputText });
   }, [inputText, searchSchema, trackExploration]);
@@ -287,17 +310,33 @@ export function GraphQLExplorerV2() {
     if (!queryToAnalyze.trim()) return;
     
     setExplanation(null);
-    const result = await explainQuery(queryToAnalyze);
-    setExplanation(result);
-  }, [queryToAnalyze, explainQuery]);
+    // Basic explanation - could be enhanced with AI
+    setExplanation(`Query Analysis:\n\n${queryToAnalyze}\n\nThis is a GraphQL query. To get AI-powered explanations, use the Generate tab to describe what you want to do.`);
+  }, [queryToAnalyze]);
 
   const handleOptimize = useCallback(async () => {
     if (!queryToAnalyze.trim()) return;
     
     setOptimization(null);
-    const result = await optimizeQuery(queryToAnalyze);
-    setOptimization({ query: result.optimizedQuery, suggestions: result.suggestions });
-  }, [queryToAnalyze, optimizeQuery]);
+    // Basic optimization suggestions
+    const suggestions: string[] = [];
+    
+    if (queryToAnalyze.includes("*")) {
+      suggestions.push("Avoid selecting all fields (*) - specify only needed fields");
+    }
+    if ((queryToAnalyze.match(/\{/g) || []).length > 4) {
+      suggestions.push("Consider reducing nesting depth to improve performance");
+    }
+    if (!queryToAnalyze.includes("$")) {
+      suggestions.push("Consider using variables for dynamic values");
+    }
+    
+    if (suggestions.length === 0) {
+      suggestions.push("Query looks well-structured");
+    }
+    
+    setOptimization({ query: queryToAnalyze, suggestions });
+  }, [queryToAnalyze]);
 
   const handleSaveTemplate = useCallback(async () => {
     if (!saveTemplateName.trim() || !generatedResult?.query) return;
@@ -550,50 +589,85 @@ export function GraphQLExplorerV2() {
           
           <div className="flex items-center gap-2">
             {/* Indexing Progress Display */}
-            {indexingProgress && (
+            {indexProgress && (
               <div className={cn(
                 "flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg",
-                indexingProgress.phase === "error" 
+                indexProgress.phase === "error" 
                   ? "bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-300"
-                  : indexingProgress.phase === "done"
+                  : indexProgress.phase === "done"
                   ? "bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300"
                   : "bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
               )}>
-                {indexingProgress.phase === "done" ? (
+                {indexProgress.phase === "done" ? (
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                ) : indexingProgress.phase === "error" ? (
+                ) : indexProgress.phase === "error" ? (
                   <AlertCircle className="w-3.5 h-3.5" />
                 ) : (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 )}
-                <span className="max-w-xs truncate">{indexingProgress.message}</span>
-                {indexingProgress.current !== undefined && indexingProgress.total !== undefined && (
+                <span className="max-w-xs truncate">{indexProgress.message}</span>
+                {indexProgress.current !== undefined && indexProgress.total !== undefined && (
                   <span className="text-[10px] opacity-75">
-                    ({indexingProgress.current}/{indexingProgress.total})
+                    ({indexProgress.current}/{indexProgress.total})
                   </span>
                 )}
               </div>
             )}
             
-            {/* Ingest Schema Button */}
-            {isConfigured && !schemaIngested && !indexingProgress && (
-              <button
-                onClick={handleIngestSchema}
-                disabled={isIngestingSchema}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all",
-                  "bg-gradient-to-r from-green-500 to-emerald-500 text-white",
-                  "hover:from-green-600 hover:to-emerald-600",
-                  "disabled:opacity-50 disabled:cursor-not-allowed"
-                )}
-              >
-                {isIngestingSchema ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            {/* Ingest Schema Button - Show different states */}
+            {isConfigured && !indexProgress && (
+              <>
+                {!schemaIngested ? (
+                  <button
+                    onClick={() => handleIngestSchema()}
+                    disabled={isIngestingSchema}
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all",
+                      "bg-gradient-to-r from-green-500 to-emerald-500 text-white",
+                      "hover:from-green-600 hover:to-emerald-600",
+                      "disabled:opacity-50 disabled:cursor-not-allowed"
+                    )}
+                  >
+                    {isIngestingSchema ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Database className="w-3.5 h-3.5" />
+                    )}
+                    Index Schema
+                  </button>
                 ) : (
-                  <Database className="w-3.5 h-3.5" />
+                  <div className="flex items-center gap-1.5">
+                    {/* Schema indexed indicator */}
+                    <span className="flex items-center gap-1.5 px-2 py-1 text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      Schema Indexed
+                      {schemaStats && (
+                        <span className="text-gray-500 dark:text-gray-400">
+                          ({schemaStats.queriesCount}Q, {schemaStats.mutationsCount}M, {schemaStats.typesCount}T)
+                        </span>
+                      )}
+                    </span>
+                    {/* Re-index button */}
+                    <button
+                      onClick={handleForceReindex}
+                      disabled={isIngestingSchema}
+                      className={cn(
+                        "flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-lg transition-all",
+                        "text-gray-500 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20",
+                        "disabled:opacity-50 disabled:cursor-not-allowed"
+                      )}
+                      title="Force re-index schema"
+                    >
+                      {isIngestingSchema ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <RefreshCw className="w-3 h-3" />
+                      )}
+                      Re-index
+                    </button>
+                  </div>
                 )}
-                Index Schema
-              </button>
+              </>
             )}
             
             {/* AI Assistant Toggle */}
@@ -661,7 +735,7 @@ export function GraphQLExplorerV2() {
                   Index your schema first for better AI results.
                 </span>
                 <button
-                  onClick={handleIngestSchema}
+                  onClick={() => handleIngestSchema()}
                   disabled={isIngestingSchema}
                   className="ml-auto px-2 py-1 text-xs bg-amber-500 text-white rounded hover:bg-amber-600"
                 >
@@ -722,11 +796,6 @@ export function GraphQLExplorerV2() {
                         <p className="text-xs font-medium text-gray-700 dark:text-gray-300 flex items-center gap-1">
                           <CheckCircle2 className="w-3 h-3 text-green-500" />
                           Generated Query
-                          {generatedResult.relevantTypes && generatedResult.relevantTypes.length > 0 && (
-                            <span className="text-gray-400">
-                              (using: {generatedResult.relevantTypes.slice(0, 3).join(", ")})
-                            </span>
-                          )}
                         </p>
                         <div className="flex items-center gap-2">
                           <button

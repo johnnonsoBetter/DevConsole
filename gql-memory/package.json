@@ -1,5 +1,5 @@
 {
-  "name": "graphql-smartmemory",
+  "name": "gql-memory",
   "version": "1.0.0",
   "private": true,
   "description": "LiquidMetal AI app",
@@ -14,8 +14,8 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@liquidmetal-ai/raindrop-framework": "0.13.0",
     "@modelcontextprotocol/sdk": "^1",
+    "@liquidmetal-ai/raindrop-framework": "0.13.0",
     "hono": "^4",
     "kysely": "^0.27.2",
     "kysely-d1": "^0.3.0",
@@ -24,8 +24,8 @@
   "devDependencies": {
     "shx": "^0.4.0",
     "ts-node": "^10",
-    "typescript": "^5.0.4",
     "typescript-eslint": "^8.7.0",
+    "typescript": "^5.0.4",
     "vitest": "^3.1.3"
   }
 }

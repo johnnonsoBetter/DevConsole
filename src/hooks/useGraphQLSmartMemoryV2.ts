@@ -21,9 +21,11 @@ import { getRaindropSettings } from "./useRaindropSettings";
 // ============================================================================
 
 const SMART_MEMORY_CONFIG = {
-  name: "graphql-memory",
-  applicationName: "graphql-smartmemory",
-  version: "01kazjvbmqqdz4hkrn89zj2a5e",
+  name: "introspection-memory",
+  applicationName: "gql-memory",
+  // Note: Set to empty string to disable SmartMemory features until app is deployed
+  // Original version: "01kazjvbmqqdz4hkrn89zj2a5e"
+  version: "01kccmempyxnxvs672bd35dy8q",
 } as const;
 
 // ============================================================================
@@ -149,7 +151,11 @@ export function useGraphQLSmartMemoryV2() {
   // Check configuration on mount
   useEffect(() => {
     getRaindropSettings().then((settings) => {
-      setIsConfigured(settings.enabled && Boolean(settings.apiKey));
+      // Only mark as configured if Raindrop is enabled AND we have a deployed version
+      const hasVersion = SMART_MEMORY_CONFIG.version.length > 0;
+      setIsConfigured(
+        settings.enabled && Boolean(settings.apiKey) && hasVersion
+      );
     });
   }, []);
 
@@ -441,7 +447,6 @@ export function useGraphQLSmartMemoryV2() {
           smartMemoryLocation: location,
           document: JSON.stringify({
             docType: "schema-meta",
-            endpoint,
             ...stats,
             searchText: `schema metadata ${endpoint} ${queries.length} queries ${mutations.length} mutations ${types.length} types`,
           }),
@@ -1209,7 +1214,10 @@ Format:
 
   const checkConfigured = useCallback(async (): Promise<boolean> => {
     const settings = await getRaindropSettings();
-    const configured = settings.enabled && Boolean(settings.apiKey);
+    // Only mark as configured if Raindrop is enabled AND we have a deployed version
+    const hasVersion = SMART_MEMORY_CONFIG.version.length > 0;
+    const configured =
+      settings.enabled && Boolean(settings.apiKey) && hasVersion;
     setIsConfigured(configured);
     return configured;
   }, []);

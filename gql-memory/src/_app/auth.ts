@@ -7,7 +7,7 @@ import { requireAuthenticated, verifyIssuer } from '@liquidmetal-ai/raindrop-fra
  *  **Note**: adds `jwt` property to `env` if verification is successful.
  * @returns true to allow request to continue.
  */
-export const verify: typeof verifyIssuer = verifyIssuer;
+export const verify = verifyIssuer;
 
 /**
  * authorize is the application-wide authorization hook.
@@ -15,4 +15,4 @@ export const verify: typeof verifyIssuer = verifyIssuer;
  * @param env The handler environment object with env.jwt set by verify.
  * @returns true if authorized, false otherwise.
  */
-export const authorize: typeof requireAuthenticated = requireAuthenticated;
+export const authorize = requireAuthenticated;
