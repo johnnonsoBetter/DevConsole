@@ -17,7 +17,7 @@ import {
   Terminal,
   Video,
 } from 'lucide-react';
-import { lazy, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { GraphQLIcon, LogoIcon, VSCodeIcon } from '../../icons';
 // TODO: Re-enable when Tools panel is needed
 // import {
@@ -165,7 +165,18 @@ export function DevConsolePanel({ githubConfig, compact = false, allowedTabs }: 
               {tab.id === 'notes' && <NotesPanel />}
               {tab.id === 'video' && <VideoCallPanel onOpenSettings={() => setActiveTab('settings')} />}
               {tab.id === 'actions' && <CodeActionsPanel />}
-              {tab.id === 'graphql' && <GraphQLExplorer />}
+              {tab.id === 'graphql' && (
+                <Suspense fallback={
+                  <div className="h-full flex items-center justify-center">
+                    <div className="text-center">
+                      <GraphQLIcon className="w-12 h-12 text-[#E10098] mx-auto mb-3 animate-pulse" />
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Loading GraphQL Explorer...</p>
+                    </div>
+                  </div>
+                }>
+                  <GraphQLExplorer />
+                </Suspense>
+              )}
               {/* {tab.id === 'tools' && <ToolsPanel />} */}{/* TODO: Re-enable when Tools panel is needed */}
               {tab.id === 'github' && (
                 <GitHubIssuesTab

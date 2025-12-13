@@ -6,34 +6,34 @@
 
 
 import {
-  AudioTrack,
-  useConnectionState,
-  useLocalParticipant,
-  useParticipants,
-  useRoomContext,
-  useTracks,
-  VideoTrack,
+    AudioTrack,
+    useConnectionState,
+    useLocalParticipant,
+    useParticipants,
+    useRoomContext,
+    useTracks,
+    VideoTrack,
 } from '@livekit/components-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ConnectionState, Participant, RemoteTrackPublication, RoomEvent, Track } from 'livekit-client';
 import {
-  Brain,
-  Copy,
-  FileText,
-  Hand,
-  Mic,
-  MicOff,
-  Monitor,
-  MonitorOff,
-  MoreVertical,
-  PanelRightClose,
-  PanelRightOpen,
-  PhoneOff,
-  User,
-  Users,
-  Video,
-  VideoOff,
-  X
+    Brain,
+    Copy,
+    FileText,
+    Hand,
+    Mic,
+    MicOff,
+    Monitor,
+    MonitorOff,
+    MoreVertical,
+    PanelRightClose,
+    PanelRightOpen,
+    PhoneOff,
+    User,
+    Users,
+    Video,
+    VideoOff,
+    X
 } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ReactionType, useCallMemory, useReactionsChannel } from '../hooks';
@@ -105,7 +105,7 @@ export function CustomVideoConference({
   const [isDevConsolePanelOpen, setIsDevConsolePanelOpen] = useState(false);
   const [isTranscriptPanelOpen, setIsTranscriptPanelOpen] = useState(false);
   const [isInsightsPanelOpen, setIsInsightsPanelOpen] = useState(false);
-  const [transcriptSearchTerm, setTranscriptSearchTerm] = useState('');
+  const [transcriptSearchTerm] = useState('');
   const [activeSpeakerId, setActiveSpeakerId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 

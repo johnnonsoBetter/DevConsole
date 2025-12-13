@@ -10,6 +10,7 @@
  * - Real-time filtering and search
  */
 
+import { useTranscriptions } from '@livekit/components-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Brain,
@@ -30,7 +31,6 @@ import {
   useRef,
   useState,
 } from 'react';
-import { useTranscriptions } from '@livekit/components-react';
 
 // ============================================================================
 // TYPES
