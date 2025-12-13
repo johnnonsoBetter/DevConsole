@@ -304,6 +304,62 @@ export function useGraphQLSmartMemoryV3() {
   );
 
   /**
+   * Get list of all indexed schemas
+   */
+  const getIndexedSchemas = useCallback(async (): Promise<
+    IndexedSchemaInfo[]
+  > => {
+    try {
+      const client = await getClient();
+
+      const result = await client.listProcedures.create({
+        smartMemoryLocation: getLocation(),
+      });
+
+      const schemas: IndexedSchemaInfo[] = [];
+      for (const proc of result.procedures || []) {
+        if (proc.key?.startsWith("schema:indexed:") && proc.value) {
+          try {
+            const info = JSON.parse(proc.value) as IndexedSchemaInfo;
+            schemas.push(info);
+          } catch {
+            // Skip malformed entries
+          }
+        }
+      }
+
+      return schemas.sort((a, b) => b.indexedAt - a.indexedAt);
+    } catch (err) {
+      console.error("Failed to get indexed schemas:", err);
+      return [];
+    }
+  }, [getClient, getLocation]);
+
+  /**
+   * Remove the indexed schema marker (to force re-indexing)
+   */
+  const clearSchemaIndex = useCallback(
+    async (endpoint: string): Promise<boolean> => {
+      try {
+        const client = await getClient();
+        const key = getEndpointKey(endpoint);
+
+        const result = await client.deleteProcedure.create({
+          smartMemoryLocation: getLocation(),
+          key,
+        });
+
+        setSchemaStats(null);
+        return result.success ?? false;
+      } catch (err) {
+        console.error("Failed to clear schema index:", err);
+        return false;
+      }
+    },
+    [getClient, getLocation]
+  );
+
+  /**
    * Batch store entire schema from introspection.
    *
    * @param introspectionData - GraphQL introspection result

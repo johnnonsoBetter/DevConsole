@@ -1,4 +1,7 @@
-import { requireAuthenticated, verifyIssuer } from '@liquidmetal-ai/raindrop-framework/core/auth';
+import {
+  requireAuthenticated,
+  verifyIssuer,
+} from "@liquidmetal-ai/raindrop-framework/core/auth";
 
 /**
  * verify is the application-wide JWT verification hook.
