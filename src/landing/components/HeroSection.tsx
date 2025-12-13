@@ -71,17 +71,17 @@ export const HeroSection: React.FC = () => {
       <div className="relative z-10 max-w-[1400px] mx-auto px-6 lg:px-10 text-center">
         {/* Badge */}
         <motion.div 
-          className="flex items-center gap-2 px-4 py-2 bg-gray-50 border border-gray-200/60 rounded-full mb-8 shadow-sm"
+          className="flex items-center gap-2 px-4 py-2 bg-purple-50 border border-purple-200/60 rounded-full mb-8 shadow-sm"
           initial={{ opacity: 0, y: 20, scale: 0.9 }}
           animate={isInView ? { opacity: 1, y: 0, scale: 1 } : {}}
           transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
         >
           <motion.span 
-            className="w-2 h-2 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)]"
+            className="w-2 h-2 bg-purple-500 rounded-full shadow-[0_0_8px_rgba(147,51,234,0.5)]"
             animate={{ scale: [1, 1.2, 1] }}
             transition={{ duration: 2, repeat: Infinity }}
           />
-          <span className="text-[13px] font-medium text-gray-600">Now with Chrome Built-in AI</span>
+          <span className="text-[13px] font-medium text-purple-700">Powered by SmartMemory</span>
         </motion.div>
         
         {/* Main Headline with character animation */}
@@ -96,7 +96,14 @@ export const HeroSection: React.FC = () => {
             animate={isInView ? { opacity: 1, y: 0 } : {}}
             transition={{ duration: 0.6, delay: 0.2 }}
           >
-            Experience{' '}
+            Debug.{' '}
+          </motion.span>
+          <motion.span
+            initial={{ opacity: 0, y: 20 }}
+            animate={isInView ? { opacity: 1, y: 0 } : {}}
+            transition={{ duration: 0.6, delay: 0.25 }}
+          >
+            Meet.{' '}
           </motion.span>
           <motion.span
             className="bg-gradient-to-r from-purple-600 via-blue-600 to-emerald-500 bg-clip-text text-transparent pb-2"
@@ -104,7 +111,7 @@ export const HeroSection: React.FC = () => {
             animate={isInView ? { opacity: 1, y: 0 } : {}}
             transition={{ duration: 0.6, delay: 0.3 }}
           >
-            liftoff
+            Remember.
           </motion.span>
         </motion.h1>
         
@@ -114,7 +121,7 @@ export const HeroSection: React.FC = () => {
           animate={isInView ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.6, delay: 0.4, ease: [0.22, 1, 0.36, 1] }}
         >
-          with the next-generation DevTools
+          DevTools + Video Calls that never forget your decisions
         </motion.p>
         
         {/* CTAs with magnetic effect */}
@@ -152,7 +159,7 @@ export const HeroSection: React.FC = () => {
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
           >
-            <span>Explore use cases</span>
+            <span>Try Video Calls</span>
             <motion.span
               animate={{ x: [0, 4, 0] }}
               transition={{ duration: 1.5, repeat: Infinity }}

@@ -12,19 +12,8 @@ export const Navigation: React.FC = () => {
   }, []);
 
   const navItems = [
-    { label: 'Product', href: '#product' },
-    { 
-      label: 'Use Cases', 
-      href: '#use-cases',
-      dropdown: [
-        { label: 'Frontend Developer', href: '#frontend' },
-        { label: 'Full-stack Developer', href: '#fullstack' },
-        { label: 'Backend Engineer', href: '#backend' },
-        { label: 'DevOps Engineer', href: '#devops' },
-      ]
-    },
-    { label: 'Pricing', href: '#pricing' },
-    { label: 'Blog', href: '#blog' },
+    { label: 'Features', href: '#features' },
+    { label: 'Video Calls', href: '#rooms-with-memory' },
     { 
       label: 'Resources', 
       href: '#resources',

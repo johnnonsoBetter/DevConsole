@@ -19,3 +19,4 @@ export type { TextStreamData } from "@livekit/components-core";
 export { useTranscriptionManager } from "./useTranscription";
 
 export { useCallMemory } from "./useCallMemory";
+export { useCallMemoryV2 } from "./useCallMemoryV2";

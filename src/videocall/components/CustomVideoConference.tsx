@@ -50,6 +50,7 @@ import { RaisedHandsV2 } from './RaisedHandsV2';
 import { ReactionPicker as ReactionPickerV2 } from './ReactionPickerV2';
 import { TranscriptPanel } from './TranscriptPanel';
 import { ControlButton } from './ui';
+import { useCallMemoryStore } from '@/utils/stores';
 
 // ============================================================================
 // HELPERS
@@ -130,7 +131,10 @@ export function CustomVideoConference({
     addTurn,
     hasTurn,
     endSession,
+    
   } = useCallMemory();
+
+  const {_client} = useCallMemoryStore()
   
   // Track if memory session has been started
   const memorySessionStartedRef = useRef(false);
@@ -878,7 +882,7 @@ export function CustomVideoConference({
               <div className="h-full w-[450px]">
                 <DevConsolePanel 
                   compact 
-                  allowedTabs={['github', 'actions', 'notes', 'settings']}
+                  allowedTabs={['logs', 'network', 'github', 'actions', 'notes', 'settings']}
                 />
               </div>
             </Suspense>

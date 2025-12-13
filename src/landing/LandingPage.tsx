@@ -1,15 +1,12 @@
 import React, { useEffect } from 'react';
 import { AutofillSection } from './components/AutofillSection';
-import { CrossSurfaceSection } from './components/CrossSurfaceSection';
 import { FeatureShowcase } from './components/FeatureShowcase';
 import { Footer } from './components/Footer';
 import { GitHubSection } from './components/GitHubSection';
 import { HeroSection } from './components/HeroSection';
-import { MassiveStatementSection } from './components/MassiveStatementSection';
 import { Navigation } from './components/Navigation';
 import { ProductOverview } from './components/ProductOverview';
-import { StickyNotesSection } from './components/StickyNotesSection';
-import { UseCasesCarousel } from './components/UseCasesCarousel';
+import { RoomsWithMemorySection } from './components/RoomsWithMemorySection';
 
 export const LandingPage: React.FC = () => {
   // Smooth scroll behavior for anchor links
@@ -26,15 +23,11 @@ export const LandingPage: React.FC = () => {
       
       <main>
         <HeroSection />
-        <MassiveStatementSection />
-       
         <ProductOverview />
+        <RoomsWithMemorySection />
         <FeatureShowcase />
-        <StickyNotesSection />
-        <AutofillSection />
         <GitHubSection />
-        <UseCasesCarousel />
-        <CrossSurfaceSection />
+        <AutofillSection />
       </main>
 
       <Footer />
