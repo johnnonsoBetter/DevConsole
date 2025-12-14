@@ -31,6 +31,8 @@ export const useAutofillSettingsStore = create<AutofillSettingsState>(
           [AUTOFILL_SETTINGS_KEY]: { isEnabled: enabled },
         });
       } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (/extension context invalidated/i.test(message)) return;
         console.error("Failed to save autofill settings:", error);
       }
     },
@@ -50,7 +52,10 @@ export const useAutofillSettingsStore = create<AutofillSettingsState>(
           set({ isLoaded: true });
         }
       } catch (error) {
-        console.error("Failed to load autofill settings:", error);
+        const message = error instanceof Error ? error.message : String(error);
+        if (!/extension context invalidated/i.test(message)) {
+          console.error("Failed to load autofill settings:", error);
+        }
         set({ isLoaded: true });
       }
     },

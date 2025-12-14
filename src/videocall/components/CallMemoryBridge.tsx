@@ -4,7 +4,7 @@
  * Provides access to call memory state and functions.
  * 
  * NOTE: Session lifecycle is now managed directly in CustomVideoConference
- * using RoomEvent.TranscriptionReceived for immediate storage.
+ * using the useTranscriptions hook for immediate storage via text streams.
  * 
  * The CallMemoryBridge component is kept for backward compatibility but
  * is no longer the primary way to handle transcription storage.

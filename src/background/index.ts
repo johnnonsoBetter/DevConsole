@@ -154,19 +154,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           }
         });
       }
+      sendResponse({ success: true });
       break;
 
     case "CONSOLE_LOG":
       handleConsoleLog(message.payload, tabId);
+      sendResponse({ success: true });
       break;
 
     case "NETWORK_REQUEST":
       console.log("Network request payload:", message.payload);
       handleNetworkRequest(message.payload, tabId);
+      sendResponse({ success: true });
       break;
 
     case "DEVCONSOLE_UNLOAD":
       // Handle page unload - could be used for cleanup if needed
+      sendResponse({ success: true });
       break;
 
     case "GET_STATE":
@@ -187,18 +191,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     case "UPDATE_SETTINGS":
       updateSettings(message.payload);
+      sendResponse({ success: true });
       break;
 
     case "CLEAR_LOGS":
       clearLogs(message.tabId);
+      sendResponse({ success: true });
       break;
 
     case "CLEAR_NETWORK":
       clearNetworkRequests(message.tabId);
+      sendResponse({ success: true });
       break;
 
     case "TOGGLE_RECORDING":
       toggleRecording();
+      sendResponse({ success: true });
       break;
 
     // Autofill feature messages
@@ -215,6 +223,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     default:
       console.warn("Unknown message type:", message.type);
+      sendResponse({ success: false, error: "Unknown message type" });
   }
 
   return keepChannelOpen;

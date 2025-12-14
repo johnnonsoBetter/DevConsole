@@ -139,7 +139,13 @@ function sendRuntimeMessageNoResponse(message: any) {
     chrome.runtime.sendMessage(message, () => {
       const err = chrome.runtime.lastError;
       if (!err) return;
-      if (/message channel closed/i.test(err.message ?? '')) return;
+      if (
+        /message channel closed/i.test(err.message ?? '') ||
+        /message port closed/i.test(err.message ?? '') ||
+        /extension context invalidated/i.test(err.message ?? '')
+      ) {
+        return;
+      }
       console.warn('[Popup] Message failed:', err.message);
     });
   } catch (error) {
@@ -1313,4 +1319,3 @@ function NotesView({ onBack }: { onBack: () => void }) {
 }
 
 export default PopupApp;
-

@@ -34,11 +34,15 @@ export function sendBackgroundCommand(type: string, payload?: any) {
     if (!err) return;
 
     // Ignore the noisy async warning Chrome emits when no response is expected
-    if (/message channel closed/i.test(err.message ?? "")) {
+    if (
+      /message channel closed/i.test(err.message ?? "") ||
+      /message port closed/i.test(err.message ?? "") ||
+      /extension context invalidated/i.test(err.message ?? "")
+    ) {
       return;
     }
 
-    console.error('[DevConsole] Failed to send command:', err);
+    console.error('[DevConsole] Failed to send command:', err.message ?? err);
   });
 }
 
@@ -99,7 +103,7 @@ export function initializeBackgroundBridge() {
   // Request initial state from background
   chrome.runtime.sendMessage({ type: 'GET_STATE', tabId: inspectedTabId }, (response) => {
     if (chrome.runtime.lastError) {
-      console.error('Failed to get initial state:', chrome.runtime.lastError);
+      console.error('Failed to get initial state:', chrome.runtime.lastError.message);
       return;
     }
 

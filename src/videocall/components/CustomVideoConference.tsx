@@ -1,11 +1,4 @@
 
-
-
-
-
-
-
-import { useCallMemoryStore } from '@/utils/stores';
 import {
   AudioTrack,
   useConnectionState,
@@ -13,6 +6,7 @@ import {
   useParticipants,
   useRoomContext,
   useTracks,
+  useTranscriptions,
   VideoTrack,
 } from '@livekit/components-react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -30,6 +24,7 @@ import {
   PanelRightClose,
   PanelRightOpen,
   PhoneOff,
+  Search,
   User,
   Users,
   Video,
@@ -37,10 +32,10 @@ import {
   X
 } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ReactionType, useCallMemory, useReactionsChannel } from '../hooks';
-import type { TranscriptTurn } from '../lib/callMemoryTypes';
+import { ReactionType, useCallMemoryV2, useReactionsChannel } from '../hooks';
 import type { Participant as ParticipantType } from '../types';
 import { AgentIndicator } from './AgentIndicator';
+import { CallMemorySearchPanel } from './CallMemorySearchPanel';
 import { FloatingReactionsV2 } from './FloatingReactionsV2';
 import { InsightsPanel } from './InsightsPanel';
 import { LiveCaptions } from './LiveCaptions';
@@ -106,6 +101,7 @@ export function CustomVideoConference({
   const [isDevConsolePanelOpen, setIsDevConsolePanelOpen] = useState(false);
   const [isTranscriptPanelOpen, setIsTranscriptPanelOpen] = useState(false);
   const [isInsightsPanelOpen, setIsInsightsPanelOpen] = useState(false);
+  const [isSmartSearchPanelOpen, setIsSmartSearchPanelOpen] = useState(false);
   const [transcriptSearchTerm] = useState('');
   const [activeSpeakerId, setActiveSpeakerId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -121,23 +117,22 @@ export function CustomVideoConference({
     isLocalHandRaised,
   } = useReactionsChannel();
   
-  // Call memory integration - syncs transcripts to SmartMemory IMMEDIATELY
-  // Uses shared API key from room metadata if provided by room creator
+  // Call memory integration (V2) - stores each final transcript turn immediately
+  // Uses shared API key from room metadata if provided by room creator.
   const {
     canUseMemory,
+    sessionId: memorySessionId,
     state: memoryState,
-    displayName: _displayName, // Available if needed
-    startSession,
-    addTurn,
-    hasTurn,
+    addTranscription,
+    searchMemories,
+    getMemories,
+    summarizeMemories,
     endSession,
-    
-  } = useCallMemory();
+    error: memoryError,
+    clearError: clearMemoryError,
+  } = useCallMemoryV2();
 
-  useCallMemoryStore()
-  
-  // Track if memory session has been started
-  const memorySessionStartedRef = useRef(false);
+  const storedTranscriptIdsRef = useRef<Set<string>>(new Set());
   
   // Participant events for join/leave notifications
   const { events: participantEvents, addEvent, dismissEvent } = useParticipantEvents();
@@ -169,88 +164,56 @@ export function CustomVideoConference({
     };
   }, [room, addEvent, activeSpeakerId]);
 
-  // Start memory session when room connects (if API key available in room metadata)
-  useEffect(() => {
-    if (!canUseMemory || memorySessionStartedRef.current) {
-      return;
-    }
+  // Use LiveKit's transcription hook - provides text streams for all participants
+  // Each TextStreamData contains: { text, participantInfo, streamInfo }
+  const transcriptions = useTranscriptions();
 
-    if (connectionState === ConnectionState.Connected) {
-      console.log('[CustomVideoConference] Starting memory session');
-      memorySessionStartedRef.current = true;
-      startSession().catch((err) => {
-        console.error('[CustomVideoConference] Failed to start memory session:', err);
-        memorySessionStartedRef.current = false;
+  // Store final transcriptions to working memory
+  // Text streams accumulate chunks, so we wait for 'lk.transcription_final' attribute
+  useEffect(() => {
+    if (!canUseMemory || !transcriptions.length) return;
+
+    for (const stream of transcriptions) {
+      // Get the unique stream ID - this identifies the transcription segment
+      const streamId = stream.streamInfo?.id;
+      if (!streamId || !stream.text?.trim()) continue;
+
+      // Check if transcription is complete (final)
+      // LiveKit sets this attribute when the segment is fully transcribed
+      const isFinal = stream.streamInfo?.attributes?.['lk.transcription_final'] === 'true';
+      if (!isFinal) continue;
+
+      // Skip if already stored (prevents duplicates)
+      if (storedTranscriptIdsRef.current.has(streamId)) continue;
+      storedTranscriptIdsRef.current.add(streamId);
+
+      // Get speaker identity from participantInfo (provided by useTranscriptions)
+      const identity = stream.participantInfo?.identity;
+      const isLocal = identity === localParticipant?.identity;
+      const agent = isLocal ? 'You' : identity || 'Unknown';
+
+      console.log('[CustomVideoConference] 📝 Storing transcription:', {
+        id: streamId,
+        agent,
+        text: stream.text.substring(0, 50),
+      });
+
+      void addTranscription({
+        text: stream.text,
+        trackSid: streamId,
+        agent,
+      }).then((memoryId) => {
+        // If storage failed, allow retry on future updates
+        if (!memoryId) storedTranscriptIdsRef.current.delete(streamId);
       });
     }
-  }, [canUseMemory, connectionState, startSession]);
-
-  // Handle transcription received - store IMMEDIATELY to working memory
-  useEffect(() => {
-    if (memoryState !== 'connected') {
-      return;
-    }
-
-    // Listen for transcription events directly from the room
-    const handleTranscriptionReceived = (
-      segments: Array<{
-        id: string;
-        text: string;
-        language: string;
-        startTime: number;
-        endTime: number;
-        final: boolean;
-        firstReceivedTime: number;
-        lastReceivedTime: number;
-      }>,
-      participant?: Participant
-    ) => {
-      for (const segment of segments) {
-        // Only store final transcriptions
-        if (!segment.final) continue;
-        
-        // Skip if already stored
-        if (hasTurn(segment.id)) continue;
-
-        const speakerName = participant?.name || participant?.identity || 'Unknown';
-        const isLocal = participant?.isLocal ?? false;
-
-        const turn: TranscriptTurn = {
-          id: segment.id,
-          participantIdentity: participant?.identity || 'unknown',
-          participantName: isLocal ? 'You' : speakerName,
-          text: segment.text,
-          timestamp: segment.firstReceivedTime || Date.now(),
-          isLocal,
-        };
-
-        console.log('[CustomVideoConference] 📝 Storing transcription immediately:', {
-          id: turn.id,
-          speaker: turn.participantName,
-          text: turn.text.substring(0, 50),
-        });
-
-        // Store immediately
-        addTurn(turn).catch((err) => {
-          console.error('[CustomVideoConference] Failed to store turn:', err);
-        });
-      }
-    };
-
-    room.on(RoomEvent.TranscriptionReceived, handleTranscriptionReceived);
-
-    return () => {
-      room.off(RoomEvent.TranscriptionReceived, handleTranscriptionReceived);
-    };
-  }, [room, memoryState, addTurn, hasTurn]);
+  }, [transcriptions, canUseMemory, addTranscription, localParticipant?.identity]);
 
   // End memory session on unmount
   useEffect(() => {
     return () => {
-      if (memorySessionStartedRef.current) {
-        console.log('[CustomVideoConference] Ending memory session');
-        endSession(true).catch(console.error);
-      }
+      console.log('[CustomVideoConference] Ending memory session');
+      void endSession(true);
     };
   }, [endSession]);
 
@@ -826,6 +789,19 @@ export function CustomVideoConference({
             </div>
           )}
 
+          {/* Smart Search - semantic + AI insights (hidden on small mobile) */}
+          {canUseMemory && (
+            <div className="hidden xs:block">
+              <ControlButton
+                icon={Search}
+                isActive={isSmartSearchPanelOpen}
+                onClick={() => setIsSmartSearchPanelOpen((prev) => !prev)}
+                label={isSmartSearchPanelOpen ? 'Hide smart search' : 'Smart search'}
+                size="sm"
+              />
+            </div>
+          )}
+
           {/* Reactions - self-contained with trigger */}
           <ReactionPickerV2 onSelectReaction={handleReaction} />
           
@@ -931,6 +907,25 @@ export function CustomVideoConference({
           />
         )}
       </AnimatePresence>
+
+      {/* Smart Search Panel Sidebar */}
+      <AnimatePresence>
+        {isSmartSearchPanelOpen && (
+          <CallMemorySearchPanel
+            isOpen={isSmartSearchPanelOpen}
+            onClose={() => setIsSmartSearchPanelOpen(false)}
+            className="h-full"
+            canUseMemory={canUseMemory}
+            memoryState={memoryState}
+            sessionId={memorySessionId}
+            memoryError={memoryError}
+            clearMemoryError={clearMemoryError}
+            searchMemories={searchMemories}
+            getMemories={getMemories}
+            summarizeMemories={summarizeMemories}
+          />
+        )}
+      </AnimatePresence>
       
       {/* Participant join/leave notifications */}
       <ParticipantToast
@@ -940,4 +935,3 @@ export function CustomVideoConference({
     </div>
   );
 }
-

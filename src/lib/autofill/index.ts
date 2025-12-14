@@ -260,3 +260,11 @@ export function cleanupAutofill(): void {
 export function getDataStore(): DataStore | null {
   return dataStore;
 }
+
+// Export new feature modules
+export { generateRelationalPersona } from "./personaGenerator";
+export { SCENARIO_PRESETS, getPreset, getScenarioDatasets } from "./scenarioPresets";
+export { analyzeComplexField, getComplexFieldSuggestions, getComplexFieldSuggestionsAsync, generateSmartResponse, isAIReadyForAutofill } from "./llmFieldUnderstanding";
+export { typeWithAnimation, fillFieldsWithAnimation, runDemoMode, stopTyping, pauseTyping, resumeTyping, SPEED_PRESETS, type TypingConfig } from "./typingAnimation";
+export { fillWithScenario, runAutofillDemo, updateAutofillSettings, getAutofillSettings, getSmartSuggestionsAsync, generateAIResponse } from "./fillLogic";
+export type { AutofillMode, AutofillSettings, RelationalPersona, TestScenario } from "./types";

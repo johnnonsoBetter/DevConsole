@@ -1,16 +1,17 @@
+
 /**
  * InsightsPanel Component
- * Analyzes the transcript to extract key insights
+ * Analyzes the transcript to extract key insights using NLP
  * 
  * Features:
- * - Extracts questions from the conversation
- * - Identifies decisions made
- * - Finds action items and todos
- * - Detects key topics discussed
+ * - Extracts questions using compromise.js NLP analysis
+ * - Identifies decisions made with modal verb detection
+ * - Finds action items and todos with verb phrase patterns
+ * - Detects key topics discussed with noun phrase extraction
  * - Real-time filtering and search
  */
-
 import { useTranscriptions } from '@livekit/components-react';
+import nlp from 'compromise';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Brain,
@@ -121,35 +122,155 @@ const INSIGHT_CATEGORIES: InsightCategory[] = [
   },
 ];
 
-// Patterns to detect different insight types
-const INSIGHT_PATTERNS = {
-  question: [
-    /\?$/,                           // Ends with question mark
-    /^(what|who|where|when|why|how|can|could|would|should|is|are|do|does|did|will|have|has)/i,
-    /^(any thoughts|any ideas|what do you think|does anyone)/i,
-  ],
-  decision: [
-    /^(let's|we'll|we will|we should|we're going to|we are going to|decided to|decision is|agreed to)/i,
-    /(let's go with|we'll do|we decided|the plan is|we're doing)/i,
-    /(final decision|agreed upon|consensus is|settled on)/i,
-  ],
-  action: [
-    /^(i'll|i will|we need to|someone needs to|action item|todo|to do)/i,
-    /(take care of|follow up|send|schedule|create|update|fix|implement|review)/i,
-    /(by tomorrow|by end of|by next week|deadline|due date|asap)/i,
-    /^(can you|could you|would you|please)/i,
-  ],
-  topic: [
-    /^(regarding|about|concerning|speaking of|on the topic of)/i,
-    /(the main point|key takeaway|important thing|bottom line)/i,
-    /(in summary|to summarize|overall|essentially)/i,
-  ],
-};
+// ============================================================================
+// NLP-POWERED INSIGHT DETECTION (using compromise.js)
+// ============================================================================
+
+/**
+ * Detect if text is a question using NLP analysis
+ * Uses compromise.js sentence analysis and question word detection
+ */
+function detectQuestion(text: string): boolean {
+  const doc = nlp(text);
+  
+  // Check for question mark (punctuation-based)
+  if (doc.has('@hasQuestionMark')) return true;
+  
+  // Check if sentence structure is a question
+  if (doc.sentences().isQuestion().found) return true;
+  
+  // Check for question words at the start
+  if (doc.has('^#QuestionWord')) return true;
+  
+  // Check for auxiliary/modal + subject patterns (inverted questions)
+  // "Do you...", "Can we...", "Would you...", "Is this..."
+  if (doc.has('^(do|does|did|is|are|was|were|can|could|would|should|will|have|has|may|might) #Noun')) return true;
+  if (doc.has('^(do|does|did|is|are|was|were|can|could|would|should|will|have|has|may|might) #Pronoun')) return true;
+  
+  // Common question phrases
+  if (doc.has('^(any thoughts|any ideas|what do you think|does anyone|how about)')) return true;
+  
+  return false;
+}
+
+/**
+ * Detect if text contains a decision using NLP analysis
+ * Looks for modal verbs with first-person plural and decision phrases
+ */
+function detectDecision(text: string): boolean {
+  const doc = nlp(text);
+  
+  // "Let's" patterns - collaborative decisions
+  if (doc.has("^let's")) return true;
+  if (doc.has("let's #Verb")) return true;
+  
+  // "We will/should/are going to" - future commitment patterns
+  if (doc.has('^we #Modal #Verb')) return true;
+  if (doc.has('^we are going to #Verb')) return true;
+  if (doc.has("^we're going to #Verb")) return true;
+  if (doc.has('^we will #Verb')) return true;
+  if (doc.has("^we'll #Verb")) return true;
+  
+  // Decision keywords
+  if (doc.has('(decided|decision|agree|agreed|consensus|settled|finalized)')) return true;
+  
+  // "The plan is" type patterns
+  if (doc.has('the (plan|decision|choice|approach) (is|was)')) return true;
+  
+  // "Go with" selection patterns
+  if (doc.has("(let's|we'll|we will) go with")) return true;
+  
+  return false;
+}
+
+/**
+ * Detect if text contains an action item using NLP analysis
+ * Looks for future tense commitments, imperatives, and task language
+ */
+function detectAction(text: string): boolean {
+  const doc = nlp(text);
+  
+  // First person future commitments: "I'll", "I will"
+  if (doc.has("^i'll #Verb")) return true;
+  if (doc.has('^i will #Verb')) return true;
+  if (doc.has("^i'm going to #Verb")) return true;
+  
+  // "We need to" obligation patterns
+  if (doc.has('(we|someone|somebody) (need|needs) to #Verb')) return true;
+  if (doc.has('(we|i) (have|has) to #Verb')) return true;
+  
+  // Request patterns: "Can you", "Could you", "Would you"
+  if (doc.has('^(can|could|would|will) (you|someone) #Verb')) return true;
+  if (doc.has('^please #Verb')) return true;
+  
+  // Task keywords with verbs
+  if (doc.has('(action item|todo|to-do|task|follow up|follow-up)')) return true;
+  
+  // Common action verbs in imperative or future context
+  if (doc.has('#PresentTense (and|then) #Verb')) return true;
+  
+  // Deadline indicators
+  if (doc.has('(by|before|until) (tomorrow|monday|tuesday|wednesday|thursday|friday|next week|end of|eod|eow)')) return true;
+  if (doc.has('(deadline|due date|due by|asap|urgent|priority)')) return true;
+  
+  // Assignment patterns
+  if (doc.has('#Person (will|should|can|needs to) #Verb')) return true;
+  
+  return false;
+}
+
+/**
+ * Detect if text contains a key topic or summary using NLP analysis
+ * Looks for topic markers, summary phrases, and key noun phrases
+ */
+function detectTopic(text: string): boolean {
+  const doc = nlp(text);
+  
+  // Topic introduction phrases
+  if (doc.has('^(regarding|about|concerning|speaking of|on the topic of|as for)')) return true;
+  
+  // Summary/conclusion phrases  
+  if (doc.has('(in summary|to summarize|overall|essentially|basically|in short|the bottom line)')) return true;
+  
+  // Key point indicators
+  if (doc.has('(the main point|key takeaway|important thing|key thing|main idea|core issue)')) return true;
+  
+  // Emphasis markers
+  if (doc.has('(most importantly|the key is|what matters is|the crux is)')) return true;
+  
+  // "The X is..." definitional patterns (topic setting)
+  if (doc.has('^the (issue|problem|challenge|question|topic|subject|focus|goal|objective) (is|here)')) return true;
+  
+  // Transitional topic markers
+  if (doc.has('^(now|next|also|another thing|one more thing)')) return true;
+  
+  return false;
+}
+
+/**
+ * Analyze text and return detected insight types using NLP
+ * Returns array of insight types found in the text
+ */
+function analyzeTextForInsights(text: string): InsightType[] {
+  const types: InsightType[] = [];
+  
+  // Run all detectors (order matters for priority)
+  if (detectQuestion(text)) types.push('question');
+  if (detectDecision(text)) types.push('decision');
+  if (detectAction(text)) types.push('action');
+  if (detectTopic(text)) types.push('topic');
+  
+  return types;
+}
 
 // ============================================================================
 // INSIGHT EXTRACTION
 // ============================================================================
 
+/**
+ * Extract insights from transcript segments using NLP analysis
+ * Uses compromise.js for natural language understanding
+ */
 function extractInsights(segments: SimpleSegment[]): Insight[] {
   const insights: Insight[] = [];
   const seenIds = new Set<string>();
@@ -160,24 +281,22 @@ function extractInsights(segments: SimpleSegment[]): Insight[] {
     
     const text = segment.text.trim();
     
-    // Check each insight type
-    for (const [type, patterns] of Object.entries(INSIGHT_PATTERNS) as [InsightType, RegExp[]][]) {
-      for (const pattern of patterns) {
-        if (pattern.test(text)) {
-          const id = `${segment.id}-${type}`;
-          if (!seenIds.has(id)) {
-            seenIds.add(id);
-            insights.push({
-              id,
-              type,
-              content: text,
-              speaker: segment.speaker,
-              timestamp: segment.timestamp,
-              context: text,
-            });
-          }
-          break; // Only match once per type per segment
-        }
+    // Use NLP to analyze the text and detect insight types
+    const detectedTypes = analyzeTextForInsights(text);
+    
+    // Create an insight for each detected type
+    for (const type of detectedTypes) {
+      const id = `${segment.id}-${type}`;
+      if (!seenIds.has(id)) {
+        seenIds.add(id);
+        insights.push({
+          id,
+          type,
+          content: text,
+          speaker: segment.speaker,
+          timestamp: segment.timestamp,
+          context: text,
+        });
       }
     }
   }

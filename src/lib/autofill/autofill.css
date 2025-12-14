@@ -9,14 +9,25 @@
 .autofill-suggestion-box {
   position: absolute;
   z-index: 2147483647 !important;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  max-width: 440px;
   padding: 12px;
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  background: rgba(17, 24, 39, 0.96);
+  color: #f9fafb;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  box-shadow:
+    0 16px 48px rgba(0, 0, 0, 0.35),
+    0 4px 16px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(14px);
+
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   animation: autofillSlideIn 0.2s ease-out;
-  max-width: 400px;
+}
+
+.autofill-suggestion-box,
+.autofill-suggestion-box * {
+  box-sizing: border-box;
 }
 
 @keyframes autofillSlideIn {
@@ -32,50 +43,178 @@
 
 .autofill-header {
   display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 6px 10px 6px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.autofill-header-left {
+  display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px;
-  margin-bottom: 8px;
-  border-bottom: 1px solid #e5e7eb;
+  gap: 10px;
+  min-width: 0;
+}
+
+.autofill-header-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .autofill-icon {
   width: 16px;
   height: 16px;
-  color: #3b82f6;
+  color: #a78bfa;
 }
 
 .autofill-title {
   font-size: 13px;
-  font-weight: 600;
-  color: #374151;
+  font-weight: 700;
+  color: #ffffff;
+  line-height: 1.1;
+}
+
+.autofill-subtitle {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.65);
+  margin-top: 2px;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: capitalize;
+}
+
+.autofill-close-btn {
+  all: unset;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.85);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+  flex-shrink: 0;
+}
+
+.autofill-close-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  transform: translateY(-1px);
+}
+
+.autofill-close-btn:active {
+  transform: translateY(0);
+}
+
+.autofill-close-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.35);
+}
+
+.autofill-close-btn svg {
+  width: 16px;
+  height: 16px;
 }
 
 .autofill-suggestions {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  max-height: 300px;
+  gap: 8px;
+  max-height: 320px;
   overflow-y: auto;
+  padding: 2px;
 }
 
 .autofill-btn {
-  padding: 10px 14px;
-  background: #f3f4f6;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
+  all: unset;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
   cursor: pointer;
-  font-size: 14px;
-  color: #374151;
+  font-size: 13px;
+  font-weight: 600;
+  color: #f9fafb;
   text-align: left;
-  transition: all 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
 }
 
 .autofill-btn:hover {
-  background: #3b82f6;
-  color: white;
-  border-color: #3b82f6;
-  transform: translateX(4px);
+  background: rgba(139, 92, 246, 0.22);
+  border-color: rgba(167, 139, 250, 0.5);
+  transform: translateY(-1px);
+}
+
+.autofill-btn:active {
+  transform: translateY(0);
+}
+
+.autofill-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.35);
+}
+
+.autofill-btn-index {
+  width: 20px;
+  height: 20px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  flex-shrink: 0;
+}
+
+.autofill-btn-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.autofill-footer {
+  margin-top: 10px;
+  padding: 10px 6px 2px 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.autofill-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.65);
+  line-height: 1.2;
+}
+
+.autofill-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  padding: 2px 6px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.75);
 }
 
 .autofill-trigger-icon {
@@ -83,19 +222,21 @@
   z-index: 2147483646 !important;
   width: 20px;
   height: 20px;
-  background: #3b82f6;
+  background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
   border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.22);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 6px 18px rgba(139, 92, 246, 0.35);
+  opacity: 0.9;
 }
 
 .autofill-trigger-icon:hover {
-  background: #2563eb;
-  transform: scale(1.1);
+  opacity: 1;
+  transform: scale(1.08);
 }
 
 .autofill-trigger-icon svg {
@@ -237,7 +378,7 @@
 .autofill-image-loading {
   padding: 20px;
   text-align: center;
-  color: #6b7280;
+  color: rgba(255, 255, 255, 0.7);
   font-size: 14px;
 }
 
@@ -256,13 +397,13 @@
   overflow: hidden;
   cursor: pointer;
   transition: transform 0.2s ease;
-  border: 2px solid transparent;
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .autofill-image-option:hover {
   transform: scale(1.05);
-  border-color: #3b82f6;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  border-color: rgba(167, 139, 250, 0.55);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.35);
 }
 
 .autofill-image-option img {
@@ -293,14 +434,14 @@
   padding: 8px;
   text-align: center;
   font-size: 11px;
-  color: #9ca3af;
-  border-top: 1px solid #e5e7eb;
+  color: rgba(255, 255, 255, 0.55);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .autofill-image-error {
   padding: 20px;
   text-align: center;
-  color: #ef4444;
+  color: #f87171;
   font-size: 14px;
 }
 
@@ -310,11 +451,31 @@
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
-  .autofill-fill-all-button {
+  .autofill-fill-all-container {
     bottom: 16px !important;
     right: 16px !important;
+  }
+
+  .autofill-fill-all-container .autofill-fill-all-button {
+    padding: 0;
     width: 44px;
     height: 44px;
+  }
+
+  .autofill-fill-all-container .fill-all-label {
+    display: none;
+  }
+
+  .autofill-fill-all-container .fill-all-count {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    min-width: 16px;
+    height: 16px;
+    font-size: 9px;
+    padding: 0 4px;
+    border: 2px solid rgba(255, 255, 255, 0.9);
+    background: #ef4444;
   }
 
   .fill-all-icon {
@@ -322,11 +483,9 @@
     height: 18px;
   }
 
-  .fill-all-count {
-    min-width: 16px;
-    height: 16px;
-    font-size: 9px;
-    padding: 0 4px;
+  .autofill-dropdown-toggle {
+    height: 44px;
+    width: 32px;
   }
 
   .autofill-fill-all-confirmation {
@@ -338,5 +497,418 @@
 
   .autofill-image-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .autofill-dropdown-menu {
+    right: 0 !important;
+    left: auto !important;
+    max-width: calc(100vw - 32px);
+  }
+}
+
+/* ============================================
+   ENHANCED FILL ALL BUTTON WITH DROPDOWN
+   ============================================ */
+
+/* Container for button group */
+.autofill-fill-all-container {
+  position: fixed !important;
+  bottom: 24px !important;
+  right: 24px !important;
+  z-index: 2147483645 !important;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  opacity: 0;
+  transform: translateY(20px) scale(0.8);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.autofill-fill-all-container.visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+/* Main fill button */
+.autofill-fill-all-container .autofill-fill-all-button {
+  position: relative !important;
+  bottom: auto !important;
+  right: auto !important;
+  background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+  color: white;
+  padding: 0 14px;
+  height: 48px;
+  border: none;
+  border-radius: 24px 0 0 24px;
+  box-shadow: 0 4px 16px rgba(139, 92, 246, 0.35);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 1;
+  transform: none;
+}
+
+.autofill-fill-all-container .autofill-fill-all-button:hover {
+  background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+  box-shadow: 0 6px 24px rgba(139, 92, 246, 0.5);
+}
+
+.autofill-fill-all-container .autofill-fill-all-button:focus-visible {
+  outline: none;
+  box-shadow:
+    0 6px 24px rgba(139, 92, 246, 0.5),
+    0 0 0 3px rgba(139, 92, 246, 0.35);
+}
+
+.autofill-fill-all-container .fill-all-label {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.autofill-fill-all-container .fill-all-count {
+  position: static;
+  top: auto;
+  right: auto;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: white;
+  min-width: 22px;
+  height: 20px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  box-shadow: none;
+}
+
+/* Dropdown toggle button */
+.autofill-dropdown-toggle {
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  color: white;
+  padding: 0;
+  width: 36px;
+  height: 48px;
+  border: none;
+  border-left: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0 24px 24px 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.autofill-dropdown-toggle:hover {
+  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+}
+
+.autofill-dropdown-toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.35);
+}
+
+.autofill-dropdown-toggle svg {
+  width: 16px;
+  height: 16px;
+  transition: transform 0.2s ease;
+}
+
+.autofill-dropdown-menu.open + .autofill-dropdown-toggle svg,
+.autofill-fill-all-container:has(.autofill-dropdown-menu.open) .autofill-dropdown-toggle svg {
+  transform: rotate(180deg);
+}
+
+/* Dropdown menu */
+.autofill-dropdown-menu {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  margin-bottom: 8px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1);
+  min-width: 240px;
+  max-height: 400px;
+  overflow-y: auto;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(10px);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.autofill-dropdown-menu.open {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+/* Menu sections */
+.autofill-menu-section {
+  padding: 8px 4px;
+}
+
+.autofill-menu-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #9ca3af;
+  padding: 4px 12px;
+  margin-bottom: 4px;
+}
+
+.autofill-menu-divider {
+  height: 1px;
+  background: #e5e7eb;
+  margin: 0;
+}
+
+/* Menu items */
+.autofill-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  color: #374151;
+  text-align: left;
+  border-radius: 8px;
+  margin: 2px 4px;
+  transition: all 0.15s ease;
+}
+
+.autofill-menu-item:hover {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.autofill-menu-item:active {
+  background: #e5e7eb;
+}
+
+.autofill-menu-item svg {
+  width: 16px;
+  height: 16px;
+  color: #6b7280;
+  flex-shrink: 0;
+}
+
+.autofill-menu-item:hover svg {
+  color: #8b5cf6;
+}
+
+.autofill-menu-item .scenario-icon {
+  font-size: 14px;
+  width: 18px;
+  text-align: center;
+}
+
+/* Speed buttons */
+.autofill-speed-options {
+  display: flex;
+  gap: 4px;
+  padding: 4px 8px;
+}
+
+.autofill-speed-btn {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid #e5e7eb;
+  background: white;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.15s ease;
+}
+
+.autofill-speed-btn:hover {
+  border-color: #8b5cf6;
+  background: #f5f3ff;
+}
+
+.autofill-speed-btn.active {
+  background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+  border-color: #8b5cf6;
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
+}
+
+/* Toggle row */
+.autofill-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  cursor: pointer;
+  border-radius: 8px;
+  margin: 2px 4px;
+  font-size: 13px;
+  color: #374151;
+  transition: background 0.15s ease;
+}
+
+.autofill-toggle-row:hover {
+  background: #f3f4f6;
+}
+
+/* Toggle switch */
+.autofill-toggle {
+  appearance: none;
+  width: 36px;
+  height: 20px;
+  background: #e5e7eb;
+  border-radius: 10px;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.autofill-toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: white;
+  border-radius: 50%;
+  transition: transform 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.autofill-toggle:checked {
+  background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+}
+
+.autofill-toggle:checked::after {
+  transform: translateX(16px);
+}
+
+/* AI Toggle Special Styling */
+.autofill-ai-toggle span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.autofill-ai-toggle .ai-icon {
+  width: 16px;
+  height: 16px;
+  color: #8b5cf6;
+}
+
+.autofill-ai-hint {
+  margin: 4px 12px 8px;
+  padding: 0;
+  font-size: 11px;
+  color: #9ca3af;
+  line-height: 1.4;
+}
+
+.autofill-ai-toggle input:checked + .ai-icon {
+  color: #22c55e;
+}
+
+/* Typing animation indicator */
+.autofill-typing-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 8px;
+  background: rgba(139, 92, 246, 0.1);
+  border-radius: 12px;
+  font-size: 11px;
+  color: #8b5cf6;
+}
+
+.autofill-typing-dot {
+  width: 4px;
+  height: 4px;
+  background: #8b5cf6;
+  border-radius: 50%;
+  animation: typingPulse 1.4s infinite ease-in-out;
+}
+
+.autofill-typing-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.autofill-typing-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes typingPulse {
+  0%, 80%, 100% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .autofill-dropdown-menu {
+    background: #1f2937;
+    border: 1px solid #374151;
+  }
+
+  .autofill-menu-label {
+    color: #9ca3af;
+  }
+
+  .autofill-menu-divider {
+    background: #374151;
+  }
+
+  .autofill-menu-item {
+    color: #e5e7eb;
+  }
+
+  .autofill-menu-item:hover {
+    background: #374151;
+    color: #f9fafb;
+  }
+
+  .autofill-menu-item svg {
+    color: #9ca3af;
+  }
+
+  .autofill-speed-btn {
+    background: #374151;
+    border-color: #4b5563;
+    color: #e5e7eb;
+  }
+
+  .autofill-speed-btn:hover {
+    background: #4b5563;
+    border-color: #8b5cf6;
+  }
+
+  .autofill-toggle-row {
+    color: #e5e7eb;
+  }
+
+  .autofill-toggle-row:hover {
+    background: #374151;
+  }
+
+  .autofill-toggle {
+    background: #4b5563;
   }
 }
