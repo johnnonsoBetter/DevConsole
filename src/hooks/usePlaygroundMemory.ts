@@ -314,6 +314,56 @@ export function usePlaygroundMemory() {
   );
 
   /**
+   * Summarize memories using AI
+   * @param memoryIds - Array of memory IDs to summarize (if empty, summarizes all recent memories)
+   * @param systemPrompt - Optional custom system prompt for the summarization
+   */
+  const summarizeMemory = useCallback(
+    async (
+      memoryIds?: string[],
+      systemPrompt?: string
+    ): Promise<string | null> => {
+      if (!client || !sessionId) {
+        setError("Not connected. Please connect first.");
+        return null;
+      }
+
+      setLocalLoading(true);
+      setError(null);
+
+      try {
+        // If no memoryIds provided, use the current memories
+        const ids = memoryIds?.length
+          ? memoryIds.filter(Boolean)
+          : memories.map((m) => m.id).filter(Boolean);
+
+        if (ids.length === 0) {
+          setError("No memories to summarize.");
+          setLocalLoading(false);
+          return null;
+        }
+
+        const response = await client.summarizeMemory.create({
+          smartMemoryLocation: location,
+          sessionId: sessionId,
+          memoryIds: ids.slice(0, 50), // Limit to 50 memories
+          systemPrompt,
+        });
+
+        setLocalLoading(false);
+        return response?.summary ?? null;
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : "Failed to summarize memories";
+        setError(errorMessage);
+        setLocalLoading(false);
+        return null;
+      }
+    },
+    [client, sessionId, location, memories]
+  );
+
+  /**
    * Clear local memory state
    */
   const clearMemories = useCallback(() => {
@@ -360,6 +410,7 @@ export function usePlaygroundMemory() {
     putMemory,
     getMemory,
     searchMemory,
+    summarizeMemory,
     clearMemories,
     clearError,
     config,
