@@ -381,6 +381,30 @@ function setupMessageRelay() {
 }
 
 // ---------------------------
+// Message handler for DevTools commands
+// ---------------------------
+function setupMessageHandler(): void {
+  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message.type === "TEST_AUTOFILL_AI") {
+      // Dynamically import to avoid loading AI code unless needed
+      import("../lib/autofill/llmFieldUnderstanding").then(
+        ({ testAutofillAI }) => {
+          testAutofillAI()
+            .then(() => {
+              sendResponse({ success: true });
+            })
+            .catch((error) => {
+              console.error("[Autofill] Test failed:", error);
+              sendResponse({ success: false, error: error.message });
+            });
+        }
+      );
+      return true; // Will respond asynchronously
+    }
+  });
+}
+
+// ---------------------------
 // Initialize
 // ---------------------------
 if (!shouldSkipInjection()) {
@@ -391,6 +415,7 @@ if (!shouldSkipInjection()) {
 
   injectPageScript();
   setupMessageRelay();
+  setupMessageHandler();
 
   // Initialize autofill feature
   if (document.readyState === "loading") {

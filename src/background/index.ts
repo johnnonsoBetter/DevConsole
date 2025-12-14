@@ -221,6 +221,33 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       keepChannelOpen = true;
       break;
 
+    case "TEST_AUTOFILL_AI":
+      // Forward test request to active tab's content script and return its response
+      (async () => {
+        try {
+          const tabs = await new Promise<chrome.tabs.Tab[]>((resolve) =>
+            chrome.tabs.query({ active: true, lastFocusedWindow: true }, resolve)
+          );
+          const targetTab = tabs && tabs.length > 0 ? tabs[0] : null;
+          if (!targetTab || !targetTab.id) {
+            sendResponse({ success: false, error: 'No active tab found' });
+            return;
+          }
+
+          chrome.tabs.sendMessage(targetTab.id, { type: 'TEST_AUTOFILL_AI' }, (resp) => {
+            if (chrome.runtime.lastError) {
+              sendResponse({ success: false, error: chrome.runtime.lastError.message });
+            } else {
+              sendResponse(resp);
+            }
+          });
+        } catch (err: any) {
+          sendResponse({ success: false, error: err?.message || String(err) });
+        }
+      })();
+      keepChannelOpen = true;
+      break;
+
     default:
       console.warn("Unknown message type:", message.type);
       sendResponse({ success: false, error: "Unknown message type" });

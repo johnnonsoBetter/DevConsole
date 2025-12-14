@@ -7,11 +7,11 @@ import { detectInputType } from "./fieldDetector";
 import {
   fillAllInputs,
   fillInput,
-  getAllFillableInputs,
-  getSuggestionsForField,
   fillWithScenario,
-  runAutofillDemo,
+  getAllFillableInputs,
   getAutofillSettings,
+  getSuggestionsForField,
+  runAutofillDemo,
   updateAutofillSettings,
 } from "./fillLogic";
 import { SCENARIO_PRESETS } from "./scenarioPresets";
@@ -117,7 +117,11 @@ function positionOverlayNearAnchor(
     gap = 8,
     padding = 8,
     preferredPlacement = "bottom",
-  }: { gap?: number; padding?: number; preferredPlacement?: "bottom" | "top" } = {}
+  }: {
+    gap?: number;
+    padding?: number;
+    preferredPlacement?: "bottom" | "top";
+  } = {}
 ) {
   const viewport = getViewportBounds();
   const overlayRect = overlay.getBoundingClientRect();
@@ -136,24 +140,41 @@ function positionOverlayNearAnchor(
   }
 
   let left = anchorRect.left + window.scrollX;
-  left = clamp(left, viewport.left + padding, viewport.right - overlayRect.width - padding);
-  top = clamp(top, viewport.top + padding, viewport.bottom - overlayRect.height - padding);
+  left = clamp(
+    left,
+    viewport.left + padding,
+    viewport.right - overlayRect.width - padding
+  );
+  top = clamp(
+    top,
+    viewport.top + padding,
+    viewport.bottom - overlayRect.height - padding
+  );
 
   overlay.style.left = `${left}px`;
   overlay.style.top = `${top}px`;
 }
 
-function calculateIconPosition(anchorRect: DOMRect, iconSize = 20, padding = 8) {
+function calculateIconPosition(
+  anchorRect: DOMRect,
+  iconSize = 20,
+  padding = 8
+) {
   const viewport = getViewportBounds();
   const desiredTop =
     anchorRect.top + window.scrollY + (anchorRect.height - iconSize) / 2;
-  const top = clamp(desiredTop, viewport.top + padding, viewport.bottom - iconSize - padding);
+  const top = clamp(
+    desiredTop,
+    viewport.top + padding,
+    viewport.bottom - iconSize - padding
+  );
 
   const outsideRight = anchorRect.right + window.scrollX + 6;
   const insideRight = anchorRect.right + window.scrollX - iconSize - 6;
   const outsideLeft = anchorRect.left + window.scrollX - iconSize - 6;
 
-  const fits = (x: number) => x >= viewport.left + padding && x <= viewport.right - iconSize - padding;
+  const fits = (x: number) =>
+    x >= viewport.left + padding && x <= viewport.right - iconSize - padding;
 
   let left: number;
   if (fits(outsideRight)) {
@@ -163,7 +184,11 @@ function calculateIconPosition(anchorRect: DOMRect, iconSize = 20, padding = 8) 
   } else if (fits(outsideLeft)) {
     left = outsideLeft;
   } else {
-    left = clamp(insideRight, viewport.left + padding, viewport.right - iconSize - padding);
+    left = clamp(
+      insideRight,
+      viewport.left + padding,
+      viewport.right - iconSize - padding
+    );
   }
 
   return { left, top };
@@ -342,7 +367,9 @@ async function createImageSuggestionBox(
         closeSuggestionBox();
         return;
       }
-      positionOverlayNearAnchor(suggestionBox, input.getBoundingClientRect(), { gap: 10 });
+      positionOverlayNearAnchor(suggestionBox, input.getBoundingClientRect(), {
+        gap: 10,
+      });
     };
 
     const scheduleUpdate = () => requestAnimationFrame(update);
@@ -405,7 +432,9 @@ async function createImageSuggestionBox(
     `;
     requestAnimationFrame(() => {
       if (!suggestionBox) return;
-      positionOverlayNearAnchor(suggestionBox, input.getBoundingClientRect(), { gap: 10 });
+      positionOverlayNearAnchor(suggestionBox, input.getBoundingClientRect(), {
+        gap: 10,
+      });
     });
 
     const closeBtn = suggestionBox.querySelector(".autofill-close-btn");
@@ -451,7 +480,9 @@ async function createImageSuggestionBox(
     `;
     requestAnimationFrame(() => {
       if (!suggestionBox) return;
-      positionOverlayNearAnchor(suggestionBox, input.getBoundingClientRect(), { gap: 10 });
+      positionOverlayNearAnchor(suggestionBox, input.getBoundingClientRect(), {
+        gap: 10,
+      });
     });
 
     const closeBtn = suggestionBox.querySelector(".autofill-close-btn");
@@ -546,7 +577,9 @@ export async function createSuggestionBox(
         closeSuggestionBox();
         return;
       }
-      positionOverlayNearAnchor(suggestionBox, input.getBoundingClientRect(), { gap: 10 });
+      positionOverlayNearAnchor(suggestionBox, input.getBoundingClientRect(), {
+        gap: 10,
+      });
     };
 
     const scheduleUpdate = () => requestAnimationFrame(update);
@@ -609,7 +642,8 @@ export async function createSuggestionBox(
       e.stopPropagation();
       const delta = e.key === "ArrowDown" ? 1 : -1;
       const nextIndex =
-        (startIndex + delta + suggestionButtons.length) % suggestionButtons.length;
+        (startIndex + delta + suggestionButtons.length) %
+        suggestionButtons.length;
       suggestionButtons[nextIndex]?.focus({ preventScroll: true });
     }
 
@@ -678,11 +712,11 @@ function showFillAllButton(): void {
   fillAllButton = document.createElement("div");
   fillAllButton.className = "autofill-fill-all-container";
   fillAllButton.setAttribute("id", "autofill-fill-all-container" + Date.now());
-  
+
   const inputs = getAllFillableInputs();
   const inputCount = inputs.length;
 
-	  fillAllButton.innerHTML = `
+  fillAllButton.innerHTML = `
 	    <button class="autofill-fill-all-button" type="button" aria-label="Fill All Fields" title="Fill All Fields (Ctrl+F)" role="button">
 	      <svg class="fill-all-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
 	        <path d="M9 11l3 3L22 4"/>
@@ -721,32 +755,34 @@ function showFillAllButton(): void {
       <div class="autofill-menu-divider"></div>
       <div class="autofill-menu-section">
         <div class="autofill-menu-label">Test Scenarios</div>
-        ${SCENARIO_PRESETS.map(scenario => `
+        ${SCENARIO_PRESETS.map(
+          (scenario) => `
           <button class="autofill-menu-item" data-action="scenario" data-scenario="${scenario.id}" role="menuitem" title="${scenario.description}">
             <span class="scenario-icon">${getScenarioIcon(scenario.id)}</span>
             <span>${scenario.name}</span>
           </button>
-        `).join('')}
+        `
+        ).join("")}
       </div>
       <div class="autofill-menu-divider"></div>
       <div class="autofill-menu-section">
         <div class="autofill-menu-label">Typing Speed</div>
         <div class="autofill-speed-options">
-          <button class="autofill-speed-btn ${settings.typingSpeed === 'instant' ? 'active' : ''}" data-speed="instant" title="Instant">⚡</button>
-          <button class="autofill-speed-btn ${settings.typingSpeed === 'fast' ? 'active' : ''}" data-speed="fast" title="Fast">🏃</button>
-          <button class="autofill-speed-btn ${settings.typingSpeed === 'normal' ? 'active' : ''}" data-speed="normal" title="Normal">🚶</button>
-          <button class="autofill-speed-btn ${settings.typingSpeed === 'slow' ? 'active' : ''}" data-speed="slow" title="Slow">🐌</button>
+          <button class="autofill-speed-btn ${settings.typingSpeed === "instant" ? "active" : ""}" data-speed="instant" title="Instant">⚡</button>
+          <button class="autofill-speed-btn ${settings.typingSpeed === "fast" ? "active" : ""}" data-speed="fast" title="Fast">🏃</button>
+          <button class="autofill-speed-btn ${settings.typingSpeed === "normal" ? "active" : ""}" data-speed="normal" title="Normal">🚶</button>
+          <button class="autofill-speed-btn ${settings.typingSpeed === "slow" ? "active" : ""}" data-speed="slow" title="Slow">🐌</button>
         </div>
       </div>
       <div class="autofill-menu-divider"></div>
       <div class="autofill-menu-section">
         <label class="autofill-toggle-row">
           <span>Enable Typing Animation</span>
-          <input type="checkbox" class="autofill-toggle" data-setting="enableTypingAnimation" ${settings.enableTypingAnimation ? 'checked' : ''}>
+          <input type="checkbox" class="autofill-toggle" data-setting="enableTypingAnimation" ${settings.enableTypingAnimation ? "checked" : ""}>
         </label>
         <label class="autofill-toggle-row">
           <span>Enable Typos</span>
-          <input type="checkbox" class="autofill-toggle" data-setting="enableTypos" ${settings.enableTypos ? 'checked' : ''}>
+          <input type="checkbox" class="autofill-toggle" data-setting="enableTypos" ${settings.enableTypos ? "checked" : ""}>
         </label>
       </div>
       <div class="autofill-menu-divider"></div>
@@ -759,7 +795,7 @@ function showFillAllButton(): void {
             </svg>
             Use AI for Text Fields
           </span>
-          <input type="checkbox" class="autofill-toggle" data-setting="useAI" ${settings.useAI ? 'checked' : ''}>
+          <input type="checkbox" class="autofill-toggle" data-setting="useAI" ${settings.useAI ? "checked" : ""}>
         </label>
         <p class="autofill-ai-hint">Uses AI from Settings → AI Providers</p>
       </div>
@@ -769,12 +805,18 @@ function showFillAllButton(): void {
   document.body.appendChild(fillAllButton);
 
   // Setup event handlers
-  const mainButton = fillAllButton.querySelector('.autofill-fill-all-button') as HTMLButtonElement;
-  const dropdownToggle = fillAllButton.querySelector('.autofill-dropdown-toggle') as HTMLButtonElement;
-  const dropdownMenu = fillAllButton.querySelector('.autofill-dropdown-menu') as HTMLDivElement;
+  const mainButton = fillAllButton.querySelector(
+    ".autofill-fill-all-button"
+  ) as HTMLButtonElement;
+  const dropdownToggle = fillAllButton.querySelector(
+    ".autofill-dropdown-toggle"
+  ) as HTMLButtonElement;
+  const dropdownMenu = fillAllButton.querySelector(
+    ".autofill-dropdown-menu"
+  ) as HTMLDivElement;
 
   // Main fill button
-  mainButton?.addEventListener('click', (e) => {
+  mainButton?.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
     fillAllInputs();
@@ -782,21 +824,21 @@ function showFillAllButton(): void {
   });
 
   // Dropdown toggle
-  dropdownToggle?.addEventListener('click', (e) => {
+  dropdownToggle?.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
-    const isOpen = dropdownMenu?.classList.contains('open');
+    const isOpen = dropdownMenu?.classList.contains("open");
     if (isOpen) {
       closeDropdown();
     } else {
-      dropdownMenu?.classList.add('open');
-      dropdownMenu?.setAttribute('aria-hidden', 'false');
+      dropdownMenu?.classList.add("open");
+      dropdownMenu?.setAttribute("aria-hidden", "false");
     }
   });
 
   // Menu items
-  fillAllButton.querySelectorAll('.autofill-menu-item').forEach(item => {
-    item.addEventListener('click', async (e) => {
+  fillAllButton.querySelectorAll(".autofill-menu-item").forEach((item) => {
+    item.addEventListener("click", async (e) => {
       e.preventDefault();
       e.stopPropagation();
       const action = (item as HTMLElement).dataset.action;
@@ -805,18 +847,21 @@ function showFillAllButton(): void {
       closeDropdown();
 
       switch (action) {
-        case 'fill-instant':
+        case "fill-instant":
           await fillAllInputs({ animated: false });
           break;
-        case 'fill-animated':
+        case "fill-animated":
           await fillAllInputs({ animated: true });
           break;
-        case 'demo':
+        case "demo":
           await runAutofillDemo();
           break;
-        case 'scenario':
+        case "scenario":
           if (scenarioId) {
-            await fillWithScenario(scenarioId, getAutofillSettings().enableTypingAnimation);
+            await fillWithScenario(
+              scenarioId,
+              getAutofillSettings().enableTypingAnimation
+            );
           }
           break;
       }
@@ -824,42 +869,59 @@ function showFillAllButton(): void {
   });
 
   // Speed buttons
-  fillAllButton.querySelectorAll('.autofill-speed-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
+  fillAllButton.querySelectorAll(".autofill-speed-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
-      const speed = (btn as HTMLElement).dataset.speed as 'instant' | 'fast' | 'normal' | 'slow';
+      const speed = (btn as HTMLElement).dataset.speed as
+        | "instant"
+        | "fast"
+        | "normal"
+        | "slow";
       updateAutofillSettings({ typingSpeed: speed });
       // Update active state
-      fillAllButton?.querySelectorAll('.autofill-speed-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
+      fillAllButton
+        ?.querySelectorAll(".autofill-speed-btn")
+        .forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
     });
   });
 
   // Toggle switches
-  fillAllButton.querySelectorAll('.autofill-toggle').forEach(toggle => {
-    toggle.addEventListener('change', () => {
-      const setting = (toggle as HTMLElement).dataset.setting as 'enableTypingAnimation' | 'enableTypos';
+  fillAllButton.querySelectorAll(".autofill-toggle").forEach((toggle) => {
+    toggle.addEventListener("change", () => {
+      const setting = (toggle as HTMLElement).dataset.setting as
+        | "enableTypingAnimation"
+        | "enableTypos"
+        | "useAI";
       const checked = (toggle as HTMLInputElement).checked;
       updateAutofillSettings({ [setting]: checked });
+
+      // Log for debugging AI toggle
+      if (setting === "useAI") {
+        console.log(
+          "[Autofill] AI for text fields:",
+          checked ? "enabled" : "disabled"
+        );
+      }
     });
   });
 
-	  // Close dropdown when clicking outside
-	  const closeDropdown = () => {
-	    dropdownMenu?.classList.remove('open');
-	    dropdownMenu?.setAttribute('aria-hidden', 'true');
-	  };
+  // Close dropdown when clicking outside
+  const closeDropdown = () => {
+    dropdownMenu?.classList.remove("open");
+    dropdownMenu?.setAttribute("aria-hidden", "true");
+  };
 
-	  if (fillAllOutsideClickHandler) {
-	    document.removeEventListener('click', fillAllOutsideClickHandler);
-	  }
-	  fillAllOutsideClickHandler = (e: MouseEvent) => {
-	    if (fillAllButton && !fillAllButton.contains(e.target as Node)) {
-	      closeDropdown();
-	    }
-	  };
-	  document.addEventListener('click', fillAllOutsideClickHandler);
+  if (fillAllOutsideClickHandler) {
+    document.removeEventListener("click", fillAllOutsideClickHandler);
+  }
+  fillAllOutsideClickHandler = (e: MouseEvent) => {
+    if (fillAllButton && !fillAllButton.contains(e.target as Node)) {
+      closeDropdown();
+    }
+  };
+  document.addEventListener("click", fillAllOutsideClickHandler);
 
   // Animate in
   setTimeout(() => {
@@ -874,15 +936,15 @@ function showFillAllButton(): void {
  */
 function getScenarioIcon(scenarioId: string): string {
   const icons: Record<string, string> = {
-    'happy-path': '✅',
-    'edge-cases': '🔧',
-    'validation': '❌',
-    'i18n': '🌍',
-    'accessibility': '♿',
-    'security': '🔒',
-    'boundary': '📏',
+    "happy-path": "✅",
+    "edge-cases": "🔧",
+    validation: "❌",
+    i18n: "🌍",
+    accessibility: "♿",
+    security: "🔒",
+    boundary: "📏",
   };
-  return icons[scenarioId] || '📋';
+  return icons[scenarioId] || "📋";
 }
 
 /**

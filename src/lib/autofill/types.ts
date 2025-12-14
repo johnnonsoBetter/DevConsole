@@ -2,7 +2,7 @@
  * TypeScript types and interfaces for Autofill feature
  */
 
-import type { TestScenario } from './scenarioPresets';
+import type { TestScenario } from "./scenarioPresets";
 
 // Re-export TestScenario for convenience
 export type { TestScenario };
@@ -60,14 +60,14 @@ export interface AutofillStats {
 }
 
 /** Autofill mode determines how data is filled */
-export type AutofillMode = 'instant' | 'animated' | 'demo';
+export type AutofillMode = "instant" | "animated" | "demo";
 
 /** Autofill settings stored in chrome.storage */
 export interface AutofillSettings {
   isEnabled: boolean;
   mode: AutofillMode;
-  activeScenario: TestScenario | 'default' | 'relational';
-  typingSpeed: 'slow' | 'normal' | 'fast' | 'instant';
+  activeScenario: TestScenario | "default" | "relational";
+  typingSpeed: "slow" | "normal" | "fast" | "instant";
   enableTypos: boolean;
   enableRelationalData: boolean;
   enableTypingAnimation: boolean;
@@ -77,9 +77,9 @@ export interface AutofillSettings {
 
 export const DEFAULT_AUTOFILL_SETTINGS: AutofillSettings = {
   isEnabled: true,
-  mode: 'instant',
-  activeScenario: 'default',
-  typingSpeed: 'normal',
+  mode: "instant",
+  activeScenario: "default",
+  typingSpeed: "normal",
   enableTypos: true,
   enableRelationalData: true,
   enableTypingAnimation: false,

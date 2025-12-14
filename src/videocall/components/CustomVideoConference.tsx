@@ -1,4 +1,6 @@
 
+import { usePlaygroundMemory } from '@/hooks/usePlaygroundMemory';
+import { RoomMetadata } from '@/lib/livekit';
 import {
   AudioTrack,
   useConnectionState,
@@ -6,8 +8,7 @@ import {
   useParticipants,
   useRoomContext,
   useTracks,
-  useTranscriptions,
-  VideoTrack,
+  VideoTrack
 } from '@livekit/components-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ConnectionState, Participant, RemoteTrackPublication, RoomEvent, Track } from 'livekit-client';
@@ -24,20 +25,18 @@ import {
   PanelRightClose,
   PanelRightOpen,
   PhoneOff,
-  Search,
   User,
   Users,
   Video,
   VideoOff,
   X
 } from 'lucide-react';
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ReactionType, useCallMemoryV2, useReactionsChannel } from '../hooks';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { ReactionType, useReactionsChannel } from '../hooks';
 import type { Participant as ParticipantType } from '../types';
 import { AgentIndicator } from './AgentIndicator';
-import { CallMemorySearchPanel } from './CallMemorySearchPanel';
 import { FloatingReactionsV2 } from './FloatingReactionsV2';
-import { InsightsPanel } from './InsightsPanel';
+import { InCallMemoryPanel } from './InCallMemoryPanel';
 import { LiveCaptions } from './LiveCaptions';
 import { MediaDeviceSelector } from './MediaDeviceSelector';
 import { MemoryBadge } from './MemoryStatusIndicator';
@@ -51,6 +50,18 @@ import { ControlButton } from './ui';
 // HELPERS
 // ============================================================================
 
+function parseRoomMetadata(metadataStr: string | undefined): RoomMetadata {
+  if (!metadataStr) {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(metadataStr) as RoomMetadata;
+    return parsed;
+  } catch (e) {
+    console.error("Failed to parse room metadata:", e, "raw:", metadataStr);
+    return {};
+  }
+}
 
 // Lazy load DevConsolePanel to avoid circular dependencies and reduce initial bundle
 const DevConsolePanel = lazy(() => 
@@ -100,12 +111,11 @@ export function CustomVideoConference({
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isDevConsolePanelOpen, setIsDevConsolePanelOpen] = useState(false);
   const [isTranscriptPanelOpen, setIsTranscriptPanelOpen] = useState(false);
-  const [isInsightsPanelOpen, setIsInsightsPanelOpen] = useState(false);
-  const [isSmartSearchPanelOpen, setIsSmartSearchPanelOpen] = useState(false);
+  const [isMemoryPanelOpen, setIsMemoryPanelOpen] = useState(false);
   const [transcriptSearchTerm] = useState('');
   const [activeSpeakerId, setActiveSpeakerId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-
+  const {isConnected, connect} = usePlaygroundMemory();
   // Real-time reactions and hand-raising via LiveKit data channel
   const {
     reactions,
@@ -116,23 +126,18 @@ export function CustomVideoConference({
     lowerHand,
     isLocalHandRaised,
   } = useReactionsChannel();
-  
-  // Call memory integration (V2) - stores each final transcript turn immediately
-  // Uses shared API key from room metadata if provided by room creator.
-  const {
-    canUseMemory,
-    sessionId: memorySessionId,
-    state: memoryState,
-    addTranscription,
-    searchMemories,
-    getMemories,
-    summarizeMemories,
-    endSession,
-    error: memoryError,
-    clearError: clearMemoryError,
-  } = useCallMemoryV2();
 
-  const storedTranscriptIdsRef = useRef<Set<string>>(new Set());
+  const raindropApiKey = useMemo(() => {
+  return parseRoomMetadata(room.metadata)?.raindropApiKey;
+}, [room.metadata]);
+  
+  useEffect(() => {
+    // connect the in search memory when the room is connected
+    if (connectionState === ConnectionState.Connected && !isConnected) {
+      connect({raindropApiKey});
+
+    }
+  }, [connectionState, connect, isConnected]);
   
   // Participant events for join/leave notifications
   const { events: participantEvents, addEvent, dismissEvent } = useParticipantEvents();
@@ -164,58 +169,10 @@ export function CustomVideoConference({
     };
   }, [room, addEvent, activeSpeakerId]);
 
-  // Use LiveKit's transcription hook - provides text streams for all participants
-  // Each TextStreamData contains: { text, participantInfo, streamInfo }
-  const transcriptions = useTranscriptions();
+ 
+  
 
-  // Store final transcriptions to working memory
-  // Text streams accumulate chunks, so we wait for 'lk.transcription_final' attribute
-  useEffect(() => {
-    if (!canUseMemory || !transcriptions.length) return;
 
-    for (const stream of transcriptions) {
-      // Get the unique stream ID - this identifies the transcription segment
-      const streamId = stream.streamInfo?.id;
-      if (!streamId || !stream.text?.trim()) continue;
-
-      // Check if transcription is complete (final)
-      // LiveKit sets this attribute when the segment is fully transcribed
-      const isFinal = stream.streamInfo?.attributes?.['lk.transcription_final'] === 'true';
-      if (!isFinal) continue;
-
-      // Skip if already stored (prevents duplicates)
-      if (storedTranscriptIdsRef.current.has(streamId)) continue;
-      storedTranscriptIdsRef.current.add(streamId);
-
-      // Get speaker identity from participantInfo (provided by useTranscriptions)
-      const identity = stream.participantInfo?.identity;
-      const isLocal = identity === localParticipant?.identity;
-      const agent = isLocal ? 'You' : identity || 'Unknown';
-
-      console.log('[CustomVideoConference] 📝 Storing transcription:', {
-        id: streamId,
-        agent,
-        text: stream.text.substring(0, 50),
-      });
-
-      void addTranscription({
-        text: stream.text,
-        trackSid: streamId,
-        agent,
-      }).then((memoryId) => {
-        // If storage failed, allow retry on future updates
-        if (!memoryId) storedTranscriptIdsRef.current.delete(streamId);
-      });
-    }
-  }, [transcriptions, canUseMemory, addTranscription, localParticipant?.identity]);
-
-  // End memory session on unmount
-  useEffect(() => {
-    return () => {
-      console.log('[CustomVideoConference] Ending memory session');
-      void endSession(true);
-    };
-  }, [endSession]);
 
   // Local participant controls
   const isMuted = !localParticipant.isMicrophoneEnabled;
@@ -424,10 +381,10 @@ export function CustomVideoConference({
             </div>
             
             {/* Memory status badge - hidden on mobile */}
-            {canUseMemory && (
+            {isConnected && (
               <div className="hidden md:block flex-shrink-0">
                 <MemoryBadge
-                  isActive={memoryState === 'connected'}
+                  isActive={isConnected}
                   isSyncing={false}
                 />
               </div>
@@ -776,8 +733,17 @@ export function CustomVideoConference({
             size="sm"
           />
 
+          {/* Memory - SmartMemory for call notes */}
+          <ControlButton
+            icon={Brain}
+            isActive={isMemoryPanelOpen}
+            onClick={() => setIsMemoryPanelOpen((prev) => !prev)}
+            label={isMemoryPanelOpen ? 'Hide memory' : 'Call memory'}
+            size="sm"
+          />
+
           {/* Insights - AI-powered search through call memory (hidden on small mobile) */}
-          {canUseMemory && (
+          {/* {canUseMemory && (
             <div className="hidden xs:block">
               <ControlButton
                 icon={Brain}
@@ -787,10 +753,10 @@ export function CustomVideoConference({
                 size="sm"
               />
             </div>
-          )}
+          )} */}
 
           {/* Smart Search - semantic + AI insights (hidden on small mobile) */}
-          {canUseMemory && (
+          {/* {canUseMemory && (
             <div className="hidden xs:block">
               <ControlButton
                 icon={Search}
@@ -800,7 +766,7 @@ export function CustomVideoConference({
                 size="sm"
               />
             </div>
-          )}
+          )} */}
 
           {/* Reactions - self-contained with trigger */}
           <ReactionPickerV2 onSelectReaction={handleReaction} />
@@ -897,18 +863,20 @@ export function CustomVideoConference({
         )}
       </AnimatePresence>
       
-      {/* Insights Panel Sidebar */}
+     
+
+      {/* Memory Panel Sidebar */}
       <AnimatePresence>
-        {isInsightsPanelOpen && (
-          <InsightsPanel
-            isOpen={isInsightsPanelOpen}
-            onClose={() => setIsInsightsPanelOpen(false)}
+        {isMemoryPanelOpen && (
+          <InCallMemoryPanel
+            isOpen={isMemoryPanelOpen}
+            onClose={() => setIsMemoryPanelOpen(false)}
             className="h-full"
           />
         )}
       </AnimatePresence>
 
-      {/* Smart Search Panel Sidebar */}
+      {/* Smart Search Panel Sidebar
       <AnimatePresence>
         {isSmartSearchPanelOpen && (
           <CallMemorySearchPanel
@@ -925,7 +893,7 @@ export function CustomVideoConference({
             summarizeMemories={summarizeMemories}
           />
         )}
-      </AnimatePresence>
+      </AnimatePresence> */}
       
       {/* Participant join/leave notifications */}
       <ParticipantToast

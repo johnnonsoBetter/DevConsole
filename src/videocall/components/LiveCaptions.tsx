@@ -4,9 +4,10 @@
  * Appears at the bottom of the video view like TV subtitles
  */
 
-import { useLocalParticipant, useTranscriptions } from '@livekit/components-react';
+import { usePlaygroundMemory } from '@/hooks/usePlaygroundMemory';
+import { useLocalParticipant, useRoomInfo, useTranscriptions } from '@livekit/components-react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 
 interface LiveCaptionsProps {
   /** Whether captions are enabled */
@@ -46,12 +47,43 @@ export function LiveCaptions({
   enabled = true,
   className = '',
 }: LiveCaptionsProps) {
+  const room = useRoomInfo();
   // Use LiveKit's transcription hook - no filters to get ALL transcriptions
   const transcriptions = useTranscriptions();
+
   
   // Get local participant to identify local transcriptions
   const { localParticipant } = useLocalParticipant();
   const localIdentity = localParticipant?.identity;
+  const {putMemory} = usePlaygroundMemory();
+  const timeline = `conversation-${room?.name}`;
+  
+
+useEffect(() => {
+  const handleNewFinalTranscriptions = async () => {
+    // Filter for final transcriptions only
+    const latestTranscription = transcriptions[transcriptions.length - 1];
+    const isFinal = latestTranscription?.streamInfo?.attributes?.["lk.transcription_final"] === "true"; 
+
+    if(latestTranscription && !isFinal) {
+
+     const {text, participantInfo} = latestTranscription;
+      const identity = participantInfo?.identity;
+      await putMemory(text, timeline, identity);
+
+      console.log("New final transcription received and stored to memory:", JSON.stringify({
+        text, identity,
+        timeline
+      }) );
+    }
+     
+     
+  }
+
+  handleNewFinalTranscriptions();
+
+}, [transcriptions]);
+
 
   // Get the current/latest transcription for live display
   const currentCaption = useMemo(() => {
@@ -64,6 +96,7 @@ export function LiveCaptions({
     const isLocal = localIdentity ? identity === localIdentity : false;
     const isAgent = identity?.startsWith('agent-') || false;
 
+   
     return {
       speaker: getSpeakerName(identity, isLocal),
       text: latest.text.trim(),

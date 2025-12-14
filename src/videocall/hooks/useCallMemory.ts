@@ -21,7 +21,6 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useCallMemoryStore } from "../../utils/stores/callMemory";
 import {
   MEMORY_TIMELINES,
-  MemoryTimeline,
   SessionMetadataContent,
   TranscriptTurn,
   UseCallMemoryReturn,
@@ -71,7 +70,10 @@ export function useCallMemory(): UseCallMemoryReturn {
   // Get room context
   const room = useEnsureRoom();
   const { localParticipant } = useLocalParticipant();
-
+  const workingMemoryTimeline = useMemo(
+    () => `transcriptions:${room.name}`,
+    [room.name]
+  );
   // Get store state and actions
   const {
     state,
@@ -188,7 +190,7 @@ export function useCallMemory(): UseCallMemoryReturn {
 
     await putMemory({
       content: JSON.stringify(sessionMetadata),
-      timeline: MEMORY_TIMELINES.METADATA,
+      timeline: workingMemoryTimeline,
     });
 
     // Create immediate turn manager
@@ -311,8 +313,8 @@ export function useCallMemory(): UseCallMemoryReturn {
 
   const storeToTimeline = useCallback(
     async (
-      timeline: MemoryTimeline,
-      content: Record<string, unknown>
+      timeline: String,
+      content: Record<string, unknown> | string
     ): Promise<string | null> => {
       if (!sessionId) {
         log("No active session, cannot store to timeline");
@@ -321,7 +323,7 @@ export function useCallMemory(): UseCallMemoryReturn {
 
       try {
         const enrichedContent = {
-          ...content,
+          ...(typeof content === "string" ? { text: content } : content),
           roomId: roomName,
           timestamp: new Date().toISOString(),
           storedBy: displayName,
@@ -334,7 +336,7 @@ export function useCallMemory(): UseCallMemoryReturn {
 
         const memoryId = await putMemory({
           content: JSON.stringify(enrichedContent),
-          timeline,
+          timeline: workingMemoryTimeline,
         });
 
         log(`Stored to timeline "${timeline}" with ID:`, memoryId);

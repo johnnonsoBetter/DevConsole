@@ -1,39 +1,33 @@
 /**
  * CallMemorySearchPanel
  *
- * In-call "Smart Search" for transcripts:
- * - Instant local keyword search (current LiveKit transcript stream)
- * - SmartMemory semantic search (same session used for storage)
- * - One-click AI summaries for "key points / actions / decisions / questions"
+ * Simple search panel for working memory:
+ * - Fetches all memories from working memory via getMemories
+ * - Simple local text filtering on the results
  */
 
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  Brain,
   Copy,
   Loader2,
+  RefreshCw,
   Search,
-  Sparkles,
-  X,
+  X
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallMemory, useCallMemoryV2 } from "../hooks";
 import type { WorkingMemoryEntry } from "../hooks/useCallMemoryV2";
-import { useTranscriptionManager, type TranscriptSegment } from "../hooks/useTranscription";
 
 // ============================================================================
 // TYPES
 // ============================================================================
-
-type InsightMode = "key-points" | "action-items" | "decisions" | "questions";
 
 interface CallMemorySearchPanelProps {
   isOpen: boolean;
   onClose: () => void;
   className?: string;
 
-  // SmartMemory session + ops (from useCallMemoryV2)
+  // Memory session + ops (from useCallMemoryV2)
   canUseMemory: boolean;
   memoryState: "disconnected" | "connecting" | "connected" | "error";
   sessionId: string | null;
@@ -79,176 +73,82 @@ function highlightText(text: string, searchTerm: string): React.ReactNode {
   );
 }
 
-function buildInsightPrompt(mode: InsightMode): string {
-  switch (mode) {
-    case "action-items":
-      return `You are a meeting copilot. From these transcript snippets, extract ONLY action items.\n\nRules:\n- Use bullet points.\n- Include owner if implied (e.g. "Alice to...").\n- Include urgency/deadline if mentioned.\n- Keep it concise.`;
-    case "decisions":
-      return `You are a meeting copilot. From these transcript snippets, extract ONLY decisions that were made.\n\nRules:\n- Use bullet points.\n- Include context in 1 short clause.\n- Keep it concise.`;
-    case "questions":
-      return `You are a meeting copilot. From these transcript snippets, extract ONLY open questions.\n\nRules:\n- Use bullet points.\n- Prefer unanswered questions.\n- Keep it concise.`;
-    case "key-points":
-    default:
-      return `You are a meeting copilot. Summarize the key points from these transcript snippets.\n\nReturn:\n- 5–8 bullets max\n- then a short section "Key Terms" with 5–10 comma-separated terms`;
-  }
-}
-
-function computeTopKeywords(segments: TranscriptSegment[], max = 10): string[] {
-  const stop = new Set([
-    "about",
-    "after",
-    "also",
-    "because",
-    "before",
-    "being",
-    "can",
-    "could",
-    "did",
-    "does",
-    "doing",
-    "done",
-    "from",
-    "have",
-    "just",
-    "like",
-    "make",
-    "maybe",
-    "more",
-    "need",
-    "really",
-    "should",
-    "some",
-    "that",
-    "then",
-    "there",
-    "these",
-    "they",
-    "this",
-    "those",
-    "want",
-    "were",
-    "what",
-    "when",
-    "where",
-    "which",
-    "with",
-    "would",
-    "yeah",
-    "your",
-    "you're",
-    "youre",
-  ]);
-
-  const counts = new Map<string, number>();
-  const text = segments
-    .filter((s) => s.isFinal)
-    .map((s) => s.text)
-    .join(" ")
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ");
-
-  for (const word of text.split(/\s+/)) {
-    const w = word.trim();
-    if (w.length < 4) continue;
-    if (stop.has(w)) continue;
-    if (/^\d+$/.test(w)) continue;
-    counts.set(w, (counts.get(w) ?? 0) + 1);
-  }
-
-  return [...counts.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, max)
-    .map(([w]) => w);
-}
-
 // ============================================================================
 // COMPONENT
 // ============================================================================
 
 export function CallMemorySearchPanel({
-  isOpen,
   onClose,
   className = "",
-  canUseMemory,
-  memoryState,
-  sessionId,
-  memoryError,
+  
   clearMemoryError,
-  searchMemories,
-  getMemories,
-  summarizeMemories,
 }: CallMemorySearchPanelProps) {
-  const { segments, finalSegments } = useTranscriptionManager({ maxSegments: 250 });
-
   const [query, setQuery] = useState("");
   const [speakerFilter, setSpeakerFilter] = useState<string | null>(null);
+  const [memories, setMemories] = useState<WorkingMemoryEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const {canUseMemory, error: memoryError, sessionId,} = useCallMemory()
+  const {getMemories, state: memoryState,searchMemories} = useCallMemoryV2()
+  // Fetch all memories from working memory
+  const fetchMemories = useCallback(async () => {
+    if (!canUseMemory) return;
+    
+    setIsLoading(true);
+    try {
+      const results = await getMemories({ nMostRecent: 100 });
+      setMemories(results);
+    } catch (err) {
+      console.error('[CallMemorySearchPanel] Failed to fetch memories:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [canUseMemory, getMemories]);
 
-  const [smartResults, setSmartResults] = useState<WorkingMemoryEntry[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
 
-  const [summary, setSummary] = useState<string | null>(null);
-  const [isSummarizing, setIsSummarizing] = useState(false);
-  const [activeInsightMode, setActiveInsightMode] = useState<InsightMode | null>(null);
-
-  const requestIdRef = useRef(0);
-
+  // Get unique speakers from memories
   const speakers = useMemo(() => {
-    const list = [...new Set(finalSegments.map((s) => s.speaker))];
+    const list = [...new Set(memories.map((m) => m.agent).filter(Boolean))] as string[];
     return list.sort((a, b) => a.localeCompare(b));
-  }, [finalSegments]);
+  }, [memories]);
 
-  const topKeywords = useMemo(() => computeTopKeywords(segments, 10), [segments]);
+  // Simple local text filtering
+  const filteredMemories = memories
+    
+  
+    
+useEffect(() => {
+    const handleSearchMemories = async () => {  
+      if (canUseMemory && query.trim().length >= 2) {
+        setIsLoading(true);
+        try {
+          const results = await searchMemories(query, { nMostRecent: 100 });
+          setMemories(results);
+        } catch (err) {
+          console.error('[CallMemorySearchPanel] Failed to search memories:', err);
+        } finally {
+          setIsLoading(false);
+        }
+      } else {
+        // If query is less than 2 characters, fetch all memories
+        await fetchMemories();
+      }
+    }
 
-  const localMatches = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (q.length < 2) return [];
+    handleSearchMemories();
+  }, [query, canUseMemory, searchMemories, fetchMemories]);
 
-    return finalSegments.filter((s) => {
-      if (speakerFilter && s.speaker !== speakerFilter) return false;
-      return (
-        s.text.toLowerCase().includes(q) ||
-        s.speaker.toLowerCase().includes(q)
-      );
-    });
-  }, [finalSegments, query, speakerFilter]);
+
 
   useEffect(() => {
-    if (!canUseMemory) {
-      setSmartResults([]);
-      setIsSearching(false);
-      return;
+    const handleFetchMemories = async () => { 
+      if (canUseMemory) {
+        await fetchMemories();
+      }
     }
 
-    const q = query.trim();
-    if (q.length < 2) {
-      setSmartResults([]);
-      setIsSearching(false);
-      return;
-    }
+    handleFetchMemories();
+  }, [canUseMemory, fetchMemories]);
 
-    const requestId = ++requestIdRef.current;
-    setIsSearching(true);
-
-    const handle = setTimeout(() => {
-      void searchMemories(q, { nMostRecent: 30 })
-        .then((results) => {
-          if (requestId !== requestIdRef.current) return;
-
-          const filtered = speakerFilter
-            ? results.filter((r) => (r.agent ?? "") === speakerFilter)
-            : results;
-
-          setSmartResults(filtered);
-        })
-        .finally(() => {
-          if (requestId === requestIdRef.current) {
-            setIsSearching(false);
-          }
-        });
-    }, 250);
-
-    return () => clearTimeout(handle);
-  }, [canUseMemory, query, searchMemories, speakerFilter]);
 
   const handleCopy = useCallback(async (text: string) => {
     try {
@@ -258,46 +158,6 @@ export function CallMemorySearchPanel({
     }
   }, []);
 
-  const runInsight = useCallback(
-    async (mode: InsightMode) => {
-      setIsSummarizing(true);
-      setActiveInsightMode(mode);
-      setSummary(null);
-
-      try {
-        const recent = await getMemories({ nMostRecent: 70 });
-        const ids = recent.map((m) => m.id).filter(Boolean);
-        if (ids.length === 0) {
-          setSummary("No transcript stored yet — try again after a few turns.");
-          return;
-        }
-        const prompt = buildInsightPrompt(mode);
-        const out = await summarizeMemories(ids, prompt);
-        setSummary(out ?? "No summary available yet.");
-      } finally {
-        setIsSummarizing(false);
-      }
-    },
-    [getMemories, summarizeMemories]
-  );
-
-  const summarizeHits = useCallback(async () => {
-    setIsSummarizing(true);
-    setActiveInsightMode(null);
-    setSummary(null);
-
-    try {
-      const ids = smartResults.map((r) => r.id).filter(Boolean);
-      const out = await summarizeMemories(
-        ids,
-        `You are a meeting copilot. Summarize the most relevant moments from these search hits.\n\nReturn:\n- "Most Relevant" (5 bullets)\n- "Action Items" (bullets)\n- "Decisions" (bullets)\n- "Open Questions" (bullets)\n- "Names / Systems / Keywords" (comma-separated)`
-      );
-      setSummary(out ?? "No summary available yet.");
-    } finally {
-      setIsSummarizing(false);
-    }
-  }, [smartResults, summarizeMemories]);
-
   const memoryStateLabel = useMemo(() => {
     if (!canUseMemory) return "No memory";
     if (memoryState === "connected") return "Memory active";
@@ -306,7 +166,6 @@ export function CallMemorySearchPanel({
     return "Idle";
   }, [canUseMemory, memoryState]);
 
-  if (!isOpen) return null;
 
   return (
     <motion.div
@@ -325,7 +184,7 @@ export function CallMemorySearchPanel({
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-medium text-gray-200 truncate">
-                Smart Search
+                Memory Search
               </h2>
               <span
                 className={`text-[10px] px-2 py-0.5 rounded-full border ${
@@ -348,13 +207,23 @@ export function CallMemorySearchPanel({
             )}
           </div>
         </div>
-        <button
-          onClick={onClose}
-          className="p-1.5 rounded hover:bg-gray-800 transition-colors text-gray-400 hover:text-gray-200"
-          title="Close smart search"
-        >
-          <X className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={fetchMemories}
+            disabled={isLoading || !canUseMemory}
+            className="p-1.5 rounded hover:bg-gray-800 transition-colors text-gray-400 hover:text-gray-200 disabled:opacity-50"
+            title="Refresh memories"
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+          </button>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded hover:bg-gray-800 transition-colors text-gray-400 hover:text-gray-200"
+            title="Close"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Body */}
@@ -390,7 +259,7 @@ export function CallMemorySearchPanel({
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder='Search: "rate limit", "who owns this", "errors", ...'
+            placeholder="Filter memories..."
             className="w-full pl-10 pr-10 py-2.5 bg-gray-800/60 border border-gray-700/50 rounded-lg text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30 transition-all"
           />
           {query && (
@@ -434,237 +303,67 @@ export function CallMemorySearchPanel({
           </div>
         )}
 
-        {/* Keyword chips */}
-        {topKeywords.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            <span className="text-[10px] text-gray-500 self-center mr-1">
-              Hot:
-            </span>
-            {topKeywords.slice(0, 8).map((kw) => (
-              <button
-                key={kw}
-                onClick={() => setQuery(kw)}
-                className="px-2 py-1 rounded-full text-[11px] bg-gray-800/60 border border-gray-700/50 text-gray-300 hover:border-gray-600 transition-colors"
-              >
-                {kw}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Instant insights */}
-        {canUseMemory && (
-          <div className="p-3 rounded-xl border border-gray-700/50 bg-gray-800/40">
-            <div className="flex items-center gap-2 mb-2">
-              <Sparkles className="w-4 h-4 text-primary" />
-              <p className="text-xs font-medium text-gray-200">
-                Instant insights (so far)
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => runInsight("key-points")}
-                disabled={isSummarizing}
-                className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-xs text-gray-200 disabled:opacity-50"
-              >
-                <Brain className="w-4 h-4 text-primary" />
-                Key points
-              </button>
-              <button
-                onClick={() => runInsight("action-items")}
-                disabled={isSummarizing}
-                className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-xs text-gray-200 disabled:opacity-50"
-              >
-                <Sparkles className="w-4 h-4 text-amber-300" />
-                Action items
-              </button>
-              <button
-                onClick={() => runInsight("decisions")}
-                disabled={isSummarizing}
-                className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-xs text-gray-200 disabled:opacity-50"
-              >
-                <Sparkles className="w-4 h-4 text-emerald-300" />
-                Decisions
-              </button>
-              <button
-                onClick={() => runInsight("questions")}
-                disabled={isSummarizing}
-                className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-xs text-gray-200 disabled:opacity-50"
-              >
-                <Sparkles className="w-4 h-4 text-blue-300" />
-                Questions
-              </button>
-            </div>
-          </div>
-        )}
-
         {/* Results */}
-        <div className="space-y-3">
-          {/* Local */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <p className="text-[11px] font-medium text-gray-300">
-                Local matches
-                {query.trim().length >= 2 ? (
-                  <span className="text-gray-500 ml-1">
-                    ({localMatches.length})
-                  </span>
-                ) : null}
-              </p>
-            </div>
-            {query.trim().length >= 2 && localMatches.length === 0 ? (
-              <p className="text-xs text-gray-500">No keyword matches yet.</p>
-            ) : (
-              <div className="space-y-2">
-                {localMatches.slice(0, 8).map((seg) => (
-                  <div
-                    key={seg.id}
-                    className="p-2 rounded-lg border border-gray-800 bg-gray-900/40"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="text-[11px] text-gray-300 truncate">
-                          {seg.speaker}
-                          <span className="text-gray-600 ml-2">
-                            {formatTime(seg.timestamp)}
-                          </span>
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => handleCopy(`${seg.speaker}: ${seg.text}`)}
-                        className="p-1 rounded hover:bg-gray-800 transition-colors text-gray-400 hover:text-gray-200"
-                        title="Copy"
-                      >
-                        <Copy className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                    <p className="text-xs text-gray-200 mt-1 break-words">
-                      {highlightText(seg.text, query)}
-                    </p>
-                  </div>
-                ))}
-              </div>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-medium text-gray-300">
+              Memories
+              <span className="text-gray-500 ml-1">
+                ({filteredMemories.length} of {memories.length})
+              </span>
+            </p>
+            {isLoading && (
+              <span className="inline-flex items-center gap-1 text-[10px] text-gray-500">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                loading…
+              </span>
             )}
           </div>
 
-          {/* SmartMemory */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <p className="text-[11px] font-medium text-gray-300 flex items-center gap-2">
-                SmartMemory matches
-                {isSearching && (
-                  <span className="inline-flex items-center gap-1 text-[10px] text-gray-500">
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                    searching…
-                  </span>
-                )}
-                {query.trim().length >= 2 && !isSearching ? (
-                  <span className="text-gray-500">({smartResults.length})</span>
-                ) : null}
-              </p>
-              {canUseMemory && smartResults.length > 0 && (
-                <button
-                  onClick={summarizeHits}
-                  disabled={isSummarizing}
-                  className="px-2 py-1 rounded bg-primary/20 hover:bg-primary/25 transition-colors text-[11px] text-primary disabled:opacity-50"
-                  title="Summarize SmartMemory hits"
+          {!canUseMemory ? (
+            <p className="text-xs text-gray-500">
+              Memory is not enabled for this room.
+            </p>
+          ) : memories.length === 0 && !isLoading ? (
+            <p className="text-xs text-gray-500">
+              No memories stored yet.
+            </p>
+          ) : filteredMemories.length === 0 && query.trim().length >= 2 ? (
+            <p className="text-xs text-gray-500">
+              No matches found for "{query}".
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {filteredMemories.map((m) => (
+                <div
+                  key={m.id}
+                  className="p-2 rounded-lg border border-gray-800 bg-gray-900/40"
                 >
-                  {isSummarizing ? "Summarizing…" : "Summarize hits"}
-                </button>
-              )}
-            </div>
-
-            {!canUseMemory ? (
-              <p className="text-xs text-gray-500">
-                Memory is not enabled for this room.
-              </p>
-            ) : query.trim().length >= 2 && smartResults.length === 0 && !isSearching ? (
-              <p className="text-xs text-gray-500">
-                No semantic matches yet (try different wording).
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {smartResults.slice(0, 8).map((m) => (
-                  <div
-                    key={m.id}
-                    className="p-2 rounded-lg border border-gray-800 bg-gray-900/40"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="text-[11px] text-gray-300 truncate">
-                          {m.agent || "Transcript"}
-                          <span className="text-gray-600 ml-2">
-                            {formatTime(m.at)}
-                          </span>
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => handleCopy(m.content)}
-                        className="p-1 rounded hover:bg-gray-800 transition-colors text-gray-400 hover:text-gray-200"
-                        title="Copy"
-                      >
-                        <Copy className="w-3.5 h-3.5" />
-                      </button>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-gray-300 truncate">
+                        {m.agent || "Transcript"}
+                        <span className="text-gray-600 ml-2">
+                          {formatTime(m.at)}
+                        </span>
+                      </p>
                     </div>
-                    <p className="text-xs text-gray-200 mt-1 break-words">
-                      {highlightText(m.content, query)}
-                    </p>
+                    <button
+                      onClick={() => handleCopy(m.content)}
+                      className="p-1 rounded hover:bg-gray-800 transition-colors text-gray-400 hover:text-gray-200"
+                      title="Copy"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                    </button>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Summary */}
-        <AnimatePresence>
-          {(isSummarizing || summary) && (
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 8 }}
-              className="p-3 rounded-xl border border-gray-700/50 bg-gray-800/40"
-            >
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  {isSummarizing ? (
-                    <Loader2 className="w-4 h-4 text-primary animate-spin" />
-                  ) : (
-                    <Sparkles className="w-4 h-4 text-primary" />
-                  )}
-                  <p className="text-xs font-medium text-gray-200 truncate">
-                    {isSummarizing
-                      ? "Generating…"
-                      : activeInsightMode
-                        ? `Insight: ${activeInsightMode.replace("-", " ")}`
-                        : "Summary"}
+                  <p className="text-xs text-gray-200 mt-1 break-words">
+                    {highlightText(m.content, query)}
                   </p>
                 </div>
-                {summary && (
-                  <button
-                    onClick={() => void handleCopy(summary)}
-                    className="p-1.5 rounded hover:bg-gray-700 transition-colors text-gray-400 hover:text-gray-200"
-                    title="Copy summary"
-                  >
-                    <Copy className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-
-              {isSummarizing && !summary ? (
-                <p className="text-xs text-gray-400">
-                  Thinking through the conversation so far…
-                </p>
-              ) : summary ? (
-                <div className="prose prose-invert prose-sm max-w-none">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {summary}
-                  </ReactMarkdown>
-                </div>
-              ) : null}
-            </motion.div>
+              ))}
+            </div>
           )}
-        </AnimatePresence>
+        </div>
       </div>
     </motion.div>
   );

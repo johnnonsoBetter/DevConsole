@@ -5,7 +5,7 @@
 
 import "./autofill.css";
 import { DataStore } from "./datastore";
-import { initializeDataStore } from "./fillLogic";
+import { initializeDataStore, loadAutofillSettings } from "./fillLogic";
 import {
   checkAndShowFillAllButton,
   cleanupAutofillUI,
@@ -93,6 +93,9 @@ function setupSettingsListener(): void {
  */
 async function initializeAutofillCore(): Promise<void> {
   try {
+    // Load autofill settings from storage (includes useAI setting)
+    await loadAutofillSettings();
+
     // Create and initialize DataStore if not already done
     if (!dataStore) {
       dataStore = new DataStore();
@@ -262,9 +265,42 @@ export function getDataStore(): DataStore | null {
 }
 
 // Export new feature modules
+export {
+  fillWithScenario,
+  generateAIResponse,
+  getAutofillSettings,
+  getSmartSuggestionsAsync,
+  loadAutofillSettings,
+  runAutofillDemo,
+  updateAutofillSettings,
+} from "./fillLogic";
+export {
+  analyzeComplexField,
+  generateSmartResponse,
+  getComplexFieldSuggestions,
+  getComplexFieldSuggestionsAsync,
+  isAIReadyForAutofill,
+  testAutofillAI,
+} from "./llmFieldUnderstanding";
 export { generateRelationalPersona } from "./personaGenerator";
-export { SCENARIO_PRESETS, getPreset, getScenarioDatasets } from "./scenarioPresets";
-export { analyzeComplexField, getComplexFieldSuggestions, getComplexFieldSuggestionsAsync, generateSmartResponse, isAIReadyForAutofill } from "./llmFieldUnderstanding";
-export { typeWithAnimation, fillFieldsWithAnimation, runDemoMode, stopTyping, pauseTyping, resumeTyping, SPEED_PRESETS, type TypingConfig } from "./typingAnimation";
-export { fillWithScenario, runAutofillDemo, updateAutofillSettings, getAutofillSettings, getSmartSuggestionsAsync, generateAIResponse } from "./fillLogic";
-export type { AutofillMode, AutofillSettings, RelationalPersona, TestScenario } from "./types";
+export {
+  getPreset,
+  getScenarioDatasets,
+  SCENARIO_PRESETS,
+} from "./scenarioPresets";
+export type {
+  AutofillMode,
+  AutofillSettings,
+  RelationalPersona,
+  TestScenario,
+} from "./types";
+export {
+  fillFieldsWithAnimation,
+  pauseTyping,
+  resumeTyping,
+  runDemoMode,
+  SPEED_PRESETS,
+  stopTyping,
+  typeWithAnimation,
+  type TypingConfig,
+} from "./typingAnimation";

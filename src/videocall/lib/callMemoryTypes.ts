@@ -263,8 +263,8 @@ export interface UseCallMemoryReturn {
    * @returns The memory ID if successful
    */
   storeToTimeline: (
-    timeline: MemoryTimeline,
-    content: Record<string, unknown>
+    timeline: String,
+    content: Record<string, unknown> | string
   ) => Promise<string | null>;
   /** Clear error state */
   clearError: () => void;

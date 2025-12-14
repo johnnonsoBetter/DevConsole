@@ -7,4 +7,5 @@ export * from "./codeActions";
 export * from "./devConsole";
 export * from "./githubIssueSlideout";
 export * from "./githubSettings";
+export * from "./playgroundMemory";
 export * from "./terminalStream";

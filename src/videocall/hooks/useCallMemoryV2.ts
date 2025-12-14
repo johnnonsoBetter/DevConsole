@@ -10,10 +10,12 @@
  * - Uses Raindrop SDK param casing (`smartMemoryLocation`, `sessionId`, etc.).
  */
 
-import { useEnsureRoom } from "@livekit/components-react";
+import { useCallMemoryStore } from "@/utils/stores";
 import Raindrop from "@liquidmetal-ai/lm-raindrop";
+import { useEnsureRoom } from "@livekit/components-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { CALL_MEMORY_CONFIG, MEMORY_TIMELINES } from "../lib";
+import { useCallMemory } from "./useCallMemory";
 
 // ============================================================================
 // TYPES
@@ -62,19 +64,32 @@ export interface MemoryQueryOptions {
   endTime?: Date;
 }
 
-export type CallMemoryV2State = "disconnected" | "connecting" | "connected" | "error";
+export type CallMemoryV2State = any;
 
 export interface UseCallMemoryV2Return {
   canUseMemory: boolean;
   sessionId: string | null;
   state: CallMemoryV2State;
-  addTranscription: (transcription: TranscriptionInfo) => Promise<string | null>;
-  searchMemories: (terms: string, options?: MemoryQueryOptions) => Promise<WorkingMemoryEntry[]>;
+  addTranscription: (
+    transcription: TranscriptionInfo
+  ) => Promise<string | null>;
+  searchMemories: (
+    terms: string,
+    options?: MemoryQueryOptions
+  ) => Promise<WorkingMemoryEntry[]>;
   getMemories: (options?: MemoryQueryOptions) => Promise<WorkingMemoryEntry[]>;
-  summarizeMemories: (memoryIds: string[], systemPrompt?: string) => Promise<string | null>;
+  summarizeMemories: (
+    memoryIds: string[],
+    systemPrompt?: string
+  ) => Promise<string | null>;
   endSession: (flush?: boolean, systemPrompt?: string) => Promise<boolean>;
   error: string | null;
   clearError: () => void;
+  addTranscriptionImpl: (transcript: {
+    participant: { identity: string };
+    text: string;
+    isFinal: boolean;
+  }) => Promise<void>;
 }
 
 // ============================================================================
@@ -104,7 +119,8 @@ function parseRoomMetadata(metadataStr: string | undefined): RoomMetadata {
 
 function normalizeLocation(location: SmartMemoryLocationLike) {
   const applicationName =
-    location.smartMemory.applicationName ?? location.smartMemory.application_name;
+    location.smartMemory.applicationName ??
+    location.smartMemory.application_name;
 
   if (!applicationName) {
     throw new Error(
@@ -133,24 +149,26 @@ export function useCallMemoryV2(
   config: Partial<CallMemoryV2Config> = {}
 ): UseCallMemoryV2Return {
   const room = useEnsureRoom();
-
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [state, setState] = useState<CallMemoryV2State>("disconnected");
+  const workingMemoryTimeline = useMemo(
+    () => `transcriptions:${room.name}`,
+    [room.name]
+  );
   const [error, setError] = useState<string | null>(null);
-
   const clientRef = useRef<Raindrop | null>(null);
-  const sessionIdRef = useRef<string | null>(null);
   const sessionPromiseRef = useRef<Promise<string> | null>(null);
+  const { _client } = useCallMemoryStore();
+  const { sessionId, state, storeToTimeline } = useCallMemory();
 
   const mergedConfig = useMemo<CallMemoryV2Config>(() => {
     return {
       ...DEFAULT_CONFIG,
       ...config,
-      smartMemoryLocation: config.smartMemoryLocation ?? DEFAULT_CONFIG.smartMemoryLocation,
-      timeline: config.timeline ?? DEFAULT_CONFIG.timeline,
+      smartMemoryLocation:
+        config.smartMemoryLocation ?? DEFAULT_CONFIG.smartMemoryLocation,
+      timeline: workingMemoryTimeline,
       agent: config.agent ?? DEFAULT_CONFIG.agent,
     };
-  }, [config]);
+  }, [config, workingMemoryTimeline]);
 
   const raindropApiKey = useMemo(() => {
     return parseRoomMetadata(room.metadata).raindropApiKey;
@@ -160,97 +178,89 @@ export function useCallMemoryV2(
 
   const clearError = useCallback(() => setError(null), []);
 
-  const getClient = useCallback((): Raindrop => {
-    if (clientRef.current) return clientRef.current;
-    if (!raindropApiKey) {
-      throw new Error("No Raindrop API key found in room metadata");
-    }
-    clientRef.current = new Raindrop({ apiKey: raindropApiKey });
-    return clientRef.current;
-  }, [raindropApiKey]);
+  const addTranscriptionImpl = useCallback(
+    async (transcript: {
+      participant: { identity: string };
+      text: string;
+      isFinal: boolean;
+    }) => {
+      const isFinal = transcript.isFinal;
+      if (!isFinal || !canUseMemory) {
+        return;
+      }
 
-  const ensureSession = useCallback(async (): Promise<string> => {
-    if (sessionIdRef.current) return sessionIdRef.current;
-    if (sessionPromiseRef.current) return sessionPromiseRef.current;
+      const transcription: TranscriptionInfo = {
+        text: transcript.text,
+        agent: mergedConfig.agent,
+        timeline: workingMemoryTimeline,
+        trackSid: `transcript-${transcript.participant.identity}-${Date.now()}`,
+      };
 
-    sessionPromiseRef.current = (async () => {
-      setState("connecting");
-      const client = getClient();
-      const location = normalizeLocation(mergedConfig.smartMemoryLocation);
-
-      const session = await client.startSession.create({
-        smartMemoryLocation: location,
-      });
-
-      const newSessionId = session.sessionId || `call-session-${Date.now()}`;
-
-      sessionIdRef.current = newSessionId;
-      setSessionId(newSessionId);
-      setState("connected");
-
-      return newSessionId;
-    })();
-
-    try {
-      return await sessionPromiseRef.current;
-    } finally {
-      sessionPromiseRef.current = null;
-    }
-  }, [getClient, mergedConfig.smartMemoryLocation]);
-
+      await storeToTimeline(workingMemoryTimeline, transcription.text);
+      // await clientRef.current?.putMemory.create({
+      //   smartMemoryLocation: normalizeLocation(
+      //     mergedConfig.smartMemoryLocation
+      //   ),
+      //   sessionId: sessionId!,
+      //   timeline: transcription.timeline ?? mergedConfig.timeline,
+      //   content: transcription.text,
+      //   agent: transcription.agent ?? mergedConfig.agent,
+      //   key: transcription.trackSid,
+      // });
+    },
+    []
+  );
   const addTranscription = useCallback(
     async (transcription: TranscriptionInfo): Promise<string | null> => {
       if (!transcription.text.trim()) return null;
 
       try {
-        const client = getClient();
-        const sessionId = await ensureSession();
         const location = normalizeLocation(mergedConfig.smartMemoryLocation);
 
-        const result = await client.putMemory.create({
+        const result = await _client?.putMemory.create({
           smartMemoryLocation: location,
-          sessionId,
-          timeline: transcription.timeline ?? mergedConfig.timeline,
+          sessionId: sessionId!,
           content: transcription.text,
           agent: transcription.agent ?? mergedConfig.agent,
           key: transcription.trackSid,
         });
 
-        setState("connected");
-        return result.memoryId ?? null;
+        return result?.memoryId ?? null;
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Failed to store transcription";
         setError(message);
-        setState("error");
+
         return null;
       }
     },
-    [ensureSession, getClient, mergedConfig]
+    [mergedConfig]
   );
 
   const searchMemories = useCallback(
-    async (terms: string, options: MemoryQueryOptions = {}): Promise<WorkingMemoryEntry[]> => {
+    async (
+      terms: string,
+      options: MemoryQueryOptions = {}
+    ): Promise<WorkingMemoryEntry[]> => {
       if (!terms.trim()) return [];
 
       try {
-        const client = getClient();
-        const sessionId = await ensureSession();
         const location = normalizeLocation(mergedConfig.smartMemoryLocation);
 
-        const res = await client.query.memory.search({
+        const res = await _client?.query.memory.search({
           smartMemoryLocation: location,
-          sessionId,
+          sessionId: sessionId!,
           terms,
-          timeline: options.timeline ?? mergedConfig.timeline,
+          timeline: workingMemoryTimeline,
           nMostRecent: options.nMostRecent ?? 30,
           startTime: toIsoStringOrNull(options.startTime),
           endTime: toIsoStringOrNull(options.endTime),
         });
 
-        setState("connected");
-        return (res.memories ?? [])
-          .filter((m): m is NonNullable<typeof m> => Boolean(m?.id && m?.content))
+        return (res?.memories ?? [])
+          .filter((m): m is NonNullable<typeof m> =>
+            Boolean(m?.id && m?.content)
+          )
           .map((m) => ({
             id: m.id as string,
             content: (m.content ?? "") as string,
@@ -263,33 +273,32 @@ export function useCallMemoryV2(
         const message =
           err instanceof Error ? err.message : "Failed to search memories";
         setError(message);
-        setState("error");
+
         return [];
       }
     },
-    [ensureSession, getClient, mergedConfig.smartMemoryLocation, mergedConfig.timeline]
+    [mergedConfig.smartMemoryLocation, workingMemoryTimeline]
   );
 
   const getMemories = useCallback(
     async (options: MemoryQueryOptions = {}): Promise<WorkingMemoryEntry[]> => {
       try {
-        const client = getClient();
-        const sessionId = await ensureSession();
         const location = normalizeLocation(mergedConfig.smartMemoryLocation);
 
-        const res = await client.getMemory.retrieve({
+        const res = await _client?.getMemory.retrieve({
           smartMemoryLocation: location,
-          sessionId,
-          timeline: options.timeline ?? mergedConfig.timeline,
+          sessionId: sessionId!,
+          timeline: workingMemoryTimeline,
           key: options.key,
           nMostRecent: options.nMostRecent ?? 50,
           startTime: toIsoStringOrNull(options.startTime),
           endTime: toIsoStringOrNull(options.endTime),
         });
 
-        setState("connected");
-        return (res.memories ?? [])
-          .filter((m): m is NonNullable<typeof m> => Boolean(m?.id && m?.content))
+        return (res?.memories ?? [])
+          .filter((m): m is NonNullable<typeof m> =>
+            Boolean(m?.id && m?.content)
+          )
           .map((m) => ({
             id: m.id as string,
             content: (m.content ?? "") as string,
@@ -302,81 +311,76 @@ export function useCallMemoryV2(
         const message =
           err instanceof Error ? err.message : "Failed to load memories";
         setError(message);
-        setState("error");
+
         return [];
       }
     },
-    [ensureSession, getClient, mergedConfig.smartMemoryLocation, mergedConfig.timeline]
+    [mergedConfig.smartMemoryLocation, workingMemoryTimeline]
   );
 
   const summarizeMemories = useCallback(
-    async (memoryIds: string[], systemPrompt?: string): Promise<string | null> => {
+    async (
+      memoryIds: string[],
+      systemPrompt?: string
+    ): Promise<string | null> => {
       const ids = memoryIds.filter(Boolean);
       if (ids.length === 0) return null;
 
       try {
-        const client = getClient();
-        const sessionId = await ensureSession();
         const location = normalizeLocation(mergedConfig.smartMemoryLocation);
 
-        const res = await client.summarizeMemory.create({
+        const res = await _client?.summarizeMemory.create({
           smartMemoryLocation: location,
-          sessionId,
+          sessionId: sessionId!,
           memoryIds: ids.slice(0, 50),
           systemPrompt,
         });
 
-        setState("connected");
-        return res.summary ?? null;
+        return res?.summary ?? null;
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Failed to summarize memories";
         setError(message);
-        setState("error");
+
         return null;
       }
     },
-    [ensureSession, getClient, mergedConfig.smartMemoryLocation]
+    [mergedConfig.smartMemoryLocation]
   );
 
   const endSession = useCallback(
     async (flush = true, systemPrompt?: string): Promise<boolean> => {
-      const existingSessionId = sessionIdRef.current;
-      if (!existingSessionId) return false;
+      if (!sessionId) return false;
 
       try {
-        const client = getClient();
         const location = normalizeLocation(mergedConfig.smartMemoryLocation);
 
-        const res = await client.endSession.create({
+        const res = await _client?.endSession.create({
           smartMemoryLocation: location,
-          sessionId: existingSessionId,
+          sessionId: sessionId!,
           flush,
           systemPrompt,
         });
 
         clientRef.current = null;
-        sessionIdRef.current = null;
         sessionPromiseRef.current = null;
-        setSessionId(null);
-        setState("disconnected");
 
-        return res.success ?? false;
+        return res?.success ?? false;
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Failed to end session";
         setError(message);
-        setState("error");
+
         return false;
       }
     },
-    [getClient, mergedConfig.smartMemoryLocation]
+    [mergedConfig.smartMemoryLocation]
   );
 
   return {
+    state,
     canUseMemory,
     sessionId,
-    state,
     addTranscription,
     searchMemories,
     getMemories,
@@ -384,5 +388,6 @@ export function useCallMemoryV2(
     endSession,
     error,
     clearError,
+    addTranscriptionImpl,
   };
 }

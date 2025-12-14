@@ -5,17 +5,18 @@
  */
 
 import {
-  // Activity, // TODO: Re-enable when Tools panel is needed
-  BookOpen,
-  // Download, // TODO: Re-enable when Tools panel is needed
-  Github,
-  // Info, // TODO: Re-enable when Tools panel is needed
-  // Monitor, // TODO: Re-enable when Terminal Stream API is ready
-  Network,
-  // RefreshCw, // TODO: Re-enable when Tools panel is needed
-  Settings,
-  Terminal,
-  Video,
+    // Activity, // TODO: Re-enable when Tools panel is needed
+    BookOpen,
+    Brain,
+    // Download, // TODO: Re-enable when Tools panel is needed
+    Github,
+    // Info, // TODO: Re-enable when Tools panel is needed
+    // Monitor, // TODO: Re-enable when Terminal Stream API is ready
+    Network,
+    // RefreshCw, // TODO: Re-enable when Tools panel is needed
+    Settings,
+    Terminal,
+    Video,
 } from 'lucide-react';
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { GraphQLIcon, LogoIcon, VSCodeIcon } from '../../icons';
@@ -26,7 +27,7 @@ import { GraphQLIcon, LogoIcon, VSCodeIcon } from '../../icons';
 //     exportContextPack,
 // } from '../../lib/devConsole/contextPacker';
 import {
-  useDevConsoleStore
+    useDevConsoleStore
 } from '../../utils/stores/devConsole';
 const GraphQLExplorer = lazy(() => import('../DevConsole/GraphQLExplorerV2').then(module => ({default: module.GraphQLExplorerV2})));
 
@@ -42,6 +43,7 @@ import { GitHubIssueSlideout } from './GitHubIssueSlideout';
 import { GitHubIssuesTab } from './GitHubIssuesTab';
 import { CodeActionsPanel } from './panels/CodeActionsPanel';
 import { LogsPanel } from './panels/LogsPanel';
+import { MemoryPlaygroundPanel } from './panels/MemoryPlaygroundPanel';
 import { NetworkPanel } from './panels/NetworkPanel';
 import { NotesPanel } from './panels/NotesPanel';
 // import { TerminalPanel } from './panels/TerminalPanel'; // TODO: Re-enable when Terminal Stream API is ready
@@ -72,6 +74,7 @@ const CONSOLE_TABS = [
   { id: 'video', label: 'Video', icon: Video },
   { id: 'actions', label: 'Actions', icon: VSCodeIcon },
   { id: 'graphql', label: 'GraphQL', icon: GraphQLIcon },
+  { id: 'memory', label: 'Memory', icon: Brain },
   // { id: 'tools', label: 'Tools', icon: Activity }, // TODO: Re-enable Tools panel when needed
   { id: 'github', label: 'GitHub', icon: Github },
   { id: 'settings', label: 'Settings', icon: Settings },
@@ -225,6 +228,7 @@ export function DevConsolePanel({ githubConfig, compact = false, allowedTabs }: 
                   <GraphQLExplorer />
                 </Suspense>
               )}
+              {tab.id === 'memory' && <MemoryPlaygroundPanel />}
               {/* {tab.id === 'tools' && <ToolsPanel />} */}{/* TODO: Re-enable when Tools panel is needed */}
               {tab.id === 'github' && (
                 <GitHubIssuesTab

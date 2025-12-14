@@ -21,7 +21,8 @@
     0 4px 16px rgba(0, 0, 0, 0.2);
   backdrop-filter: blur(14px);
 
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   animation: autofillSlideIn 0.2s ease-out;
 }
 
@@ -100,7 +101,9 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background 0.15s ease, transform 0.15s ease;
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease;
   flex-shrink: 0;
 }
 
@@ -146,7 +149,10 @@
   font-weight: 600;
   color: #f9fafb;
   text-align: left;
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.15s ease;
 }
 
 .autofill-btn:hover {
@@ -211,7 +217,9 @@
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
   font-size: 10px;
   font-weight: 700;
   color: rgba(255, 255, 255, 0.75);
@@ -623,7 +631,9 @@
 }
 
 .autofill-dropdown-menu.open + .autofill-dropdown-toggle svg,
-.autofill-fill-all-container:has(.autofill-dropdown-menu.open) .autofill-dropdown-toggle svg {
+.autofill-fill-all-container:has(.autofill-dropdown-menu.open)
+  .autofill-dropdown-toggle
+  svg {
   transform: rotate(180deg);
 }
 
@@ -635,7 +645,9 @@
   margin-bottom: 8px;
   background: white;
   border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.15),
+    0 2px 8px rgba(0, 0, 0, 0.1);
   min-width: 240px;
   max-height: 400px;
   overflow-y: auto;
@@ -643,7 +655,8 @@
   visibility: hidden;
   transform: translateY(10px);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 .autofill-dropdown-menu.open {
@@ -777,7 +790,7 @@
 }
 
 .autofill-toggle::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 2px;
   left: 2px;
@@ -851,7 +864,9 @@
 }
 
 @keyframes typingPulse {
-  0%, 80%, 100% {
+  0%,
+  80%,
+  100% {
     transform: scale(0.8);
     opacity: 0.5;
   }

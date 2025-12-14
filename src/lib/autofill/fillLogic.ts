@@ -5,12 +5,20 @@
 
 import { DataStore } from "./datastore";
 import { detectInputType } from "./fieldDetector";
-import { analyzeComplexField, getComplexFieldSuggestions } from "./llmFieldUnderstanding";
+import {
+  analyzeComplexField,
+  getComplexFieldSuggestions,
+} from "./llmFieldUnderstanding";
 import { generateRelationalPersona } from "./personaGenerator";
 import { getScenarioDatasets, type TestScenario } from "./scenarioPresets";
 import type { AutofillSettings, Dataset, FieldType } from "./types";
 import { DEFAULT_AUTOFILL_SETTINGS } from "./types";
-import { fillFieldsWithAnimation, runDemoMode, SPEED_PRESETS, type TypingConfig } from "./typingAnimation";
+import {
+  fillFieldsWithAnimation,
+  runDemoMode,
+  SPEED_PRESETS,
+  type TypingConfig,
+} from "./typingAnimation";
 import {
   checkAndShowFillAllButton,
   closeSuggestionBox,
@@ -35,11 +43,72 @@ export function initializeDataStore(store: DataStore): void {
   dataStore = store;
 }
 
+// Storage key for autofill settings (same as in index.ts)
+const AUTOFILL_SETTINGS_KEY = "devConsoleAutofillSettings";
+
 /**
- * Update autofill settings
+ * Check if chrome.storage is available
  */
-export function updateAutofillSettings(settings: Partial<AutofillSettings>): void {
+function isChromeStorageAvailable(): boolean {
+  try {
+    return (
+      typeof chrome !== "undefined" &&
+      !!chrome?.storage?.local &&
+      !!chrome?.runtime?.id
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Update autofill settings and persist to chrome.storage
+ */
+export function updateAutofillSettings(
+  settings: Partial<AutofillSettings>
+): void {
   currentSettings = { ...currentSettings, ...settings };
+
+  // Debug logging for settings changes
+  if (settings.useAI !== undefined) {
+    console.log("[Autofill] useAI setting updated:", currentSettings.useAI);
+  }
+
+  // Persist to chrome.storage (fire and forget)
+  if (isChromeStorageAvailable()) {
+    try {
+      chrome.storage.local.set({ [AUTOFILL_SETTINGS_KEY]: currentSettings });
+    } catch (e: any) {
+      if (!e?.message?.includes("execution context")) {
+        console.warn("[Autofill] Failed to persist settings:", e);
+      }
+    }
+  }
+}
+
+/**
+ * Load autofill settings from chrome.storage
+ */
+export async function loadAutofillSettings(): Promise<void> {
+  if (!isChromeStorageAvailable()) {
+    console.warn("[Autofill] chrome.storage not available");
+    return;
+  }
+
+  try {
+    const result = await chrome.storage.local.get(AUTOFILL_SETTINGS_KEY);
+    if (result[AUTOFILL_SETTINGS_KEY]) {
+      currentSettings = {
+        ...DEFAULT_AUTOFILL_SETTINGS,
+        ...result[AUTOFILL_SETTINGS_KEY],
+      };
+      console.log("[Autofill] Settings loaded, useAI:", currentSettings.useAI);
+    }
+  } catch (e: any) {
+    if (!e?.message?.includes("execution context")) {
+      console.warn("[Autofill] Failed to load settings:", e);
+    }
+  }
 }
 
 /**
@@ -136,16 +205,18 @@ export function getSmartSuggestions(
   input: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
 ): string[] {
   const fieldType = detectInputType(input);
-  
+
   // Check if it's a complex field that needs AI understanding
-  if (input instanceof HTMLTextAreaElement || 
-      (input instanceof HTMLInputElement && input.type === 'text')) {
+  if (
+    input instanceof HTMLTextAreaElement ||
+    (input instanceof HTMLInputElement && input.type === "text")
+  ) {
     const complexContext = analyzeComplexField(input);
     if (complexContext && complexContext.confidence > 0.6) {
       return getComplexFieldSuggestions(complexContext);
     }
   }
-  
+
   return getSuggestionsForField(fieldType);
 }
 
@@ -157,18 +228,22 @@ export async function getSmartSuggestionsAsync(
 ): Promise<string[]> {
   const fieldType = detectInputType(input);
   const useAI = currentSettings.useAI;
-  
+
   // Check if it's a complex field that needs AI understanding
-  if (input instanceof HTMLTextAreaElement || 
-      (input instanceof HTMLInputElement && input.type === 'text')) {
+  if (
+    input instanceof HTMLTextAreaElement ||
+    (input instanceof HTMLInputElement && input.type === "text")
+  ) {
     const complexContext = analyzeComplexField(input);
     if (complexContext && complexContext.confidence > 0.6) {
       // Use async version with AI if enabled
-      const { getComplexFieldSuggestionsAsync } = await import('./llmFieldUnderstanding');
+      const { getComplexFieldSuggestionsAsync } = await import(
+        "./llmFieldUnderstanding"
+      );
       return getComplexFieldSuggestionsAsync(complexContext, useAI);
     }
   }
-  
+
   return getSuggestionsForField(fieldType);
 }
 
@@ -178,17 +253,43 @@ export async function getSmartSuggestionsAsync(
 export async function generateAIResponse(
   input: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
 ): Promise<string | null> {
-  if (!currentSettings.useAI) return null;
-  
-  if (input instanceof HTMLTextAreaElement || 
-      (input instanceof HTMLInputElement && input.type === 'text')) {
+  console.log(
+    "[Autofill AI] generateAIResponse called, useAI:",
+    currentSettings.useAI
+  );
+
+  if (!currentSettings.useAI) {
+    console.log("[Autofill AI] AI is disabled, skipping");
+    return null;
+  }
+
+  if (
+    input instanceof HTMLTextAreaElement ||
+    (input instanceof HTMLInputElement && input.type === "text")
+  ) {
     const complexContext = analyzeComplexField(input);
+    console.log(
+      "[Autofill AI] Field analysis:",
+      complexContext?.fieldType,
+      "confidence:",
+      complexContext?.confidence
+    );
+
     if (complexContext && complexContext.confidence > 0.5) {
-      const { generateSmartResponse } = await import('./llmFieldUnderstanding');
-      return generateSmartResponse(complexContext, true);
+      console.log(
+        "[Autofill AI] Calling AI for field type:",
+        complexContext.fieldType
+      );
+      const { generateSmartResponse } = await import("./llmFieldUnderstanding");
+      const response = await generateSmartResponse(complexContext, true);
+      console.log(
+        "[Autofill AI] AI response received:",
+        response ? "yes" : "no"
+      );
+      return response;
     }
   }
-  
+
   return null;
 }
 
@@ -199,20 +300,27 @@ export async function generateAIResponse(
 function getDatasetForScenario(scenarioId?: string): Dataset | null {
   const { activeScenario, enableRelationalData } = currentSettings;
   const effectiveScenario = scenarioId || activeScenario;
-  
+
   // Use scenario presets
-  if (effectiveScenario !== 'default' && effectiveScenario !== 'relational') {
-    const scenarioDatasets = getScenarioDatasets(effectiveScenario as TestScenario);
+  if (effectiveScenario !== "default" && effectiveScenario !== "relational") {
+    const scenarioDatasets = getScenarioDatasets(
+      effectiveScenario as TestScenario
+    );
     if (scenarioDatasets.length > 0) {
-      return scenarioDatasets[Math.floor(Math.random() * scenarioDatasets.length)];
+      return scenarioDatasets[
+        Math.floor(Math.random() * scenarioDatasets.length)
+      ];
     }
   }
 
   // Generate relational persona
-  if (effectiveScenario === 'relational' || (effectiveScenario === 'default' && enableRelationalData)) {
+  if (
+    effectiveScenario === "relational" ||
+    (effectiveScenario === "default" && enableRelationalData)
+  ) {
     return generateRelationalPersona();
   }
-  
+
   // Fall back to datastore
   return null;
 }
@@ -221,7 +329,9 @@ function getDatasetForScenario(scenarioId?: string): Dataset | null {
  * Get typing config based on settings
  * @param speedOverride - Optional speed to override current settings
  */
-function getTypingConfig(speedOverride?: 'slow' | 'normal' | 'fast' | 'instant'): Partial<TypingConfig> {
+function getTypingConfig(
+  speedOverride?: "slow" | "normal" | "fast" | "instant"
+): Partial<TypingConfig> {
   const speed = speedOverride || currentSettings.typingSpeed;
   const speedConfig = SPEED_PRESETS[speed] || SPEED_PRESETS.normal;
   return {
@@ -396,7 +506,7 @@ export function getAllFillableInputs(): Array<
 export async function fillAllInputs(options?: {
   scenarioId?: string;
   animated?: boolean;
-  typingSpeed?: 'slow' | 'normal' | 'fast' | 'instant';
+  typingSpeed?: "slow" | "normal" | "fast" | "instant";
 }): Promise<void> {
   const inputs = getAllFillableInputs();
   let filledCount = 0;
@@ -436,7 +546,7 @@ export async function fillAllInputs(options?: {
   console.log(`🎯 Using dataset: ${currentDataset.name} for this form`);
 
   // Build field-value pairs for animation mode
-  if (useAnimation && typingSpeed !== 'instant') {
+  if (useAnimation && typingSpeed !== "instant") {
     const fieldsToAnimate: Array<{
       input: HTMLInputElement | HTMLTextAreaElement;
       value: string;
@@ -466,7 +576,7 @@ export async function fillAllInputs(options?: {
       } else {
         // Text inputs can be animated
         let value = dataStore.getFieldData(currentDataset!, inputType);
-        
+
         // Try smart suggestions for complex fields (with AI if enabled)
         if (!value && input instanceof HTMLTextAreaElement) {
           if (currentSettings.useAI) {
@@ -572,7 +682,10 @@ export async function fillAllInputs(options?: {
 /**
  * Fill all inputs with a specific test scenario
  */
-export async function fillWithScenario(scenarioId: string, animated = false): Promise<void> {
+export async function fillWithScenario(
+  scenarioId: string,
+  animated = false
+): Promise<void> {
   await fillAllInputs({ scenarioId, animated });
 }
 
@@ -582,7 +695,8 @@ export async function fillWithScenario(scenarioId: string, animated = false): Pr
 export async function runAutofillDemo(): Promise<void> {
   const inputs = getAllFillableInputs();
   const textInputs = inputs.filter(
-    (input) => input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement
+    (input) =>
+      input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement
   );
 
   if (textInputs.length === 0) {
@@ -600,9 +714,17 @@ export async function runAutofillDemo(): Promise<void> {
 
   for (const input of textInputs) {
     const inputType = detectInputType(input);
-    const value =
-      String(persona.data[inputType] ?? persona.data.name ?? persona.data.firstName ?? "");
-    if (value && (input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement)) {
+    const value = String(
+      persona.data[inputType] ??
+        persona.data.name ??
+        persona.data.firstName ??
+        ""
+    );
+    if (
+      value &&
+      (input instanceof HTMLInputElement ||
+        input instanceof HTMLTextAreaElement)
+    ) {
       steps.push({ input, value });
     }
   }
