@@ -1,5 +1,5 @@
 import { motion, useInView } from 'framer-motion';
-import { Brain, CheckCircle2, HelpCircle, Lightbulb, ListTodo, MessageSquare, Mic, Search, Users, Video } from 'lucide-react';
+import { Brain, CheckCircle2, HelpCircle, Lightbulb, ListTodo, Search } from 'lucide-react';
 import React, { useRef } from 'react';
 import { fadeInUp, scaleIn, staggerContainer } from './animations';
 

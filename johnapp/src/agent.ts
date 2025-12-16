@@ -45,6 +45,34 @@ const ATTRIBUTE_TRANSCRIPTION_FINAL = 'lk.transcription_final';
 const ATTRIBUTE_TRANSCRIPTION_TRACK_ID = 'lk.transcribed_track_id';
 const ATTRIBUTE_TRANSCRIPTION_SEGMENT_ID = 'lk.segment_id';
 
+// Error types for better handling
+enum TranscriptionErrorType {
+  NETWORK_DISCONNECTION = 'NETWORK_DISCONNECTION',
+  DEEPGRAM_API_FAILURE = 'DEEPGRAM_API_FAILURE',
+  ROOM_CONNECTION_ERROR = 'ROOM_CONNECTION_ERROR',
+  AUDIO_STREAM_ERROR = 'AUDIO_STREAM_ERROR',
+  STT_STREAM_ERROR = 'STT_STREAM_ERROR',
+}
+
+class TranscriptionError extends Error {
+  public type: TranscriptionErrorType;
+  public originalCause?: unknown;
+
+  constructor(type: TranscriptionErrorType, message: string, originalCause?: unknown) {
+    super(message);
+    this.name = 'TranscriptionError';
+    this.type = type;
+    this.originalCause = originalCause;
+  }
+}
+
+/**
+ * Generate a unique segment ID
+ */
+function generateSegmentId(): string {
+  return `SG_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+}
+
 /**
  * Manages transcription for a single participant
  */
@@ -56,35 +84,64 @@ class ParticipantTranscriber {
   private ctx: JobContext;
   private segmentId: string;
   private trackSid: string | null = null;
+  private isRunning: boolean = false;
 
   constructor(ctx: JobContext, participant: RemoteParticipant, sttProvider: deepgram.STT) {
     this.ctx = ctx;
     this.participant = participant;
     this.sttStream = sttProvider.stream();
     this.abortController = new AbortController();
-    this.segmentId = `SG_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    this.segmentId = generateSegmentId();
+  }
+
+  /**
+   * Reset segment ID - call on track changes or reconnections
+   */
+  resetSegmentId() {
+    this.segmentId = generateSegmentId();
+    console.log(
+      `[Transcriber] Reset segment ID for ${this.participant.identity}: ${this.segmentId}`,
+    );
   }
 
   /**
    * Start transcribing the participant's audio
    */
   async start(track: RemoteTrack, trackSid: string) {
+    // Reset segment ID on new track start (handles reconnections)
+    this.resetSegmentId();
     this.trackSid = trackSid;
+    this.isRunning = true;
+
     console.log(
       `[Transcriber] Starting transcription for ${this.participant.identity}, track: ${trackSid}`,
     );
 
-    // Create audio stream from the track
-    this.audioStream = new AudioStream(track, {
-      sampleRate: 16000, // Deepgram prefers 16kHz
-      numChannels: 1,
-    });
+    try {
+      // Create audio stream from the track
+      this.audioStream = new AudioStream(track, {
+        sampleRate: 16000, // Deepgram prefers 16kHz
+        numChannels: 1,
+      });
+    } catch (error) {
+      throw new TranscriptionError(
+        TranscriptionErrorType.AUDIO_STREAM_ERROR,
+        `Failed to create audio stream for ${this.participant.identity}`,
+        error,
+      );
+    }
 
-    // Forward audio frames to STT
-    this.forwardAudioToSTT();
+    // Run both tasks with proper cleanup coordination
+    const results = await Promise.allSettled([this.forwardAudioToSTT(), this.processSTTEvents()]);
 
-    // Process STT events and publish transcriptions
-    this.processSTTEvents();
+    // Log any errors from the parallel tasks
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        console.error(`[Transcriber] Task failed for ${this.participant.identity}:`, result.reason);
+      }
+    }
+
+    this.isRunning = false;
   }
 
   private async forwardAudioToSTT() {
@@ -96,12 +153,37 @@ class ParticipantTranscriber {
         this.sttStream.pushFrame(frame);
       }
     } catch (error) {
-      if (!this.abortController.signal.aborted) {
+      if (this.abortController.signal.aborted) return;
+
+      // Classify and handle the error
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const isNetworkError =
+        errorMessage.includes('network') ||
+        errorMessage.includes('connection') ||
+        errorMessage.includes('ECONNRESET') ||
+        errorMessage.includes('ETIMEDOUT');
+
+      if (isNetworkError) {
         console.error(
-          `[Transcriber] Audio forwarding error for ${this.participant.identity}:`,
+          `[Transcriber] Network disconnection for ${this.participant.identity}:`,
+          errorMessage,
+        );
+        throw new TranscriptionError(
+          TranscriptionErrorType.NETWORK_DISCONNECTION,
+          `Network error during audio forwarding for ${this.participant.identity}`,
           error,
         );
       }
+
+      console.error(
+        `[Transcriber] Audio forwarding error for ${this.participant.identity}:`,
+        error,
+      );
+      throw new TranscriptionError(
+        TranscriptionErrorType.AUDIO_STREAM_ERROR,
+        `Audio stream error for ${this.participant.identity}`,
+        error,
+      );
     }
   }
 
@@ -126,16 +208,39 @@ class ParticipantTranscriber {
 
         // Generate new segment ID for next final transcript
         if (isFinal) {
-          this.segmentId = `SG_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+          this.segmentId = generateSegmentId();
         }
       }
     } catch (error) {
-      if (!this.abortController.signal.aborted) {
+      if (this.abortController.signal.aborted) return;
+
+      // Classify the error
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const isDeepgramError =
+        errorMessage.includes('deepgram') ||
+        errorMessage.includes('401') ||
+        errorMessage.includes('403') ||
+        errorMessage.includes('rate limit') ||
+        errorMessage.includes('quota');
+
+      if (isDeepgramError) {
         console.error(
-          `[Transcriber] STT processing error for ${this.participant.identity}:`,
+          `[Transcriber] Deepgram API failure for ${this.participant.identity}:`,
+          errorMessage,
+        );
+        throw new TranscriptionError(
+          TranscriptionErrorType.DEEPGRAM_API_FAILURE,
+          `Deepgram API error for ${this.participant.identity}`,
           error,
         );
       }
+
+      console.error(`[Transcriber] STT processing error for ${this.participant.identity}:`, error);
+      throw new TranscriptionError(
+        TranscriptionErrorType.STT_STREAM_ERROR,
+        `STT stream error for ${this.participant.identity}`,
+        error,
+      );
     }
   }
 
@@ -170,10 +275,25 @@ class ParticipantTranscriber {
       await writer.write(text);
       await writer.close();
     } catch (error) {
-      console.error(
-        `[Transcriber] Failed to publish transcription for ${this.participant.identity}:`,
-        error,
-      );
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const isRoomConnectionError =
+        errorMessage.includes('disconnected') ||
+        errorMessage.includes('room') ||
+        errorMessage.includes('connection closed');
+
+      if (isRoomConnectionError) {
+        console.error(
+          `[Transcriber] Room connection error for ${this.participant.identity}:`,
+          errorMessage,
+        );
+        // Don't throw here, let the transcription continue if possible
+        // The room event handlers will handle cleanup
+      } else {
+        console.error(
+          `[Transcriber] Failed to publish transcription for ${this.participant.identity}:`,
+          error,
+        );
+      }
     }
   }
 
@@ -182,8 +302,28 @@ class ParticipantTranscriber {
    */
   async stop() {
     console.log(`[Transcriber] Stopping transcription for ${this.participant.identity}`);
+    this.isRunning = false;
     this.abortController.abort();
-    await this.sttStream.close();
+
+    // Close STT stream with error handling
+    try {
+      await this.sttStream.close();
+    } catch (error) {
+      console.warn(
+        `[Transcriber] Error closing STT stream for ${this.participant.identity}:`,
+        error,
+      );
+    }
+
+    // Clean up audio stream reference
+    this.audioStream = null;
+  }
+
+  /**
+   * Check if transcriber is currently running
+   */
+  get running(): boolean {
+    return this.isRunning;
   }
 }
 
@@ -314,18 +454,39 @@ export default defineAgent({
   entry: async (ctx: JobContext) => {
     console.log('[Agent] Multi-participant transcription agent starting...');
 
-    // Connect to the room first
-    await ctx.connect();
-    console.log('[Agent] Connected to room:', ctx.room.name);
+    // Connect to the room with error handling
+    try {
+      await ctx.connect();
+      console.log('[Agent] Connected to room:', ctx.room.name);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('[Agent] Failed to connect to room:', errorMessage);
+      throw new TranscriptionError(
+        TranscriptionErrorType.ROOM_CONNECTION_ERROR,
+        'Failed to connect to LiveKit room',
+        error,
+      );
+    }
 
     // Create STT provider (Deepgram for low-latency transcription)
-    const sttProvider = new deepgram.STT({
-      model: 'nova-3',
-      language: 'en',
-      interimResults: true,
-      punctuate: true,
-      smartFormat: true,
-    });
+    let sttProvider: deepgram.STT;
+    try {
+      sttProvider = new deepgram.STT({
+        model: 'nova-3',
+        language: 'en',
+        interimResults: true,
+        punctuate: true,
+        smartFormat: true,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('[Agent] Failed to initialize Deepgram STT:', errorMessage);
+      throw new TranscriptionError(
+        TranscriptionErrorType.DEEPGRAM_API_FAILURE,
+        'Failed to initialize Deepgram STT provider',
+        error,
+      );
+    }
 
     // Create and start the multi-participant transcription manager
     const manager = new MultiParticipantTranscriptionManager(ctx, sttProvider);
@@ -334,6 +495,21 @@ export default defineAgent({
     console.log('[Agent] Transcription manager started');
     console.log('[Agent] Listening for all participant audio tracks...');
     console.log('[Agent] Transcriptions will be published to lk.transcription topic');
+
+    // Handle room disconnection
+    ctx.room.on(RoomEvent.Disconnected, async (reason) => {
+      console.log('[Agent] Room disconnected, reason:', reason);
+      await manager.stop();
+    });
+
+    // Handle reconnection events
+    ctx.room.on(RoomEvent.Reconnecting, () => {
+      console.log('[Agent] Room reconnecting...');
+    });
+
+    ctx.room.on(RoomEvent.Reconnected, () => {
+      console.log('[Agent] Room reconnected');
+    });
 
     // Keep the agent running until the room is closed
     // The manager handles all participant lifecycle events

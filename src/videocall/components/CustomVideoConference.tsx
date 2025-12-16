@@ -147,6 +147,17 @@ export function CustomVideoConference({
     const handleParticipantConnected = (participant: Participant) => {
       if (!participant.isLocal) {
         addEvent('joined', participant.name || participant.identity || 'Unknown');
+        
+        // Log if it's an agent
+        if (participant.isAgent) {
+          console.log('🤖 [VideoCall] Agent JOINED the room:', {
+            identity: participant.identity,
+            name: participant.name,
+            sid: participant.sid,
+            metadata: participant.metadata,
+            timestamp: new Date().toISOString(),
+          });
+        }
       }
     };
     
@@ -156,6 +167,15 @@ export function CustomVideoConference({
         // Clear active speaker if they left
         if (activeSpeakerId === participant.identity) {
           setActiveSpeakerId(null);
+        }
+        
+        // Log if it's an agent
+        if (participant.isAgent) {
+          console.log('🤖 [VideoCall] Agent LEFT the room:', {
+            identity: participant.identity,
+            name: participant.name,
+            timestamp: new Date().toISOString(),
+          });
         }
       }
     };
@@ -196,6 +216,17 @@ export function CustomVideoConference({
     const agentLkParticipant = participants.find(p => p.isAgent
     );
     if (!agentLkParticipant) return null;
+    
+    // Log agent details for debugging
+    console.log('🤖 [VideoCall] Agent detected:', {
+      identity: agentLkParticipant.identity,
+      name: agentLkParticipant.name,
+      sid: agentLkParticipant.sid,
+      metadata: agentLkParticipant.metadata,
+      joinedAt: agentLkParticipant.joinedAt,
+      isSpeaking: agentLkParticipant.isSpeaking,
+      isMicEnabled: agentLkParticipant.isMicrophoneEnabled,
+    });
     
     return {
       id: agentLkParticipant.identity,

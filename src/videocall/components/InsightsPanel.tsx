@@ -14,23 +14,23 @@ import { useTranscriptions } from '@livekit/components-react';
 import nlp from 'compromise';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  Brain,
-  CheckCircle2,
-  Clock,
-  Copy,
-  HelpCircle,
-  Lightbulb,
-  ListTodo,
-  MessageSquare,
-  Search,
-  Sparkles,
-  X,
+    Brain,
+    CheckCircle2,
+    Clock,
+    Copy,
+    HelpCircle,
+    Lightbulb,
+    ListTodo,
+    MessageSquare,
+    Search,
+    Sparkles,
+    X,
 } from 'lucide-react';
 import {
-  useCallback,
-  useMemo,
-  useRef,
-  useState,
+    useCallback,
+    useMemo,
+    useRef,
+    useState,
 } from 'react';
 
 // ============================================================================

@@ -1,5 +1,5 @@
 import { AnimatePresence, motion, useInView } from 'framer-motion';
-import { ArrowRight, BookOpen, Brain, Bug, CheckCircle2, ChevronRight, Code2, Edit3, FileText, Filter, Github, GitPullRequest, Layers, ListTodo, MessageSquare, Mic, Network, Plus, RefreshCw, Search, Sparkles, Tag, Terminal, Video, Wand2, Zap } from 'lucide-react';
+import { ArrowRight, BookOpen, Brain, Bug, CheckCircle2, Github, ListTodo, MessageSquare, Mic, Network, Plus, Search, Sparkles, Terminal, Video, Wand2, Zap } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { fadeInUp, staggerContainer } from './animations';
 

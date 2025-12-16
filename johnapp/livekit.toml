@@ -2,4 +2,8 @@
   subdomain = "johnapp"
 
 [agent]
+  id = "AW_Mzc7WPNonb5v"
+  
+[agent_prod]
   id = "AW_GcsZuuYbtaxV"
+
