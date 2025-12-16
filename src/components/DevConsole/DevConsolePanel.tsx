@@ -9,6 +9,7 @@ import {
     BookOpen,
     Brain,
     // Download, // TODO: Re-enable when Tools panel is needed
+    FolderOpen,
     Github,
     // Info, // TODO: Re-enable when Tools panel is needed
     // Monitor, // TODO: Re-enable when Terminal Stream API is ready
@@ -46,6 +47,7 @@ import { LogsPanel } from './panels/LogsPanel';
 import { MemoryPlaygroundPanel } from './panels/MemoryPlaygroundPanel';
 import { NetworkPanel } from './panels/NetworkPanel';
 import { NotesPanel } from './panels/NotesPanel';
+import { PageStorePanel } from './panels/PageStorePanel';
 // import { TerminalPanel } from './panels/TerminalPanel'; // TODO: Re-enable when Terminal Stream API is ready
 import { VideoCallPanel } from './panels/VideoCallPanel';
 import { ThemeToggle } from './ThemeToggle';
@@ -75,6 +77,7 @@ const CONSOLE_TABS = [
   { id: 'actions', label: 'Actions', icon: VSCodeIcon },
   { id: 'graphql', label: 'GraphQL', icon: GraphQLIcon },
   { id: 'memory', label: 'Memory', icon: Brain },
+  { id: 'page-stores', label: 'Page Stores', icon: FolderOpen },
   // { id: 'tools', label: 'Tools', icon: Activity }, // TODO: Re-enable Tools panel when needed
   { id: 'github', label: 'GitHub', icon: Github },
   { id: 'settings', label: 'Settings', icon: Settings },
@@ -229,6 +232,7 @@ export function DevConsolePanel({ githubConfig, compact = false, allowedTabs }: 
                 </Suspense>
               )}
               {tab.id === 'memory' && <MemoryPlaygroundPanel />}
+              {tab.id === 'page-stores' && <PageStorePanel />}
               {/* {tab.id === 'tools' && <ToolsPanel />} */}{/* TODO: Re-enable when Tools panel is needed */}
               {tab.id === 'github' && (
                 <GitHubIssuesTab

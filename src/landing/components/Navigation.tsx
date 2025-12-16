@@ -1,14 +1,25 @@
-import { ChevronDown, Download, Terminal } from 'lucide-react';
+import { ChevronDown, Download, Menu, X } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
+import LogoIcon from '../../icons/logo/logo.icon';
 
 export const Navigation: React.FC = () => {
   const [scrolled, setScrolled] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Close mobile menu on resize
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) setMobileMenuOpen(false);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const navItems = [
@@ -37,8 +48,8 @@ export const Navigation: React.FC = () => {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <a href="#" className="flex items-center gap-2.5 group">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-gray-900 to-gray-700 flex items-center justify-center group-hover:scale-105 transition-transform shadow-lg shadow-gray-900/20">
-              <Terminal className="w-4 h-4 text-white" />
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-gray-900 to-gray-700 flex items-center justify-center group-hover:scale-105 transition-transform">
+              <LogoIcon size={18} className="text-white" />
             </div>
             <span className="text-[15px] font-semibold text-gray-900 tracking-tight">
               DevConsole
@@ -100,13 +111,61 @@ export const Navigation: React.FC = () => {
             <button 
               className="lg:hidden p-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
               aria-label="Toggle menu"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
+              {mobileMenuOpen ? (
+                <X className="w-6 h-6" />
+              ) : (
+                <Menu className="w-6 h-6" />
+              )}
             </button>
           </div>
         </div>
+
+        {/* Mobile Menu */}
+        {mobileMenuOpen && (
+          <div className="lg:hidden border-t border-gray-200/50 bg-white/95 backdrop-blur-xl">
+            <div className="py-4 space-y-1">
+              {navItems.map((item) => (
+                <div key={item.label}>
+                  <a
+                    href={item.href}
+                    onClick={() => !item.dropdown && setMobileMenuOpen(false)}
+                    className="block px-4 py-3 text-[15px] font-medium text-gray-700 hover:bg-gray-50 rounded-lg"
+                  >
+                    {item.label}
+                  </a>
+                  {item.dropdown && (
+                    <div className="pl-6 space-y-1">
+                      {item.dropdown.map((subItem) => (
+                        <a
+                          key={subItem.label}
+                          href={subItem.href}
+                          onClick={() => setMobileMenuOpen(false)}
+                          className="block px-4 py-2 text-[14px] text-gray-500 hover:text-purple-600"
+                        >
+                          {subItem.label}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+              <div className="px-4 pt-4">
+                <a 
+                  href="https://github.com/johnnonsoBetter/DevConsole" 
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 w-full px-5 py-3 bg-gray-900 text-white text-[14px] font-medium rounded-xl"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download Extension</span>
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </nav>
   );

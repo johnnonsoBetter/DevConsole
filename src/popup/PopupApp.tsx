@@ -112,6 +112,11 @@ interface BackgroundStateResponse {
 
 interface AutofillStats {
   fillCount: number;
+  pageStores?: {
+    totalStores: number;
+    totalDatasets: number;
+    totalUsageCount: number;
+  };
 }
 
 // ============================================================================
@@ -297,7 +302,10 @@ export function PopupApp() {
         type: 'AUTOFILL_GET_STATS',
       });
       if (stats && typeof stats.fillCount === 'number') {
-        setAutofillStats({ fillCount: stats.fillCount });
+        setAutofillStats({
+          fillCount: stats.fillCount,
+          pageStores: stats.pageStores,
+        });
       }
     } catch {
       // optional
@@ -437,6 +445,7 @@ export function PopupApp() {
               notes={notes}
               isNotesLoading={isNotesLoading}
               autofillFillCount={autofillStats?.fillCount}
+              pageStores={autofillStats?.pageStores}
               isAutofillEnabled={isAutofillEnabled}
               queuedDevToolsTab={queuedDevToolsTab}
               onRefresh={() => activeTab?.id && refreshBackgroundState(activeTab.id)}
@@ -494,6 +503,11 @@ interface MainViewProps {
   notes: Note[];
   isNotesLoading: boolean;
   autofillFillCount?: number;
+  pageStores?: {
+    totalStores: number;
+    totalDatasets: number;
+    totalUsageCount: number;
+  };
   isAutofillEnabled: boolean;
   queuedDevToolsTab: DevConsoleTabId | null;
   onRefresh: () => void;
@@ -519,6 +533,7 @@ function MainView({
   notes,
   isNotesLoading,
   autofillFillCount,
+  pageStores,
   queuedDevToolsTab,
   onRefresh,
   onToggleRecording,
@@ -593,7 +608,7 @@ function MainView({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <div className="relative">
+            <div className="relative group">
               <AutofillToggle
                 size="sm"
                 className={cn(
@@ -604,6 +619,12 @@ function MainView({
               {typeof autofillFillCount === 'number' && autofillFillCount > 0 && (
                 <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-emerald-500 text-white text-[10px] font-semibold flex items-center justify-center shadow">
                   {autofillFillCount > 99 ? '99+' : autofillFillCount}
+                </span>
+              )}
+              {/* Page Store indicator */}
+              {pageStores && pageStores.totalStores > 0 && (
+                <span className="absolute -bottom-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-violet-500 text-white text-[9px] font-semibold flex items-center justify-center shadow" title={`${pageStores.totalStores} page store${pageStores.totalStores > 1 ? 's' : ''}`}>
+                  {pageStores.totalStores > 9 ? '9+' : pageStores.totalStores}
                 </span>
               )}
             </div>

@@ -1,12 +1,9 @@
 import React, { useEffect } from 'react';
-import { AutofillSection } from './components/AutofillSection';
-import { FeatureShowcase } from './components/FeatureShowcase';
+import { DevToolsSection } from './components/DevToolsSection';
 import { Footer } from './components/Footer';
-import { GitHubSection } from './components/GitHubSection';
 import { HeroSection } from './components/HeroSection';
 import { Navigation } from './components/Navigation';
-import { ProductOverview } from './components/ProductOverview';
-import { RoomsWithMemorySection } from './components/RoomsWithMemorySection';
+import { RoomsSection } from './components/RoomsSection';
 
 export const LandingPage: React.FC = () => {
   // Smooth scroll behavior for anchor links
@@ -22,12 +19,14 @@ export const LandingPage: React.FC = () => {
       <Navigation />
       
       <main>
+        {/* Hero - First impression */}
         <HeroSection />
-        <ProductOverview />
-        <RoomsWithMemorySection />
-        <FeatureShowcase />
-        <GitHubSection />
-        <AutofillSection />
+        
+        {/* DevTools Enhancement - First feature section */}
+        <DevToolsSection />
+        
+        {/* Rooms with Memory - Second feature section */}
+        <RoomsSection />
       </main>
 
       <Footer />

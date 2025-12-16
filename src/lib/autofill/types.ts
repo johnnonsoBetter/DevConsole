@@ -2,11 +2,6 @@
  * TypeScript types and interfaces for Autofill feature
  */
 
-import type { TestScenario } from "./scenarioPresets";
-
-// Re-export TestScenario for convenience
-export type { TestScenario };
-
 export interface Dataset {
   id: string;
   name: string;
@@ -66,7 +61,8 @@ export type AutofillMode = "instant" | "animated" | "demo";
 export interface AutofillSettings {
   isEnabled: boolean;
   mode: AutofillMode;
-  activeScenario: TestScenario | "default" | "relational";
+  /** @deprecated Scenarios removed - kept for backwards compatibility */
+  activeScenario: "default";
   typingSpeed: "slow" | "normal" | "fast" | "instant";
   enableTypos: boolean;
   enableRelationalData: boolean;

@@ -9,8 +9,12 @@ import {
   analyzeComplexField,
   getComplexFieldSuggestions,
 } from "./llmFieldUnderstanding";
-import { generateRelationalPersona } from "./personaGenerator";
-import { getScenarioDatasets, type TestScenario } from "./scenarioPresets";
+import { 
+  getNextPersona, 
+  getRandomPersona,
+  createFormFingerprint,
+  initializePersonaPool,
+} from "./personaPool";
 import type { AutofillSettings, Dataset, FieldType } from "./types";
 import { DEFAULT_AUTOFILL_SETTINGS } from "./types";
 import {
@@ -295,34 +299,29 @@ export async function generateAIResponse(
 
 /**
  * Get dataset based on current scenario
- * @param scenarioId - Optional scenario ID to override current settings
+ * Uses persona pool with rotation for diverse data
  */
-function getDatasetForScenario(scenarioId?: string): Dataset | null {
-  const { activeScenario, enableRelationalData } = currentSettings;
-  const effectiveScenario = scenarioId || activeScenario;
-
-  // Use scenario presets
-  if (effectiveScenario !== "default" && effectiveScenario !== "relational") {
-    const scenarioDatasets = getScenarioDatasets(
-      effectiveScenario as TestScenario
-    );
-    if (scenarioDatasets.length > 0) {
-      return scenarioDatasets[
-        Math.floor(Math.random() * scenarioDatasets.length)
-      ];
+async function getDatasetFromPool(inputs?: (HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement)[]): Promise<Dataset | null> {
+  try {
+    // Initialize pool if needed
+    await initializePersonaPool();
+    
+    // Create fingerprint from form fields
+    if (inputs && inputs.length > 0) {
+      const fieldTypes = inputs.map(input => detectInputType(input));
+      const fingerprint = createFormFingerprint(
+        fieldTypes.map(type => ({ type }))
+      );
+      // Get next persona in rotation for this form
+      return await getNextPersona(fingerprint);
     }
+    
+    // Fallback to random persona
+    return await getRandomPersona();
+  } catch (error) {
+    console.warn("[Autofill] Failed to get persona from pool:", error);
+    return null;
   }
-
-  // Generate relational persona
-  if (
-    effectiveScenario === "relational" ||
-    (effectiveScenario === "default" && enableRelationalData)
-  ) {
-    return generateRelationalPersona();
-  }
-
-  // Fall back to datastore
-  return null;
 }
 
 /**
@@ -507,9 +506,31 @@ export async function fillAllInputs(options?: {
   scenarioId?: string;
   animated?: boolean;
   typingSpeed?: "slow" | "normal" | "fast" | "instant";
+  usePageStore?: boolean;
 }): Promise<void> {
   const inputs = getAllFillableInputs();
   let filledCount = 0;
+
+  // Try to use PageStore first if enabled (default: true)
+  const usePageStore = options?.usePageStore ?? true;
+  if (usePageStore) {
+    try {
+      const { tryFillWithPageStore, hasPageStoreForCurrentUrl } = await import("./pageStoreFill");
+      const hasStore = await hasPageStoreForCurrentUrl();
+      
+      if (hasStore) {
+        console.log("[Autofill] Found PageStore for current URL, using stored dataset");
+        const success = await tryFillWithPageStore();
+        if (success) {
+          console.log("[Autofill] ✅ Filled using PageStore dataset");
+          return; // Successfully filled with PageStore
+        }
+        console.log("[Autofill] PageStore fill returned no matches, falling back to DataStore");
+      }
+    } catch (error) {
+      console.warn("[Autofill] PageStore check failed, falling back to DataStore:", error);
+    }
+  }
 
   // Initialize dataStore if needed
   if (!dataStore) {
@@ -524,12 +545,9 @@ export async function fillAllInputs(options?: {
 
   // If a scenario is specified, use its dataset
   let selectedDataset: Dataset | null = null;
-  if (options?.scenarioId) {
-    selectedDataset = getDatasetForScenario(options.scenarioId);
-    if (selectedDataset) {
-      console.log(`🎭 Using scenario: ${options.scenarioId}`);
-    }
-  }
+  
+  // Get persona from pool with rotation
+  selectedDataset = await getDatasetFromPool(inputs);
 
   // Fallback to normal dataset selection
   if (!selectedDataset) {
@@ -680,16 +698,6 @@ export async function fillAllInputs(options?: {
 }
 
 /**
- * Fill all inputs with a specific test scenario
- */
-export async function fillWithScenario(
-  scenarioId: string,
-  animated = false
-): Promise<void> {
-  await fillAllInputs({ scenarioId, animated });
-}
-
-/**
  * Run demo mode - fills form with typing animation to showcase the feature
  */
 export async function runAutofillDemo(): Promise<void> {
@@ -704,8 +712,8 @@ export async function runAutofillDemo(): Promise<void> {
     return;
   }
 
-  // Generate a fresh persona for the demo
-  const persona = generateRelationalPersona();
+  // Get a fresh persona from pool for the demo
+  const persona = await getRandomPersona();
 
   const steps: Array<{
     input: HTMLInputElement | HTMLTextAreaElement;

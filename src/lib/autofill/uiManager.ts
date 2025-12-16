@@ -7,14 +7,13 @@ import { detectInputType } from "./fieldDetector";
 import {
   fillAllInputs,
   fillInput,
-  fillWithScenario,
   getAllFillableInputs,
   getAutofillSettings,
   getSuggestionsForField,
   runAutofillDemo,
   updateAutofillSettings,
 } from "./fillLogic";
-import { SCENARIO_PRESETS } from "./scenarioPresets";
+import { hasPageStoreForCurrentUrl, findPageStoreForCurrentUrl, createPageStoreFromCurrentPage, deletePageStore } from "./pageStoreFill";
 import {
   fetchUnsplashImages,
   fillImageInput,
@@ -280,6 +279,139 @@ export function showFillAllConfirmation(
     confirmation.classList.remove("visible");
     setTimeout(() => confirmation.remove(), 300);
   }, 3000);
+}
+
+/**
+ * Handle creating a new page store from current page
+ */
+async function handleCreatePageStore(): Promise<void> {
+  try {
+    showConfirmationMessage(document.body, "⏳ Analyzing page...", false);
+    
+    const newStore = await createPageStoreFromCurrentPage();
+    
+    if (newStore) {
+      showConfirmationMessage(document.body, `✓ Page Store created with ${newStore.forms.reduce((acc, f) => acc + f.fields.length, 0)} fields`, false);
+      
+      // Refresh the Fill All button to show updated state
+      setTimeout(async () => {
+        if (fillAllButton) {
+          await refreshFillAllButton();
+        }
+      }, 500);
+    } else {
+      showConfirmationMessage(document.body, "⚠ No fillable fields found", true);
+    }
+  } catch (error) {
+    console.error("[Autofill] Failed to create page store:", error);
+    showConfirmationMessage(document.body, "✗ Failed to create store", true);
+  }
+}
+
+/**
+ * Handle generating AI datasets for the current page store
+ * Sends a message to trigger AI generation in DevTools/background
+ */
+async function handleGenerateDatasets(): Promise<void> {
+  try {
+    const pageStore = await findPageStoreForCurrentUrl();
+    
+    if (!pageStore) {
+      showConfirmationMessage(document.body, "⚠ No store found for this page", true);
+      return;
+    }
+
+    showConfirmationMessage(document.body, "🤖 Requesting AI dataset generation...", false);
+    
+    // Send message to background to trigger dataset generation
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: "GENERATE_PAGE_STORE_DATASETS",
+        payload: {
+          storeId: pageStore.id,
+          count: 100,
+        },
+      });
+
+      if (response?.success) {
+        showConfirmationMessage(document.body, `✓ Generated ${response.datasetsCount || 'AI'} datasets`, false);
+        // Refresh the Fill All button
+        setTimeout(async () => {
+          if (fillAllButton) {
+            await refreshFillAllButton();
+          }
+        }, 500);
+      } else if (response?.error === "AI_NOT_CONFIGURED") {
+        showConfirmationMessage(document.body, "⚠ Configure AI in DevTools Settings first", true);
+      } else {
+        showConfirmationMessage(document.body, "⚠ Open DevTools → PageStore tab to generate datasets", true);
+      }
+    } catch {
+      // If messaging fails, guide user to DevTools
+      showConfirmationMessage(document.body, "💡 Open DevTools → PageStore tab to generate AI datasets", false);
+    }
+  } catch (error) {
+    console.error("[Autofill] Failed to trigger dataset generation:", error);
+    showConfirmationMessage(document.body, "✗ Failed to generate datasets", true);
+  }
+}
+
+/**
+ * Handle deleting the current page store
+ */
+async function handleDeletePageStore(): Promise<void> {
+  try {
+    const pageStore = await findPageStoreForCurrentUrl();
+    
+    if (pageStore) {
+      await deletePageStore(pageStore.id);
+      showConfirmationMessage(document.body, "✓ Page Store removed", false);
+      
+      // Refresh the Fill All button to show updated state
+      setTimeout(async () => {
+        if (fillAllButton) {
+          await refreshFillAllButton();
+        }
+      }, 500);
+    } else {
+      showConfirmationMessage(document.body, "⚠ No store found for this page", true);
+    }
+  } catch (error) {
+    console.error("[Autofill] Failed to delete page store:", error);
+    showConfirmationMessage(document.body, "✗ Failed to remove store", true);
+  }
+}
+
+/**
+ * Refresh the Fill All button by recreating it
+ * This ensures all UI elements properly reflect the current page store state
+ */
+async function refreshFillAllButton(): Promise<void> {
+  if (!fillAllButton) return;
+  
+  // Remove the current button
+  const wasVisible = fillAllButton.classList.contains("visible");
+  fillAllButton.remove();
+  fillAllButton = null;
+  
+  // Recreate it with fresh state
+  await showFillAllButton();
+  
+  // Restore visibility state
+  if (fillAllButton && wasVisible) {
+    fillAllButton.classList.add("visible");
+  }
+}
+
+/**
+ * Export function to refresh Fill All button when storage changes
+ * Called from index.ts when page stores are updated externally
+ */
+export function refreshFillAllButtonOnStorageChange(): void {
+  // Use a debounced approach to avoid rapid refreshes
+  refreshFillAllButton().catch(err => {
+    console.warn("[Autofill] Failed to refresh Fill All button:", err);
+  });
 }
 
 /**
@@ -704,26 +836,47 @@ export function checkAndShowFillAllButton(): void {
 /**
  * Show Fill All button with enhanced dropdown menu
  */
-function showFillAllButton(): void {
+async function showFillAllButton(): Promise<void> {
   if (fillAllButton && document.body.contains(fillAllButton)) return;
 
   const settings = getAutofillSettings();
 
+  // Check if a PageStore dataset is available for this URL
+  const pageStore = await findPageStoreForCurrentUrl();
+  const hasPageStore = pageStore !== null;
+  const hasDatasets = pageStore && pageStore.datasets && pageStore.datasets.length > 0;
+  const pageStoreName = pageStore?.datasets[0]?.name || pageStore?.name || "";
+
   fillAllButton = document.createElement("div");
   fillAllButton.className = "autofill-fill-all-container";
+  if (hasPageStore) {
+    fillAllButton.classList.add("has-page-store");
+  }
   fillAllButton.setAttribute("id", "autofill-fill-all-container" + Date.now());
 
   const inputs = getAllFillableInputs();
   const inputCount = inputs.length;
 
+  // Page store indicator badge
+  const pageStoreIndicator = hasPageStore
+    ? `<span class="page-store-badge" title="Using saved dataset: ${pageStoreName}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+          <path d="M4 7V4a2 2 0 0 1 2-2h8.5L20 7.5V20a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-3"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <path d="M10 12H4l3-3m-3 3l3 3"/>
+        </svg>
+      </span>`
+    : "";
+
   fillAllButton.innerHTML = `
-	    <button class="autofill-fill-all-button" type="button" aria-label="Fill All Fields" title="Fill All Fields (Ctrl+F)" role="button">
+	    <button class="autofill-fill-all-button" type="button" aria-label="Fill All Fields${hasPageStore ? ' (Using Page Store)' : ''}" title="Fill All Fields (Ctrl+F)${hasPageStore ? '\nUsing saved dataset: ' + pageStoreName : ''}" role="button">
 	      <svg class="fill-all-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
 	        <path d="M9 11l3 3L22 4"/>
 	        <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
 	      </svg>
 	      <span class="fill-all-label">Fill</span>
 	      <span class="fill-all-count">${inputCount}</span>
+	      ${pageStoreIndicator}
 	    </button>
 	    <button class="autofill-dropdown-toggle" type="button" aria-label="More options" title="Autofill Options">
 	      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -731,6 +884,19 @@ function showFillAllButton(): void {
 	      </svg>
 	    </button>
     <div class="autofill-dropdown-menu" role="menu" aria-hidden="true">
+      ${hasPageStore ? `
+      <div class="autofill-menu-section page-store-section">
+        <div class="autofill-menu-label page-store-label">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <path d="M4 7V4a2 2 0 0 1 2-2h8.5L20 7.5V20a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-3"/>
+            <polyline points="14 2 14 8 20 8"/>
+          </svg>
+          Page Store Active
+        </div>
+        <div class="page-store-info">Using: <strong>${pageStoreName}</strong></div>
+      </div>
+      <div class="autofill-menu-divider"></div>
+      ` : ''}
       <div class="autofill-menu-section">
         <div class="autofill-menu-label">Quick Fill</div>
         <button class="autofill-menu-item" data-action="fill-instant" role="menuitem">
@@ -751,18 +917,6 @@ function showFillAllButton(): void {
           </svg>
           <span>Demo Mode</span>
         </button>
-      </div>
-      <div class="autofill-menu-divider"></div>
-      <div class="autofill-menu-section">
-        <div class="autofill-menu-label">Test Scenarios</div>
-        ${SCENARIO_PRESETS.map(
-          (scenario) => `
-          <button class="autofill-menu-item" data-action="scenario" data-scenario="${scenario.id}" role="menuitem" title="${scenario.description}">
-            <span class="scenario-icon">${getScenarioIcon(scenario.id)}</span>
-            <span>${scenario.name}</span>
-          </button>
-        `
-        ).join("")}
       </div>
       <div class="autofill-menu-divider"></div>
       <div class="autofill-menu-section">
@@ -798,6 +952,46 @@ function showFillAllButton(): void {
           <input type="checkbox" class="autofill-toggle" data-setting="useAI" ${settings.useAI ? "checked" : ""}>
         </label>
         <p class="autofill-ai-hint">Uses AI from Settings → AI Providers</p>
+      </div>
+      <div class="autofill-menu-divider"></div>
+      <div class="autofill-menu-section">
+        <div class="autofill-menu-label">Page Store</div>
+        ${hasPageStore ? `
+        <div class="page-store-status page-store-active">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <path d="M9 11l3 3L22 4"/>
+          </svg>
+          <span>Store active for this page${!hasDatasets ? ' (no datasets)' : ''}</span>
+        </div>
+        ${!hasDatasets ? `
+        <button class="autofill-menu-item page-store-generate" data-action="generate-datasets" role="menuitem">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2"/>
+            <circle cx="7.5" cy="14.5" r="1.5"/>
+            <circle cx="16.5" cy="14.5" r="1.5"/>
+          </svg>
+          <span>Generate AI Datasets</span>
+        </button>
+        ` : ''}
+        <button class="autofill-menu-item page-store-delete" data-action="delete-page-store" role="menuitem">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          </svg>
+          <span>Remove Page Store</span>
+        </button>
+        ` : `
+        <button class="autofill-menu-item page-store-create" data-action="create-page-store" role="menuitem">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 7V4a2 2 0 0 1 2-2h8.5L20 7.5V20a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-3"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="12" y1="18" x2="12" y2="12"/>
+            <line x1="9" y1="15" x2="15" y2="15"/>
+          </svg>
+          <span>Create Page Store</span>
+        </button>
+        `}
+        <p class="autofill-ai-hint">Save form data for this page</p>
       </div>
     </div>
   `;
@@ -856,13 +1050,14 @@ function showFillAllButton(): void {
         case "demo":
           await runAutofillDemo();
           break;
-        case "scenario":
-          if (scenarioId) {
-            await fillWithScenario(
-              scenarioId,
-              getAutofillSettings().enableTypingAnimation
-            );
-          }
+        case "create-page-store":
+          await handleCreatePageStore();
+          break;
+        case "delete-page-store":
+          await handleDeletePageStore();
+          break;
+        case "generate-datasets":
+          await handleGenerateDatasets();
           break;
       }
     });
@@ -929,22 +1124,6 @@ function showFillAllButton(): void {
       fillAllButton.classList.add("visible");
     }
   }, 100);
-}
-
-/**
- * Get icon for scenario type
- */
-function getScenarioIcon(scenarioId: string): string {
-  const icons: Record<string, string> = {
-    "happy-path": "✅",
-    "edge-cases": "🔧",
-    validation: "❌",
-    i18n: "🌍",
-    accessibility: "♿",
-    security: "🔒",
-    boundary: "📏",
-  };
-  return icons[scenarioId] || "📋";
 }
 
 /**

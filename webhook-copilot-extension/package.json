@@ -1,0 +1,102 @@
+{
+  "name": "webhook-copilot-trigger",
+  "displayName": "Webhook Copilot Trigger",
+  "description": "Automatically triggers Copilot when webhooks are received",
+  "version": "1.0.0",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "enabledApiProposals": [
+    "terminalDataWriteEvent"
+  ],
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "chatParticipants": [
+      {
+        "id": "webhook-copilot.webhook",
+        "fullName": "Webhook",
+        "name": "webhook",
+        "description": "Handles incoming webhook requests with AI assistance",
+        "isSticky": false,
+        "commands": []
+      }
+    ],
+    "commands": [
+      {
+        "command": "webhook-copilot.start",
+        "title": "Webhook Copilot: Start Server"
+      },
+      {
+        "command": "webhook-copilot.stop",
+        "title": "Webhook Copilot: Stop Server"
+      },
+      {
+        "command": "webhook-copilot.restart",
+        "title": "Webhook Copilot: Restart Server"
+      },
+      {
+        "command": "webhook-copilot.startTerminalStream",
+        "title": "Webhook Copilot: Start Terminal Stream"
+      },
+      {
+        "command": "webhook-copilot.stopTerminalStream",
+        "title": "Webhook Copilot: Stop Terminal Stream"
+      },
+      {
+        "command": "webhook-copilot.terminalStreamStatus",
+        "title": "Webhook Copilot: Terminal Stream Status"
+      }
+    ],
+    "configuration": {
+      "title": "Webhook Copilot",
+      "properties": {
+        "webhookCopilot.serverPort": {
+          "type": "number",
+          "default": 9090,
+          "description": "Port for the webhook server to listen on"
+        },
+        "webhookCopilot.autoStart": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically start webhook server on VS Code startup"
+        },
+        "webhookCopilot.requireApproval": {
+          "type": "boolean",
+          "default": true,
+          "description": "Require user approval before executing webhook actions (unless payload has auto_approve: true)"
+        },
+        "webhookCopilot.terminalStreamPort": {
+          "type": "number",
+          "default": 9091,
+          "description": "Port for the WebSocket terminal stream server"
+        },
+        "webhookCopilot.terminalStreamAutoStart": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically start terminal stream server on VS Code startup"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/vscode": "^1.85.0",
+    "@types/ws": "^8.5.13",
+    "typescript": "^5.3.3"
+  }
+}

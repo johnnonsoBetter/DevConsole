@@ -7,10 +7,32 @@
 // LOG MESSAGES
 // ============================================================================
 
+export type LogLevel =
+  | 'log'
+  | 'info'
+  | 'warn'
+  | 'error'
+  | 'debug'
+  | 'ui'
+  | 'db'
+  | 'api'
+  | 'group'
+  | 'groupEnd'
+  | 'groupCollapsed'
+  | 'table'
+  | 'time'
+  | 'timeEnd'
+  | 'timeLog'
+  | 'count'
+  | 'countReset'
+  | 'trace'
+  | 'assert'
+  | 'clear';
+
 export interface ConsoleLogMessage {
   type: 'CONSOLE_LOG';
   payload: {
-    level: 'log' | 'info' | 'warn' | 'error' | 'debug' | 'ui' | 'db' | 'api';
+    level: LogLevel;
     message: string;
     args: any[];
     timestamp: number;
@@ -129,6 +151,16 @@ export interface ExtensionSettings {
   darkMode: boolean;
   captureConsole: boolean;
   captureNetwork: boolean;
+  persistState?: boolean;
+  allowedLogLevels?: LogLevel[];
+  contentFilter?: string;
+  sourceFilter?: string;
+  maxMessageChars?: number;
+  maxArgChars?: number;
+  maxArgs?: number;
+  archiveEnabled?: boolean;
+  maxArchivedLogs?: number;
+  maxArchivedNetworkRequests?: number;
 }
 
 // ============================================================================

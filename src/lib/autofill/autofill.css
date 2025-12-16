@@ -516,6 +516,7 @@
 
 /* ============================================
    ENHANCED FILL ALL BUTTON WITH DROPDOWN
+   Premium design with better visual hierarchy
    ============================================ */
 
 /* Container for button group */
@@ -528,8 +529,9 @@
   align-items: center;
   gap: 0;
   opacity: 0;
-  transform: translateY(20px) scale(0.8);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: translateY(20px) scale(0.9);
+  transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 .autofill-fill-all-container.visible {
@@ -537,97 +539,141 @@
   transform: translateY(0) scale(1);
 }
 
-/* Main fill button */
+/* Main fill button - Premium pill design */
 .autofill-fill-all-container .autofill-fill-all-button {
   position: relative !important;
   bottom: auto !important;
   right: auto !important;
-  background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
-  color: white;
-  padding: 0 14px;
-  height: 48px;
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%);
+  color: #1c1917;
+  padding: 0 18px 0 14px;
+  height: 44px;
   border: none;
-  border-radius: 24px 0 0 24px;
-  box-shadow: 0 4px 16px rgba(139, 92, 246, 0.35);
+  border-radius: 22px 0 0 22px;
+  box-shadow: 
+    0 4px 12px rgba(245, 158, 11, 0.35),
+    0 2px 4px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  gap: 8px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   opacity: 1;
   transform: none;
 }
 
 .autofill-fill-all-container .autofill-fill-all-button:hover {
-  background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
-  box-shadow: 0 6px 24px rgba(139, 92, 246, 0.5);
+  background: linear-gradient(135deg, #fcd34d 0%, #fbbf24 50%, #f59e0b 100%);
+  box-shadow: 
+    0 6px 20px rgba(245, 158, 11, 0.45),
+    0 3px 6px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.autofill-fill-all-container .autofill-fill-all-button:active {
+  transform: translateY(0);
+  box-shadow: 
+    0 2px 8px rgba(245, 158, 11, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
 .autofill-fill-all-container .autofill-fill-all-button:focus-visible {
   outline: none;
   box-shadow:
-    0 6px 24px rgba(139, 92, 246, 0.5),
-    0 0 0 3px rgba(139, 92, 246, 0.35);
+    0 6px 20px rgba(245, 158, 11, 0.45),
+    0 0 0 3px rgba(245, 158, 11, 0.35);
+}
+
+/* Fill icon with subtle animation */
+.autofill-fill-all-container .fill-all-icon {
+  width: 18px;
+  height: 18px;
+  color: #1c1917;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.autofill-fill-all-container .autofill-fill-all-button:hover .fill-all-icon {
+  transform: scale(1.05);
 }
 
 .autofill-fill-all-container .fill-all-label {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
-  letter-spacing: 0.2px;
+  letter-spacing: 0.1px;
   line-height: 1;
   white-space: nowrap;
 }
 
+/* Field count badge - Premium styling */
 .autofill-fill-all-container .fill-all-count {
   position: static;
   top: auto;
   right: auto;
-  background: rgba(255, 255, 255, 0.18);
-  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+  border: none;
   color: white;
-  min-width: 22px;
-  height: 20px;
-  border-radius: 9999px;
+  min-width: 24px;
+  height: 22px;
+  border-radius: 11px;
   font-size: 11px;
   font-weight: 800;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 0 8px;
-  box-shadow: none;
+  box-shadow: 0 2px 6px rgba(124, 58, 237, 0.35);
+  transition: all 0.2s ease;
 }
 
-/* Dropdown toggle button */
+.autofill-fill-all-container .autofill-fill-all-button:hover .fill-all-count {
+  box-shadow: 0 3px 10px rgba(124, 58, 237, 0.45);
+  transform: scale(1.05);
+}
+
+/* Dropdown toggle button - Seamless connection */
 .autofill-dropdown-toggle {
-  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  background: linear-gradient(135deg, #6d28d9 0%, #5b21b6 100%);
   color: white;
   padding: 0;
-  width: 36px;
-  height: 48px;
+  width: 38px;
+  height: 44px;
   border: none;
-  border-left: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 0 24px 24px 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 0 22px 22px 0;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
+  box-shadow: 
+    0 4px 12px rgba(109, 40, 217, 0.35),
+    0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .autofill-dropdown-toggle:hover {
-  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+  box-shadow: 
+    0 6px 20px rgba(109, 40, 217, 0.45),
+    0 3px 6px rgba(0, 0, 0, 0.15);
+}
+
+.autofill-dropdown-toggle:active {
+  transform: scale(0.98);
 }
 
 .autofill-dropdown-toggle:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.35);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.4);
 }
 
 .autofill-dropdown-toggle svg {
   width: 16px;
   height: 16px;
-  transition: transform 0.2s ease;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .autofill-dropdown-menu.open + .autofill-dropdown-toggle svg,
@@ -637,194 +683,227 @@
   transform: rotate(180deg);
 }
 
-/* Dropdown menu */
+/* Dropdown menu - Premium card design */
 .autofill-dropdown-menu {
   position: absolute;
   bottom: 100%;
   right: 0;
-  margin-bottom: 8px;
-  background: white;
-  border-radius: 12px;
+  margin-bottom: 10px;
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(20px);
+  border-radius: 16px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
   box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.15),
-    0 2px 8px rgba(0, 0, 0, 0.1);
-  min-width: 240px;
-  max-height: 400px;
+    0 20px 60px rgba(0, 0, 0, 0.15),
+    0 8px 24px rgba(0, 0, 0, 0.1),
+    0 2px 8px rgba(0, 0, 0, 0.06);
+  min-width: 260px;
+  max-height: 450px;
   overflow-y: auto;
   opacity: 0;
   visibility: hidden;
-  transform: translateY(10px);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  transform: translateY(10px) scale(0.95);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 .autofill-dropdown-menu.open {
   opacity: 1;
   visibility: visible;
-  transform: translateY(0);
+  transform: translateY(0) scale(1);
+}
+
+/* Custom scrollbar for dropdown */
+.autofill-dropdown-menu::-webkit-scrollbar {
+  width: 6px;
+}
+
+.autofill-dropdown-menu::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.autofill-dropdown-menu::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+}
+
+.autofill-dropdown-menu::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
 }
 
 /* Menu sections */
 .autofill-menu-section {
-  padding: 8px 4px;
+  padding: 10px 6px;
 }
 
 .autofill-menu-label {
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.8px;
   color: #9ca3af;
-  padding: 4px 12px;
-  margin-bottom: 4px;
+  padding: 6px 14px 8px;
+  margin-bottom: 2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .autofill-menu-divider {
   height: 1px;
-  background: #e5e7eb;
-  margin: 0;
+  background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.08), transparent);
+  margin: 0 12px;
 }
 
-/* Menu items */
+/* Menu items - Interactive cards */
 .autofill-menu-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 10px 12px;
+  gap: 12px;
+  width: calc(100% - 12px);
+  padding: 12px 14px;
   border: none;
   background: transparent;
   cursor: pointer;
   font-size: 13px;
+  font-weight: 500;
   color: #374151;
   text-align: left;
-  border-radius: 8px;
-  margin: 2px 4px;
+  border-radius: 10px;
+  margin: 2px 6px;
   transition: all 0.15s ease;
 }
 
 .autofill-menu-item:hover {
-  background: #f3f4f6;
-  color: #111827;
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+  color: #5b21b6;
+  transform: translateX(2px);
 }
 
 .autofill-menu-item:active {
-  background: #e5e7eb;
+  background: #ede9fe;
+  transform: translateX(2px) scale(0.99);
 }
 
 .autofill-menu-item svg {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   color: #6b7280;
   flex-shrink: 0;
+  transition: all 0.15s ease;
 }
 
 .autofill-menu-item:hover svg {
-  color: #8b5cf6;
+  color: #7c3aed;
+  transform: scale(1.1);
 }
 
-.autofill-menu-item .scenario-icon {
-  font-size: 14px;
-  width: 18px;
-  text-align: center;
-}
-
-/* Speed buttons */
+/* Speed buttons - Premium toggle group */
 .autofill-speed-options {
   display: flex;
-  gap: 4px;
-  padding: 4px 8px;
+  gap: 6px;
+  padding: 6px 10px;
 }
 
 .autofill-speed-btn {
   flex: 1;
-  padding: 8px;
+  padding: 10px 8px;
   border: 1px solid #e5e7eb;
   background: white;
-  border-radius: 8px;
+  border-radius: 10px;
   cursor: pointer;
   font-size: 16px;
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .autofill-speed-btn:hover {
-  border-color: #8b5cf6;
+  border-color: #a78bfa;
   background: #f5f3ff;
+  transform: translateY(-1px);
 }
 
 .autofill-speed-btn.active {
-  background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
-  border-color: #8b5cf6;
-  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
+  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+  border-color: transparent;
+  box-shadow: 0 3px 10px rgba(124, 58, 237, 0.35);
+  transform: translateY(-1px);
 }
 
-/* Toggle row */
+/* Toggle row - Better spacing and interaction */
 .autofill-toggle-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 12px;
+  padding: 12px 14px;
   cursor: pointer;
-  border-radius: 8px;
-  margin: 2px 4px;
+  border-radius: 10px;
+  margin: 2px 6px;
   font-size: 13px;
+  font-weight: 500;
   color: #374151;
-  transition: background 0.15s ease;
+  transition: all 0.15s ease;
 }
 
 .autofill-toggle-row:hover {
-  background: #f3f4f6;
+  background: #f9fafb;
 }
 
-/* Toggle switch */
+/* Toggle switch - Refined design */
 .autofill-toggle {
   appearance: none;
-  width: 36px;
-  height: 20px;
+  width: 42px;
+  height: 24px;
   background: #e5e7eb;
-  border-radius: 10px;
+  border-radius: 12px;
   position: relative;
   cursor: pointer;
-  transition: background 0.2s ease;
+  transition: all 0.25s ease;
+  flex-shrink: 0;
 }
 
 .autofill-toggle::after {
   content: "";
   position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 16px;
-  height: 16px;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
   background: white;
   border-radius: 50%;
-  transition: transform 0.2s ease;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
 }
 
 .autofill-toggle:checked {
-  background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
 }
 
 .autofill-toggle:checked::after {
-  transform: translateX(16px);
+  transform: translateX(18px);
+}
+
+.autofill-toggle:hover {
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
 }
 
 /* AI Toggle Special Styling */
 .autofill-ai-toggle span {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 .autofill-ai-toggle .ai-icon {
-  width: 16px;
-  height: 16px;
-  color: #8b5cf6;
+  width: 18px;
+  height: 18px;
+  color: #7c3aed;
 }
 
 .autofill-ai-hint {
-  margin: 4px 12px 8px;
+  margin: 2px 14px 10px;
   padding: 0;
   font-size: 11px;
   color: #9ca3af;
@@ -876,11 +955,23 @@
   }
 }
 
-/* Dark mode support */
+/* Dark mode support - Premium styling */
 @media (prefers-color-scheme: dark) {
   .autofill-dropdown-menu {
-    background: #1f2937;
-    border: 1px solid #374151;
+    background: rgba(31, 41, 55, 0.98);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow:
+      0 20px 60px rgba(0, 0, 0, 0.4),
+      0 8px 24px rgba(0, 0, 0, 0.3);
+  }
+
+  .autofill-dropdown-menu::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+  }
+
+  .autofill-dropdown-menu::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.25);
   }
 
   .autofill-menu-label {
@@ -888,7 +979,7 @@
   }
 
   .autofill-menu-divider {
-    background: #374151;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
   }
 
   .autofill-menu-item {
@@ -896,12 +987,16 @@
   }
 
   .autofill-menu-item:hover {
-    background: #374151;
-    color: #f9fafb;
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(109, 40, 217, 0.1) 100%);
+    color: #c4b5fd;
   }
 
   .autofill-menu-item svg {
     color: #9ca3af;
+  }
+
+  .autofill-menu-item:hover svg {
+    color: #a78bfa;
   }
 
   .autofill-speed-btn {
@@ -912,7 +1007,12 @@
 
   .autofill-speed-btn:hover {
     background: #4b5563;
-    border-color: #8b5cf6;
+    border-color: #a78bfa;
+  }
+
+  .autofill-speed-btn.active {
+    background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+    border-color: transparent;
   }
 
   .autofill-toggle-row {
@@ -920,10 +1020,275 @@
   }
 
   .autofill-toggle-row:hover {
-    background: #374151;
+    background: rgba(255, 255, 255, 0.05);
   }
 
   .autofill-toggle {
     background: #4b5563;
+  }
+
+  .autofill-toggle:hover {
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2);
+  }
+
+  .autofill-ai-hint {
+    color: #6b7280;
+  }
+}
+
+/* ============================================================================
+   PAGE STORE INDICATOR STYLES - Premium Design
+   ============================================================================ */
+
+/* Page Store badge on Fill button */
+.page-store-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 6px;
+  padding: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  animation: pageStorePulse 2.5s ease-in-out infinite;
+}
+
+.page-store-badge svg {
+  color: currentColor;
+  opacity: 0.9;
+}
+
+@keyframes pageStorePulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+  }
+}
+
+/* Page Store container highlight - Green theme */
+.autofill-fill-all-container.has-page-store .autofill-fill-all-button {
+  background: linear-gradient(135deg, #34d399 0%, #10b981 50%, #059669 100%);
+  color: #022c22;
+  box-shadow: 
+    0 4px 12px rgba(16, 185, 129, 0.4),
+    0 2px 4px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.autofill-fill-all-container.has-page-store .autofill-fill-all-button:hover {
+  background: linear-gradient(135deg, #6ee7b7 0%, #34d399 50%, #10b981 100%);
+  box-shadow: 
+    0 6px 20px rgba(16, 185, 129, 0.5),
+    0 3px 6px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.autofill-fill-all-container.has-page-store .fill-all-icon,
+.autofill-fill-all-container.has-page-store .fill-all-label {
+  color: #022c22;
+}
+
+.autofill-fill-all-container.has-page-store .fill-all-count {
+  background: linear-gradient(135deg, #065f46 0%, #047857 100%);
+  color: white;
+  box-shadow: 0 2px 6px rgba(6, 95, 70, 0.4);
+}
+
+.autofill-fill-all-container.has-page-store .autofill-dropdown-toggle {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  box-shadow: 
+    0 4px 12px rgba(5, 150, 105, 0.35),
+    0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.autofill-fill-all-container.has-page-store .autofill-dropdown-toggle:hover {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  box-shadow: 
+    0 6px 20px rgba(5, 150, 105, 0.45),
+    0 3px 6px rgba(0, 0, 0, 0.15);
+}
+
+/* Page Store section in dropdown menu */
+.page-store-section {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(5, 150, 105, 0.04) 100%);
+  margin: -10px -6px 0 -6px;
+  padding: 14px 16px !important;
+  border-radius: 14px 14px 0 0;
+  border-bottom: 1px solid rgba(16, 185, 129, 0.12);
+}
+
+.page-store-label {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  color: #059669 !important;
+  font-weight: 700 !important;
+  font-size: 11px !important;
+}
+
+.page-store-label svg {
+  color: #10b981;
+}
+
+.page-store-info {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 6px;
+}
+
+.page-store-info strong {
+  color: #059669;
+  font-weight: 600;
+}
+
+/* Dark mode for page store */
+@media (prefers-color-scheme: dark) {
+  .page-store-section {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(5, 150, 105, 0.06) 100%);
+    border-bottom-color: rgba(16, 185, 129, 0.15);
+  }
+
+  .page-store-label {
+    color: #34d399 !important;
+  }
+
+  .page-store-label svg {
+    color: #34d399;
+  }
+
+  .page-store-info {
+    color: #9ca3af;
+  }
+
+  .page-store-info strong {
+    color: #34d399;
+  }
+}
+
+/* Page Store Menu Items - Premium styling */
+.page-store-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  margin: 4px 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #059669;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%);
+  border-radius: 10px;
+  border: 1px solid rgba(16, 185, 129, 0.15);
+}
+
+.page-store-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #d1d5db;
+}
+
+.page-store-indicator.active {
+  background: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+  animation: page-store-pulse 2s ease-in-out infinite;
+}
+
+@keyframes page-store-pulse {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+  }
+  50% {
+    opacity: 0.8;
+    box-shadow: 0 0 14px rgba(16, 185, 129, 0.8);
+  }
+}
+
+.page-store-create {
+  color: #059669 !important;
+}
+
+.page-store-create:hover {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(16, 185, 129, 0.06) 100%) !important;
+  color: #047857 !important;
+}
+
+.page-store-create svg {
+  color: #10b981 !important;
+}
+
+/* Generate AI Datasets button - purple/violet theme to indicate AI */
+.page-store-generate {
+  color: #7c3aed !important;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(139, 92, 246, 0.02) 100%) !important;
+  border: 1px dashed rgba(139, 92, 246, 0.3) !important;
+  border-radius: 6px !important;
+  margin-bottom: 6px !important;
+}
+
+.page-store-generate:hover {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(139, 92, 246, 0.08) 100%) !important;
+  color: #6d28d9 !important;
+  border-color: rgba(139, 92, 246, 0.5) !important;
+}
+
+.page-store-generate svg {
+  color: #8b5cf6 !important;
+}
+
+.page-store-delete {
+  color: #dc2626 !important;
+}
+
+.page-store-delete:hover {
+  background: linear-gradient(135deg, rgba(220, 38, 38, 0.1) 0%, rgba(220, 38, 38, 0.05) 100%) !important;
+  color: #b91c1c !important;
+}
+
+.page-store-delete svg {
+  color: #ef4444 !important;
+}
+
+/* Dark mode for page store menu items */
+@media (prefers-color-scheme: dark) {
+  .page-store-status {
+    color: #34d399;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(16, 185, 129, 0.08) 100%);
+    border-color: rgba(16, 185, 129, 0.2);
+  }
+
+  .page-store-create {
+    color: #34d399 !important;
+  }
+
+  .page-store-create:hover {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(16, 185, 129, 0.1) 100%) !important;
+    color: #6ee7b7 !important;
+  }
+
+  .page-store-generate {
+    color: #a78bfa !important;
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(139, 92, 246, 0.05) 100%) !important;
+    border-color: rgba(139, 92, 246, 0.4) !important;
+  }
+
+  .page-store-generate:hover {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.25) 0%, rgba(139, 92, 246, 0.12) 100%) !important;
+    color: #c4b5fd !important;
+    border-color: rgba(139, 92, 246, 0.6) !important;
+  }
+
+  .page-store-generate svg {
+    color: #a78bfa !important;
+  }
+
+  .page-store-delete {
+    color: #f87171 !important;
+  }
+
+  .page-store-delete:hover {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(239, 68, 68, 0.1) 100%) !important;
+    color: #fca5a5 !important;
   }
 }

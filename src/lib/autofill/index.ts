@@ -11,7 +11,9 @@ import {
   cleanupAutofillUI,
   enhanceInputs,
   setupKeyboardShortcuts,
+  refreshFillAllButtonOnStorageChange,
 } from "./uiManager";
+import { PAGE_STORE_STORAGE_KEY } from "./pageStoreTypes";
 
 // Singleton DataStore instance
 let dataStore: DataStore | null = null;
@@ -84,6 +86,12 @@ function setupSettingsListener(): void {
           initializeAutofillCore();
         }
       }
+    }
+    
+    // Listen for page store changes to refresh Fill All button UI
+    if (areaName === "local" && changes[PAGE_STORE_STORAGE_KEY]) {
+      console.log("[Autofill] Page stores changed, refreshing Fill All button");
+      refreshFillAllButtonOnStorageChange();
     }
   });
 }
@@ -266,7 +274,6 @@ export function getDataStore(): DataStore | null {
 
 // Export new feature modules
 export {
-  fillWithScenario,
   generateAIResponse,
   getAutofillSettings,
   getSmartSuggestionsAsync,
@@ -283,16 +290,10 @@ export {
   testAutofillAI,
 } from "./llmFieldUnderstanding";
 export { generateRelationalPersona } from "./personaGenerator";
-export {
-  getPreset,
-  getScenarioDatasets,
-  SCENARIO_PRESETS,
-} from "./scenarioPresets";
 export type {
   AutofillMode,
   AutofillSettings,
   RelationalPersona,
-  TestScenario,
 } from "./types";
 export {
   fillFieldsWithAnimation,
@@ -304,3 +305,38 @@ export {
   typeWithAnimation,
   type TypingConfig,
 } from "./typingAnimation";
+
+// Page Store exports
+export {
+  fillWithPageStore,
+  fillInputWithPageStore,
+  findPageStoreForCurrentUrl,
+  getActivePageStoreDataset,
+  getPageStoreSuggestions,
+  hasPageStoreForCurrentUrl,
+  tryFillWithPageStore,
+} from "./pageStoreFill";
+export {
+  getPageStoreManager,
+  initializePageStoreManager,
+  PageStoreManager,
+} from "./pageStoreManager";
+export type {
+  PageForm,
+  PageFormField,
+  PageMetadata,
+  PagePurpose,
+  PageStore,
+  PageStoreDataset,
+  PageStoreFieldValue,
+  URLMatcher,
+} from "./pageStoreTypes";
+// AI Form Analyzer utilities (fallback generators)
+export {
+  buildFormContextPrompt,
+  detectFormPurpose,
+  generateBasicDataset,
+  generateBasicValue,
+  generateQuickDatasetsForStore,
+  getBasicSuggestions,
+} from "./aiFormAnalyzer";

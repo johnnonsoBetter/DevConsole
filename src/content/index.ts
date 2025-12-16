@@ -401,6 +401,35 @@ function setupMessageHandler(): void {
       );
       return true; // Will respond asynchronously
     }
+    
+    // Handle autofill trigger from DevTools when AI datasets are generated
+    if (message.type === "AUTOFILL_WITH_PAGE_STORE") {
+      import("../lib/autofill/pageStoreFill").then(
+        ({ fillWithPageStore, findPageStoreForCurrentUrl }) => {
+          findPageStoreForCurrentUrl()
+            .then((store) => {
+              if (store && store.datasets.length > 0) {
+                console.log("[Autofill] Triggering fill with AI-generated datasets");
+                fillWithPageStore(store)
+                  .then((result) => {
+                    sendResponse({ success: true, filled: result.filled });
+                  })
+                  .catch((error) => {
+                    console.error("[Autofill] Fill failed:", error);
+                    sendResponse({ success: false, error: error.message });
+                  });
+              } else {
+                sendResponse({ success: false, error: "No datasets available" });
+              }
+            })
+            .catch((error) => {
+              console.error("[Autofill] Find store failed:", error);
+              sendResponse({ success: false, error: error.message });
+            });
+        }
+      );
+      return true; // Will respond asynchronously
+    }
   });
 }
 

@@ -7,16 +7,7 @@
 // PROVIDER TYPES
 // ============================================================================
 
-export type AIProvider =
-  | "openai"
-  | "anthropic"
-  | "google"
-  | "xai"
-  | "mistral"
-  | "deepseek"
-  | "groq"
-  | "cohere"
-  | "perplexity";
+export type AIProvider = "openai" | "anthropic" | "deepseek";
 
 export interface ProviderInfo {
   id: AIProvider;

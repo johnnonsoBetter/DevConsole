@@ -12,6 +12,15 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^2.0.56",
+    "@ai-sdk/cohere": "^2.0.21",
+    "@ai-sdk/google": "^2.0.46",
+    "@ai-sdk/groq": "^2.0.33",
+    "@ai-sdk/mistral": "^2.0.26",
+    "@ai-sdk/openai": "^2.0.86",
+    "@ai-sdk/perplexity": "^2.0.22",
+    "@ai-sdk/togetherai": "^1.0.30",
+    "@ai-sdk/xai": "^2.0.40",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/modifiers": "^9.0.0",
     "@dnd-kit/utilities": "^3.2.2",

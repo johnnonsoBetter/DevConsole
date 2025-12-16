@@ -326,18 +326,45 @@ function generatePrompt(
 }
 
 // ============================================================================
-// AI INTEGRATION (Uses existing AI client)
+// AI INTEGRATION (Uses Vercel AI SDK directly for content script compatibility)
 // ============================================================================
 
-import { createAIClient } from "../ai/services/aiClient";
+import { generateText } from "ai";
+import { createOpenAI } from "@ai-sdk/openai";
+import { createAnthropic } from "@ai-sdk/anthropic";
+import type { AIProvider } from "../ai/types";
 
 const STORAGE_KEY = "devconsole_ai_settings";
 
-// Cache for AI client to avoid repeated creation
-let cachedAIClient: ReturnType<typeof createAIClient> | null = null;
+// Cache for AI settings to avoid repeated storage reads
 let cachedAISettings: AISettings | null = null;
 let aiSettingsLastFetched = 0;
 const AI_SETTINGS_CACHE_TTL = 5000; // 5 seconds
+
+/**
+ * Create AI SDK model based on provider and settings
+ */
+function createAIModel(settings: AISettings) {
+  const { provider, apiKey, model, useGateway, gatewayApiKey, gatewayUrl } = settings;
+  
+  // Use gateway if configured
+  if (useGateway && gatewayApiKey && gatewayUrl) {
+    return createOpenAI({ apiKey: gatewayApiKey, baseURL: gatewayUrl })(model);
+  }
+
+  const cleanModelId = model.includes("/") ? model.split("/").pop()! : model;
+
+  switch (provider as AIProvider) {
+    case "openai":
+      return createOpenAI({ apiKey })(cleanModelId);
+    case "anthropic":
+      return createAnthropic({ apiKey })(cleanModelId);
+    case "deepseek":
+      return createOpenAI({ apiKey, baseURL: "https://api.deepseek.com/v1" })(cleanModelId);
+    default:
+      return createOpenAI({ apiKey })(cleanModelId);
+  }
+}
 
 /**
  * Check if we're in a valid chrome extension context
@@ -376,9 +403,6 @@ async function loadAISettingsForAutofill(): Promise<AISettings | null> {
     cachedAISettings = result[STORAGE_KEY] || null;
     aiSettingsLastFetched = now;
 
-    // Invalidate cached client when settings change
-    cachedAIClient = null;
-
     if (cachedAISettings) {
       console.log("[LLM Autofill] AI settings loaded from storage");
     }
@@ -396,22 +420,6 @@ async function loadAISettingsForAutofill(): Promise<AISettings | null> {
     }
     return null;
   }
-}
-
-/**
- * Get or create AI client
- */
-async function getAIClient(): Promise<ReturnType<
-  typeof createAIClient
-> | null> {
-  const settings = await loadAISettingsForAutofill();
-  if (!settings) return null;
-
-  if (!cachedAIClient) {
-    cachedAIClient = createAIClient(settings);
-  }
-
-  return cachedAIClient;
 }
 
 /**
@@ -453,25 +461,27 @@ export async function isAIReadyForAutofill(): Promise<boolean> {
 }
 
 /**
- * Generate a response using the existing AI client
+ * Generate a response using Vercel AI SDK
  */
 async function callAI(
   prompt: string,
   systemPrompt: string
 ): Promise<string | null> {
   try {
-    const client = await getAIClient();
-    if (!client) {
-      console.log("[LLM Autofill] No AI client available");
+    const settings = await loadAISettingsForAutofill();
+    if (!settings || !settings.enabled) {
+      console.log("[LLM Autofill] AI not configured or disabled");
       return null;
     }
 
     console.log("[LLM Autofill] Calling AI with prompt length:", prompt.length);
 
-    const result = await client.generateText({
+    const model = createAIModel(settings);
+    const result = await generateText({
+      model,
+      system: systemPrompt,
       prompt,
-      systemPrompt,
-      temperature: 0.7,
+      temperature: settings.temperature ?? 0.7,
       maxTokens: 500,
     });
 
