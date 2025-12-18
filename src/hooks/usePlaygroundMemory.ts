@@ -24,6 +24,28 @@ export interface MemoryEntry {
   content: string;
   timestamp: Date;
   timeline?: string;
+  agent?: string;
+  key?: string;
+}
+
+/** Episodic memory entry from completed sessions */
+export interface EpisodicEntry {
+  sessionId: string;
+  summary: string;
+  agent?: string;
+  entryCount: number;
+  timelineCount: number;
+  duration: number;
+  createdAt: Date;
+  score?: number;
+}
+
+/** Procedural memory entry (reusable templates/skills) */
+export interface ProcedureEntry {
+  key: string;
+  value: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 // Re-export for convenience
@@ -68,20 +90,18 @@ export function usePlaygroundMemory() {
     setLoading,
     sessionId,
     config,
-    _client: client,
     setError,
     isConnected,
     isLoading,
     error,
-    setClient,
     setSessionId,
     reset,
     location,
   } = usePlaygroundMemoryStore();
-
   // Local state for memories (component-specific)
   const [memories, setMemories] = useState<MemoryEntry[]>([]);
   const [localLoading, setLocalLoading] = useState(false);
+  const [client, setClient] = useState<Raindrop | null>(null);
 
   /**
    * Initialize the Raindrop client and start a session
@@ -377,6 +397,379 @@ export function usePlaygroundMemory() {
     setError(null);
   }, []);
 
+  // ============================================================================
+  // EPISODIC MEMORY (Conversation History Archives)
+  // ============================================================================
+
+  /**
+   * Search episodic memory for relevant past sessions
+   * Uses semantic/vector search across all historical sessions
+   */
+  const searchEpisodicMemory = useCallback(
+    async (
+      query: string,
+      options: { nMostRecent?: number } = {}
+    ): Promise<EpisodicEntry[]> => {
+      if (!client) {
+        setError("Not connected. Please connect first.");
+        return [];
+      }
+
+      setLocalLoading(true);
+      setError(null);
+
+      try {
+        const response = await client.query.episodicMemory.search({
+          smartMemoryLocation: location,
+          terms: query,
+          nMostRecent: options.nMostRecent || 10,
+        });
+
+        const entries: EpisodicEntry[] = (response.entries ?? []).map((e) => ({
+          sessionId: e.sessionId || "",
+          summary: e.summary || "",
+          agent: e.agent || undefined,
+          entryCount: e.entryCount || 0,
+          timelineCount: e.timelineCount || 0,
+          duration:
+            typeof e.duration === "number"
+              ? e.duration
+              : Number(e.duration) || 0,
+          createdAt: e.createdAt ? new Date(e.createdAt) : new Date(),
+          score: e.score ?? undefined,
+        }));
+
+        setLocalLoading(false);
+        return entries;
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error
+            ? err.message
+            : "Failed to search episodic memory";
+        setError(errorMessage);
+        setLocalLoading(false);
+        return [];
+      }
+    },
+    [client, location]
+  );
+
+  /**
+   * Rehydrate a previous session from episodic memory
+   * Restores complete conversational state for seamless continuation
+   */
+  const rehydrateSession = useCallback(
+    async (
+      targetSessionId: string,
+      summaryOnly = false
+    ): Promise<{ success: boolean; entriesRestored?: number }> => {
+      if (!client) {
+        setError("Not connected. Please connect first.");
+        return { success: false };
+      }
+
+      setLocalLoading(true);
+      setError(null);
+
+      try {
+        const response = await client.rehydrateSession.rehydrate({
+          smartMemoryLocation: location,
+          sessionId: targetSessionId,
+          summaryOnly,
+        });
+
+        setLocalLoading(false);
+        return {
+          success: response.success ?? false,
+        };
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : "Failed to rehydrate session";
+        setError(errorMessage);
+        setLocalLoading(false);
+        return { success: false };
+      }
+    },
+    [client, location]
+  );
+
+  // ============================================================================
+  // SEMANTIC MEMORY (Structured Knowledge Documents)
+  // ============================================================================
+
+  /**
+   * Search semantic memory for relevant knowledge documents
+   * Uses vector embeddings for semantic similarity search
+   */
+  const searchSemanticMemory = useCallback(
+    async (
+      query: string
+    ): Promise<Array<{ text: string; score: number; source?: string }>> => {
+      if (!client) {
+        setError("Not connected. Please connect first.");
+        return [];
+      }
+
+      setLocalLoading(true);
+      setError(null);
+
+      try {
+        const response = await client.query.semanticMemory.search({
+          smartMemoryLocation: location,
+          needle: query,
+        });
+
+        const results = (response.documentSearchResponse?.results ?? []).map(
+          (r) => ({
+            text: r.text || "",
+            score: r.score || 0,
+            source: r.source ?? undefined,
+          })
+        );
+
+        setLocalLoading(false);
+        return results;
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error
+            ? err.message
+            : "Failed to search semantic memory";
+        setError(errorMessage);
+        setLocalLoading(false);
+        return [];
+      }
+    },
+    [client, location]
+  );
+
+  /**
+   * Store a knowledge document in semantic memory
+   */
+  const putSemanticMemory = useCallback(
+    async (document: Record<string, unknown>): Promise<string | null> => {
+      if (!client) {
+        setError("Not connected. Please connect first.");
+        return null;
+      }
+
+      setLocalLoading(true);
+      setError(null);
+
+      try {
+        const response = await client.putSemanticMemory.create({
+          smartMemoryLocation: location,
+          document: JSON.stringify(document),
+        });
+
+        setLocalLoading(false);
+        return response.objectId ?? null;
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error
+            ? err.message
+            : "Failed to store semantic memory";
+        setError(errorMessage);
+        setLocalLoading(false);
+        return null;
+      }
+    },
+    [client, location]
+  );
+
+  // ============================================================================
+  // PROCEDURAL MEMORY (Reusable Templates & Skills)
+  // ============================================================================
+
+  /**
+   * Store a reusable procedure (system prompt, template, workflow)
+   */
+  const putProcedure = useCallback(
+    async (key: string, value: string): Promise<boolean> => {
+      if (!client) {
+        setError("Not connected. Please connect first.");
+        return false;
+      }
+
+      setLocalLoading(true);
+      setError(null);
+
+      try {
+        const response = await client.putProcedure.create({
+          smartMemoryLocation: location,
+          key,
+          value,
+        });
+
+        setLocalLoading(false);
+        return response.success ?? false;
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : "Failed to store procedure";
+        setError(errorMessage);
+        setLocalLoading(false);
+        return false;
+      }
+    },
+    [client, location]
+  );
+
+  /**
+   * Get a specific procedure by key
+   */
+  const getProcedure = useCallback(
+    async (key: string): Promise<string | null> => {
+      if (!client) {
+        setError("Not connected. Please connect first.");
+        return null;
+      }
+
+      setLocalLoading(true);
+      setError(null);
+
+      try {
+        const response = await client.getProcedure.create({
+          smartMemoryLocation: location,
+          key,
+        });
+
+        setLocalLoading(false);
+        return response.found ? (response.value ?? null) : null;
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : "Failed to get procedure";
+        setError(errorMessage);
+        setLocalLoading(false);
+        return null;
+      }
+    },
+    [client, location]
+  );
+
+  /**
+   * List all stored procedures
+   */
+  const listProcedures = useCallback(async (): Promise<ProcedureEntry[]> => {
+    if (!client) {
+      setError("Not connected. Please connect first.");
+      return [];
+    }
+
+    setLocalLoading(true);
+    setError(null);
+
+    try {
+      const response = await client.listProcedures.create({
+        smartMemoryLocation: location,
+      });
+
+      const procedures: ProcedureEntry[] = (response.procedures ?? []).map(
+        (p) => ({
+          key: p.key || "",
+          value: p.value || "",
+          createdAt: p.createdAt ? new Date(p.createdAt) : new Date(),
+          updatedAt: p.updatedAt ? new Date(p.updatedAt) : new Date(),
+        })
+      );
+
+      setLocalLoading(false);
+      return procedures;
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to list procedures";
+      setError(errorMessage);
+      setLocalLoading(false);
+      return [];
+    }
+  }, [client, location]);
+
+  /**
+   * Search procedures by text matching
+   */
+  const searchProcedures = useCallback(
+    async (
+      query: string,
+      options: { searchKeys?: boolean; searchValues?: boolean } = {}
+    ): Promise<ProcedureEntry[]> => {
+      if (!client) {
+        setError("Not connected. Please connect first.");
+        return [];
+      }
+
+      setLocalLoading(true);
+      setError(null);
+
+      try {
+        const response = await client.query.procedures.search({
+          smartMemoryLocation: location,
+          terms: query,
+          searchKeys: options.searchKeys ?? true,
+          searchValues: options.searchValues ?? true,
+        });
+
+        const procedures: ProcedureEntry[] = (response.procedures ?? []).map(
+          (p) => ({
+            key: p.key || "",
+            value: p.value || "",
+            createdAt: p.createdAt ? new Date(p.createdAt) : new Date(),
+            updatedAt: p.updatedAt ? new Date(p.updatedAt) : new Date(),
+          })
+        );
+
+        setLocalLoading(false);
+        return procedures;
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : "Failed to search procedures";
+        setError(errorMessage);
+        setLocalLoading(false);
+        return [];
+      }
+    },
+    [client, location]
+  );
+
+  // ============================================================================
+  // SESSION LIFECYCLE
+  // ============================================================================
+
+  /**
+   * End session with optional flush to episodic memory
+   * When flush=true, session is summarized and stored for future retrieval
+   */
+  const endSession = useCallback(
+    async (flush = false, systemPrompt?: string): Promise<boolean> => {
+      if (!client || !sessionId) {
+        return false;
+      }
+
+      setLocalLoading(true);
+      setError(null);
+
+      try {
+        const response = await client.endSession.create({
+          smartMemoryLocation: location,
+          sessionId: sessionId,
+          flush,
+          systemPrompt,
+        });
+
+        // Reset store and local state
+        reset();
+        setMemories([]);
+        setLocalLoading(false);
+
+        return response.success ?? false;
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : "Failed to end session";
+        setError(errorMessage);
+        setLocalLoading(false);
+        return false;
+      }
+    },
+    [client, sessionId, location, reset]
+  );
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -404,15 +797,33 @@ export function usePlaygroundMemory() {
     // Local state
     memories,
     location,
-    // Actions
+
+    // Working Memory Actions
     connect,
     disconnect,
     putMemory,
     getMemory,
-    searchMemory,
+    searchMemory, // Semantic search across working memory
     summarizeMemory,
     clearMemories,
     clearError,
     config,
+
+    // Episodic Memory (Conversation History)
+    searchEpisodicMemory, // Search past sessions semantically
+    rehydrateSession, // Restore a previous session
+
+    // Semantic Memory (Knowledge Documents)
+    searchSemanticMemory, // Search knowledge base semantically
+    putSemanticMemory, // Store knowledge document
+
+    // Procedural Memory (Templates & Skills)
+    putProcedure, // Store reusable procedure
+    getProcedure, // Get procedure by key
+    listProcedures, // List all procedures
+    searchProcedures, // Search procedures by text
+
+    // Session Lifecycle
+    endSession, // End with optional flush to episodic
   };
 }

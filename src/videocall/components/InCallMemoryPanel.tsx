@@ -397,7 +397,6 @@ export function InCallMemoryPanel({
     summarizeMemory,
     clearError,
   } = usePlaygroundMemory();
-
   // Local state
   const [viewMode, setViewMode] = useState<ViewMode>("search");
   const [inputContent, setInputContent] = useState("");

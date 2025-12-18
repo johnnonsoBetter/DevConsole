@@ -64,6 +64,18 @@ export interface MemoryQueryOptions {
   endTime?: Date;
 }
 
+/** Episodic memory entry from completed sessions/calls */
+export interface EpisodicEntry {
+  sessionId: string;
+  summary: string;
+  agent?: string;
+  entryCount: number;
+  timelineCount: number;
+  duration: number;
+  createdAt: Date;
+  score?: number;
+}
+
 export type CallMemoryV2State = any;
 
 export interface UseCallMemoryV2Return {
@@ -83,6 +95,11 @@ export interface UseCallMemoryV2Return {
     systemPrompt?: string
   ) => Promise<string | null>;
   endSession: (flush?: boolean, systemPrompt?: string) => Promise<boolean>;
+  // Episodic Memory (Past Sessions/Calls)
+  searchEpisodicMemory: (
+    query: string,
+    options?: { nMostRecent?: number }
+  ) => Promise<EpisodicEntry[]>;
   error: string | null;
   clearError: () => void;
   addTranscriptionImpl: (transcript: {
@@ -348,6 +365,49 @@ export function useCallMemoryV2(
     [mergedConfig.smartMemoryLocation]
   );
 
+  /**
+   * Search episodic memory for relevant past sessions/calls
+   * Uses semantic/vector search across all historical sessions
+   */
+  const searchEpisodicMemory = useCallback(
+    async (
+      query: string,
+      options: { nMostRecent?: number } = {}
+    ): Promise<EpisodicEntry[]> => {
+      if (!_client) {
+        setError("Not connected.");
+        return [];
+      }
+
+      try {
+        const location = normalizeLocation(mergedConfig.smartMemoryLocation);
+
+        const response = await _client.query.episodicMemory.search({
+          smartMemoryLocation: location,
+          terms: query,
+          nMostRecent: options.nMostRecent || 10,
+        });
+
+        return (response.entries ?? []).map((e) => ({
+          sessionId: e.sessionId || "",
+          summary: e.summary || "",
+          agent: e.agent || undefined,
+          entryCount: e.entryCount || 0,
+          timelineCount: e.timelineCount || 0,
+          duration: typeof e.duration === 'number' ? e.duration : Number(e.duration) || 0,
+          createdAt: e.createdAt ? new Date(e.createdAt) : new Date(),
+          score: e.score ?? undefined,
+        }));
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Failed to search episodic memory";
+        setError(message);
+        return [];
+      }
+    },
+    [mergedConfig.smartMemoryLocation]
+  );
+
   const endSession = useCallback(
     async (flush = true, systemPrompt?: string): Promise<boolean> => {
       if (!sessionId) return false;
@@ -382,10 +442,11 @@ export function useCallMemoryV2(
     canUseMemory,
     sessionId,
     addTranscription,
-    searchMemories,
+    searchMemories,         // Semantic search in current working memory
     getMemories,
     summarizeMemories,
     endSession,
+    searchEpisodicMemory,   // Semantic search across past sessions/calls
     error,
     clearError,
     addTranscriptionImpl,

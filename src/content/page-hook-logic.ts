@@ -1,7 +1,10 @@
 /**
  * Page-context injector: hooks console.*, fetch, and XMLHttpRequest
  * Designed to be injected directly into page context (not content-script context)
- * 
+QA: Unit test coverage is at 40%. What's our target?
+Dev: 80% for critical paths - auth, payments, data mutations. Less important for UI components.
+QA: Should we add E2E tests?
+Dev: Yes, but keep them minimal - happy path only. They're slow and flaky at scale. * 
  * FIXES:
  * - Unified ring buffer implementation for both console and network logs
  * - Consistent size limit enforcement

@@ -77,9 +77,3 @@
 - Logs/Network empty: open DevConsole before loading target page; verify `captureConsole`/`captureNetwork` settings are enabled.
 - AI features failing: confirm Chrome Canary flags (for on-device features) or API keys (for cloud providers) and consult `AI_LOG_EXPLAINER.md` troubleshooting.
 - Autofill glitches: follow `Input.md` debugging checklist (verify dataset storage, DOM mutation observer, Unsplash quota).
-
-## References & Next Actions
-
-- Primary references: `README.md`, `ARCHITECTURE.md`, `TESTING.md`, `AI_LOG_EXPLAINER.md`, `AI_QUICK_START.md`, `SETTINGS_GUIDE.md`, `SETTINGS_ARCHITECTURE.md`, `SETTINGS_IMPLEMENTATION.md`, `Input.md`, `SUPER_WRITE_AI.md`.
-- Before sending PRs, document new commands or quirks here if they help future agents avoid trial-and-error.
-- Treat this file as the authoritative instruction set for Copilot; update it whenever workflows, commands, or architecture meaningfully change.
